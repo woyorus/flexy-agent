@@ -5,9 +5,10 @@
  * LLM-agnostic — switching from OpenAI to Claude or Gemini requires only a new
  * implementation of this interface, not changes to business logic.
  *
- * Two tiers of model:
+ * Three tiers of model:
  * - primary: complex tasks (recipe generation, orchestrator reasoning)
- * - mini: simple tasks (input parsing, estimation, scaling)
+ * - mini: medium tasks (conversational answers, estimation)
+ * - nano: trivial tasks (classification, intent detection, input parsing)
  *
  * Both support reasoning modes that control how much "thinking" the model does.
  */
@@ -22,7 +23,7 @@ export interface ChatMessage {
 
 export interface CompletionOptions {
   /** Which model tier to use */
-  model: 'primary' | 'mini';
+  model: 'primary' | 'mini' | 'nano';
   messages: ChatMessage[];
   /** Reasoning effort — defaults to 'none' */
   reasoning?: ReasoningMode;
@@ -30,6 +31,8 @@ export interface CompletionOptions {
   json?: boolean;
   /** Max tokens for the response */
   maxTokens?: number;
+  /** Cost tracking label — identifies what triggered this call (e.g., 'recipe-generation'). */
+  context?: string;
 }
 
 export interface CompletionResult {

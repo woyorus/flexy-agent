@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "dev:debug": "DEBUG=1 tsx watch src/index.ts"
   },
   "type": "module",
   "engines": {

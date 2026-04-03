@@ -1,47 +1,95 @@
 /**
  * Telegram bot setup and message routing.
  *
- * This is the UI layer of Flexie. It handles:
- * - Authentication (single-user via hardcoded chat ID)
- * - Message routing (text, voice, button taps)
- * - Main menu commands
- * - Voice message transcription via Whisper
+ * Routes messages to either:
+ * - The recipe generation flow (generate/refine/save)
+ * - The planning orchestrator (weekly planning — WIP)
+ * - Simple read-only views (recipe list, shopping list, budget)
  *
- * The bot does NOT contain business logic. It routes input to the orchestrator
- * and sends back the orchestrator's response. Button taps go directly to the
- * state machine (bypassing the LLM). Free-form text/voice goes through the
- * orchestrator LLM for interpretation.
+ * Button taps map directly to flow actions. Free-form text/voice goes through
+ * the LLM for interpretation. Voice messages are transcribed via Whisper first.
  *
- * Architecture: Telegram Bot API → this file → Orchestrator → State Machine / Solver / Agents
+ * All incoming and outgoing messages are logged to `logs/debug.log` for
+ * debugging. In DEBUG mode, outgoing messages include a one-line debug footer
+ * showing which AI models were used and how long the operation took.
  */
 
-import { Bot, Context, session } from 'grammy';
+import { Bot } from 'grammy';
 import { config } from '../config.js';
-import { mainMenuKeyboard } from './keyboards.js';
-import type { Orchestrator } from '../agents/orchestrator.js';
+import { log } from '../debug/logger.js';
+import {
+  mainMenuKeyboard,
+  mealTypeKeyboard,
+  recipeReviewKeyboard,
+  recipeBrowseKeyboard,
+} from './keyboards.js';
+import type { LLMProvider } from '../ai/provider.js';
+import { RecipeDatabase } from '../recipes/database.js';
+import { renderRecipe, renderRecipeSummary } from '../recipes/renderer.js';
+import {
+  type RecipeFlowState,
+  createRecipeFlowState,
+  handleMealTypeSelected,
+  handlePreferencesAndGenerate,
+  handleRefinement,
+  handleSave,
+  classifyReviewIntent,
+  handleRecipeQuestion,
+} from '../agents/recipe-flow.js';
+
+interface BotDeps {
+  llm: LLMProvider;
+  recipes: RecipeDatabase;
+}
+
+/**
+ * Keep the typing indicator alive during long operations.
+ * Telegram's typing action expires after ~5 seconds, so we re-send every 4 seconds.
+ * Returns a stop function to call when the operation completes.
+ */
+function startTypingIndicator(ctx: any): () => void {
+  ctx.replyWithChatAction('typing').catch(() => {});
+  const interval = setInterval(() => {
+    ctx.replyWithChatAction('typing').catch(() => {});
+  }, 4000);
+  return () => clearInterval(interval);
+}
+
+/**
+ * Send a reply through Telegram and log it.
+ * In debug mode, appends a debug footer with AI model/timing info.
+ */
+async function reply(ctx: any, text: string, options?: any): Promise<void> {
+  const debugFooter = log.getDebugFooter();
+  const fullText = text + debugFooter;
+  log.telegramOut(fullText);
+  await ctx.reply(fullText, options);
+}
 
 /**
  * Create and configure the Telegram bot.
- *
- * @param orchestrator - The agent orchestrator that handles all business logic
- * @returns Configured Bot instance ready to start polling
  */
-export function createBot(orchestrator: Orchestrator): Bot {
+export function createBot(deps: BotDeps): Bot {
+  const { llm, recipes } = deps;
   const bot = new Bot(config.telegram.botToken);
+
+  // ─── Session state (in-memory for v0.0.1) ──────────────────────────────
+  let recipeFlow: RecipeFlowState | null = null;
 
   // ─── Logging middleware ─────────────────────────────────────────────────
   bot.use(async (ctx, next) => {
     const chatId = ctx.chat?.id?.toString() ?? '?';
     const type = ctx.callbackQuery ? 'callback' : ctx.message?.voice ? 'voice' : ctx.message?.text ? 'text' : 'other';
-    console.log(`[incoming] chat=${chatId} type=${type} data=${ctx.callbackQuery?.data ?? ctx.message?.text?.slice(0, 50) ?? '(voice/other)'}`);
+    const data = ctx.callbackQuery?.data ?? ctx.message?.text?.slice(0, 80) ?? '(voice/other)';
+    log.telegramIn(type, `chat=${chatId} ${data}`);
     await next();
   });
 
-  // ─── Auth middleware: single-user gate ──────────────────────────────────
+  // ─── Auth middleware ───────────────────────────────────────────────────
   bot.use(async (ctx, next) => {
     const chatId = ctx.chat?.id?.toString();
     if (chatId !== config.telegram.chatId) {
-      console.log(`[auth] rejected chat=${chatId}`);
+      log.debug('AUTH', `Rejected message from chat ${chatId}`);
       return;
     }
     await next();
@@ -49,97 +97,250 @@ export function createBot(orchestrator: Orchestrator): Bot {
 
   // ─── /start command ────────────────────────────────────────────────────
   bot.command('start', async (ctx) => {
-    const response = await orchestrator.handleStart();
-    await ctx.reply(response.text, {
-      reply_markup: response.keyboard ?? mainMenuKeyboard,
-      ...(response.inlineKeyboard && { reply_markup: response.inlineKeyboard }),
+    recipeFlow = null;
+    await reply(ctx, 'Welcome to Flexie! Use the menu below to get started.', {
+      reply_markup: mainMenuKeyboard,
     });
   });
 
-  // ─── /cancel command — exits any flow ──────────────────────────────────
+  // ─── /cancel command ───────────────────────────────────────────────────
   bot.command('cancel', async (ctx) => {
-    const response = await orchestrator.handleCancel();
-    await ctx.reply(response.text, { reply_markup: mainMenuKeyboard });
+    recipeFlow = null;
+    await reply(ctx, 'Cancelled.', { reply_markup: mainMenuKeyboard });
   });
 
-  // ─── Callback queries (inline button taps) ────────────────────────────
-  // These bypass the LLM — they map directly to state machine transitions.
+  // ─── Callback queries (button taps) ────────────────────────────────────
   bot.on('callback_query:data', async (ctx) => {
     try {
       const action = ctx.callbackQuery.data;
-      console.log(`[bot] callback: ${action}`);
+      log.debug('FLOW', `callback: ${action}`);
       await ctx.answerCallbackQuery();
 
-      const response = await orchestrator.handleButtonTap(action);
-      await ctx.reply(response.text, {
-        reply_markup: response.inlineKeyboard ?? response.keyboard,
-      });
+      // Meal type selection
+      if (action.startsWith('meal_type_')) {
+        const mealType = action.replace('meal_type_', '') as 'breakfast' | 'lunch' | 'dinner';
+        if (!recipeFlow) recipeFlow = createRecipeFlowState();
+        const result = handleMealTypeSelected(recipeFlow, mealType);
+        recipeFlow = result.state;
+        await reply(ctx, result.text);
+        return;
+      }
+
+      // Recipe review actions
+      if (action === 'save_recipe') {
+        if (recipeFlow?.currentRecipe) {
+          const result = await handleSave(recipeFlow, recipes);
+          log.debug('FLOW', `recipe saved: ${recipeFlow.currentRecipe.name}`);
+          recipeFlow = null;
+          await reply(ctx, result.text, { reply_markup: mainMenuKeyboard });
+        }
+        return;
+      }
+
+      if (action === 'refine_recipe') {
+        if (recipeFlow) {
+          recipeFlow.phase = 'awaiting_refinement';
+          log.debug('FLOW', 'phase → awaiting_refinement');
+          await reply(ctx, 'What would you like to change? (e.g., "simpler ingredients", "less fat", "swap chicken for fish")');
+        }
+        return;
+      }
+
+      if (action === 'new_recipe') {
+        recipeFlow = createRecipeFlowState();
+        log.debug('FLOW', 'new recipe flow started');
+        await reply(ctx, 'What type of recipe?', { reply_markup: mealTypeKeyboard });
+        return;
+      }
+
+      if (action === 'discard_recipe') {
+        recipeFlow = null;
+        log.debug('FLOW', 'recipe discarded');
+        await reply(ctx, 'Discarded.', { reply_markup: mainMenuKeyboard });
+        return;
+      }
+
+      // Recipe browse actions
+      if (action === 'add_recipe') {
+        recipeFlow = createRecipeFlowState();
+        log.debug('FLOW', 'add recipe from browse');
+        await reply(ctx, 'What type of recipe?', { reply_markup: mealTypeKeyboard });
+        return;
+      }
+
+      if (action === 'view_recipe') {
+        await reply(ctx, 'Which recipe? Send the name.');
+        return;
+      }
+
     } catch (err) {
-      console.error('[bot] callback handler error:', err);
-      await ctx.answerCallbackQuery();
-      await ctx.reply('Something went wrong. Try again.');
+      log.error('BOT', 'Callback error', err);
+      await reply(ctx, 'Something went wrong. Try again.');
     }
   });
 
   // ─── Voice messages ────────────────────────────────────────────────────
-  // Transcribed via Whisper, then processed identically to text.
   bot.on('message:voice', async (ctx) => {
     try {
-      await ctx.replyWithChatAction('typing');
+      log.startOperation();
+      const stopTyping = startTypingIndicator(ctx);
       const file = await ctx.getFile();
       const url = `https://api.telegram.org/file/bot${config.telegram.botToken}/${file.file_path}`;
-
-      // Download voice file
       const audioResponse = await fetch(url);
       const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-
-      const response = await orchestrator.handleVoice(audioBuffer);
-      await ctx.reply(response.text, {
-        reply_markup: response.inlineKeyboard ?? response.keyboard,
-      });
+      const text = await llm.transcribe(audioBuffer);
+      stopTyping();
+      log.debug('FLOW', `voice transcribed: "${text}"`);
+      await handleTextInput(ctx, text);
     } catch (err) {
-      console.error('[bot] voice handler error:', err);
-      await ctx.reply('Something went wrong processing your voice message. Try again or type instead.');
+      log.error('BOT', 'Voice message error', err);
+      await reply(ctx, 'Something went wrong with the voice message. Try typing instead.');
     }
   });
 
   // ─── Text messages ─────────────────────────────────────────────────────
-  // Reply keyboard taps come as text. Route main menu taps directly;
-  // everything else goes through the orchestrator as free-form input.
   bot.on('message:text', async (ctx) => {
     try {
       const text = ctx.message.text;
 
-      // Main menu reply keyboard buttons
+      // Main menu buttons
       const menuAction = matchMainMenu(text);
       if (menuAction) {
-        console.log(`[bot] menu: ${menuAction}`);
-        const response = await orchestrator.handleMainMenu(menuAction);
-        await ctx.reply(response.text, {
-          reply_markup: response.inlineKeyboard ?? response.keyboard ?? mainMenuKeyboard,
-        });
+        log.debug('FLOW', `menu: ${menuAction}`);
+        await handleMenu(ctx, menuAction);
         return;
       }
 
-      // Free-form text input → orchestrator LLM
-      await ctx.replyWithChatAction('typing');
-      const response = await orchestrator.handleText(text);
-      await ctx.reply(response.text, {
-        reply_markup: response.inlineKeyboard ?? response.keyboard,
-      });
+      await handleTextInput(ctx, text);
     } catch (err) {
-      console.error('[bot] text handler error:', err);
-      await ctx.reply('Something went wrong. Try again.');
+      log.error('BOT', 'Text message error', err);
+      await reply(ctx, 'Something went wrong. Try again.');
     }
   });
+
+  // ─── Internal handlers ─────────────────────────────────────────────────
+
+  async function handleMenu(ctx: any, action: string) {
+    recipeFlow = null; // exit any active flow
+
+    switch (action) {
+      case 'my_recipes': {
+        const all = recipes.getAll();
+        if (all.length === 0) {
+          recipeFlow = createRecipeFlowState();
+          await reply(ctx, 'No recipes yet. Let\'s create your first one!\n\nWhat type?', {
+            reply_markup: mealTypeKeyboard,
+          });
+        } else {
+          let text = `Your recipes (${all.length}):\n\n`;
+          for (const r of all) {
+            text += `· ${renderRecipeSummary(r)}\n\n`;
+          }
+          await reply(ctx, text, { reply_markup: recipeBrowseKeyboard });
+        }
+        return;
+      }
+      case 'plan_week':
+        await reply(ctx, 'Weekly planning is being redesigned. Use My Recipes to build your recipe database first!', { reply_markup: mainMenuKeyboard });
+        return;
+      case 'shopping_list':
+        await reply(ctx, 'No active plan yet. Plan your week first!', { reply_markup: mainMenuKeyboard });
+        return;
+      case 'weekly_budget':
+        await reply(ctx, 'No active plan yet.', { reply_markup: mainMenuKeyboard });
+        return;
+    }
+  }
+
+  async function handleTextInput(ctx: any, text: string) {
+    // If in recipe flow, route there
+    if (recipeFlow) {
+
+      if (recipeFlow.phase === 'awaiting_preferences') {
+        log.startOperation();
+        await reply(ctx, 'Generating your recipe — this usually takes a minute or two...');
+        const stopTyping = startTypingIndicator(ctx);
+        try {
+          const result = await handlePreferencesAndGenerate(recipeFlow, text, llm);
+          recipeFlow = result.state;
+          stopTyping();
+          await reply(ctx, result.text, { reply_markup: recipeReviewKeyboard });
+        } catch (err) {
+          stopTyping();
+          throw err;
+        }
+        return;
+      }
+
+      if (recipeFlow.phase === 'awaiting_refinement') {
+        log.startOperation();
+        await reply(ctx, 'Refining your recipe...');
+        const stopTyping = startTypingIndicator(ctx);
+        try {
+          const result = await handleRefinement(recipeFlow, text, llm);
+          recipeFlow = result.state;
+          stopTyping();
+          await reply(ctx, result.text, { reply_markup: recipeReviewKeyboard });
+        } catch (err) {
+          stopTyping();
+          throw err;
+        }
+        return;
+      }
+
+      if (recipeFlow.phase === 'reviewing') {
+        log.startOperation();
+        // Classify intent: is this a question or a refinement request?
+        const stopTyping = startTypingIndicator(ctx);
+        const intent = await classifyReviewIntent(text, llm);
+        log.debug('FLOW', `review intent: ${intent}`);
+
+        if (intent === 'question') {
+          try {
+            const result = await handleRecipeQuestion(recipeFlow, text, llm);
+            recipeFlow = result.state;
+            stopTyping();
+            await reply(ctx, result.text);
+          } catch (err) {
+            stopTyping();
+            throw err;
+          }
+          return;
+        }
+
+        // It's a refinement — generate updated recipe
+        stopTyping();
+        await reply(ctx, 'Refining your recipe...');
+        const stopTyping2 = startTypingIndicator(ctx);
+        try {
+          const result = await handleRefinement(recipeFlow, text, llm);
+          recipeFlow = result.state;
+          stopTyping2();
+          await reply(ctx, result.text, { reply_markup: recipeReviewKeyboard });
+        } catch (err) {
+          stopTyping2();
+          throw err;
+        }
+        return;
+      }
+    }
+
+    // Not in a flow — check if they want to view a specific recipe
+    const recipe = recipes.getAll().find(
+      (r) => r.name.toLowerCase().includes(text.toLowerCase()) || r.slug.includes(text.toLowerCase())
+    );
+    if (recipe) {
+      log.debug('FLOW', `recipe lookup: "${text}" → ${recipe.slug}`);
+      await reply(ctx, renderRecipe(recipe));
+      return;
+    }
+
+    await reply(ctx, 'Use the menu buttons below to get started.', { reply_markup: mainMenuKeyboard });
+  }
 
   return bot;
 }
 
-/**
- * Match a text message against the main menu keyboard buttons.
- * Returns the action name, or null if no match.
- */
 function matchMainMenu(text: string): string | null {
   const menuMap: Record<string, string> = {
     '📋 Plan Week': 'plan_week',

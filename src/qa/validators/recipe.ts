@@ -19,7 +19,8 @@ export interface RecipeValidationResult {
   warnings: string[];
 }
 
-const MACRO_TOLERANCE = 0.05; // ±5%
+const CAL_TOLERANCE = 0.03;  // ±3% — tight, calories are the core product constraint
+const PROT_TOLERANCE = 0.05; // ±5%
 
 /** Rough calories per gram for consistency check */
 const CAL_PER_GRAM = { protein: 4, carbs: 4, fat: 9 } as const;
@@ -39,7 +40,7 @@ export function validateRecipe(recipe: Recipe, target?: Macros): RecipeValidatio
   if (!recipe.name) errors.push('Missing recipe name.');
   if (!recipe.slug) errors.push('Missing recipe slug.');
   if (!recipe.ingredients?.length) errors.push('No ingredients.');
-  if (!recipe.steps) errors.push('No steps.');
+  if (!recipe.body) errors.push('No recipe body text.');
   if (!recipe.perServing) errors.push('Missing per-serving macros.');
 
   if (recipe.perServing) {
@@ -68,15 +69,15 @@ export function validateRecipe(recipe: Recipe, target?: Macros): RecipeValidatio
   // Target macro comparison
   if (target && recipe.perServing) {
     const calDev = Math.abs(recipe.perServing.calories - target.calories) / target.calories;
-    if (calDev > MACRO_TOLERANCE) {
+    if (calDev > CAL_TOLERANCE) {
       errors.push(
-        `Calories ${recipe.perServing.calories} deviates ${(calDev * 100).toFixed(1)}% from target ${target.calories} (max ±${MACRO_TOLERANCE * 100}%).`
+        `Calories ${recipe.perServing.calories} deviates ${(calDev * 100).toFixed(1)}% from target ${target.calories} (max ±${CAL_TOLERANCE * 100}%).`
       );
     }
     const protDev = Math.abs(recipe.perServing.protein - target.protein) / target.protein;
-    if (protDev > MACRO_TOLERANCE) {
+    if (protDev > PROT_TOLERANCE) {
       errors.push(
-        `Protein ${recipe.perServing.protein}g deviates ${(protDev * 100).toFixed(1)}% from target ${target.protein}g (max ±${MACRO_TOLERANCE * 100}%).`
+        `Protein ${recipe.perServing.protein}g deviates ${(protDev * 100).toFixed(1)}% from target ${target.protein}g (max ±${PROT_TOLERANCE * 100}%).`
       );
     }
   }
@@ -95,6 +96,21 @@ export function validateRecipe(recipe: Recipe, target?: Macros): RecipeValidatio
     }
     if (ing.role === 'protein' && ing.unit === 'g' && ing.amount < 20) {
       warnings.push(`Protein ingredient "${ing.name}" at ${ing.amount}g seems low.`);
+    }
+  }
+
+  // Prep time sanity check — LLMs consistently underestimate cook times
+  if (recipe.prepTimeMinutes) {
+    const ingredientCount = recipe.ingredients?.length ?? 0;
+    const isBreakfast = recipe.mealTypes?.includes('breakfast');
+    if (isBreakfast && recipe.prepTimeMinutes < 10) {
+      warnings.push(`Prep time ${recipe.prepTimeMinutes} min seems too low for breakfast (min ~10 min).`);
+    }
+    if (!isBreakfast && recipe.prepTimeMinutes < 25) {
+      errors.push(`Prep time ${recipe.prepTimeMinutes} min is unrealistically low for a lunch/dinner recipe.`);
+    }
+    if (!isBreakfast && ingredientCount >= 10 && recipe.prepTimeMinutes < 40) {
+      errors.push(`Prep time ${recipe.prepTimeMinutes} min is too low for a recipe with ${ingredientCount} ingredients (min ~40 min).`);
     }
   }
 

@@ -49,6 +49,10 @@ flexy-agent/
 │   │   ├── parser.ts                     Markdown ↔ Recipe serialization
 │   │   └── database.ts                   In-memory recipe DB backed by markdown files
 │   │
+│   ├── debug/
+│   │   ├── logger.ts                     Centralized logging (console + logs/debug.log)
+│   │   └── costs.ts                      AI cost tracker (logs/costs.jsonl, session totals)
+│   │
 │   ├── shopping/
 │   │   └── generator.ts                  Derive shopping lists from weekly plans
 │   │
@@ -58,6 +62,8 @@ flexy-agent/
 │       └── formatters.ts                 Data → user-friendly Telegram messages
 │
 ├── recipes/                              Recipe markdown files (YAML frontmatter + steps)
+│
+├── logs/                                 Debug logs (gitignored, overwritten each session)
 │
 ├── docs/                                 Product and architecture documentation
 │

@@ -11,6 +11,10 @@
  * - OPENAI_API_KEY: OpenAI API key for LLM + Whisper
  * - SUPABASE_URL: Supabase project URL
  * - SUPABASE_ANON_KEY: Supabase anonymous key
+ *
+ * Optional:
+ * - DEBUG: Set to "1" or "true" to enable verbose logging and Telegram debug footers.
+ *          Launch with: DEBUG=1 npm run dev
  */
 
 function requireEnv(name: string): string {
@@ -22,6 +26,9 @@ function requireEnv(name: string): string {
 }
 
 export const config = {
+  /** Enable verbose debug logging and Telegram debug footers. */
+  debug: process.env.DEBUG === '1' || process.env.DEBUG === 'true',
+
   telegram: {
     botToken: requireEnv('TELEGRAM_BOT_TOKEN'),
     /** Only messages from this chat ID are processed. All others are ignored. */
@@ -32,8 +39,10 @@ export const config = {
     apiKey: requireEnv('OPENAI_API_KEY'),
     /** Complex tasks: recipe generation, orchestrator reasoning */
     primaryModel: 'gpt-5.4' as const,
-    /** Simple tasks: input parsing, estimation, scaling */
+    /** Medium tasks: conversational answers, estimation */
     miniModel: 'gpt-5.4-mini' as const,
+    /** Trivial tasks: classification, intent detection, input parsing */
+    nanoModel: 'gpt-5.4-nano' as const,
     /** Voice message transcription */
     whisperModel: 'whisper-1' as const,
   },

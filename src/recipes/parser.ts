@@ -1,32 +1,20 @@
 /**
  * Recipe markdown parser.
  *
- * Parses recipe files from the `recipes/` directory. Each file has YAML frontmatter
- * (name, macros, ingredients, storage) and a markdown body (steps, notes).
+ * Parses recipe files from the `recipes/` directory. Each file has:
+ * - YAML frontmatter: structured data (macros, ingredients with roles/amounts/components, structure, storage)
+ * - Markdown body: free-form recipe text (description, steps, notes — no amounts)
  *
- * This module is the boundary between the filesystem representation (markdown files)
- * and the in-memory representation (Recipe interface). All other code works with
- * the Recipe interface — only this module knows about the file format.
- *
- * Format reference: docs/SPEC.md Section 5.1 and docs/RECIPE-EXAMPLE.md.
+ * Amounts live only in YAML. Steps reference ingredients by name, not amount.
+ * This supports dynamic scaling — when the solver adjusts a recipe, YAML amounts
+ * change but the body text stays the same.
  */
 
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import type { Recipe, RecipeIngredient, IngredientRole } from '../models/types.js';
+import type { Recipe, RecipeIngredient, RecipeComponent, IngredientRole } from '../models/types.js';
 
 /**
  * Parse a recipe markdown string into a Recipe object.
- *
- * Expects the format:
- * ```
- * ---
- * (YAML frontmatter)
- * ---
- * ## Steps
- * (markdown)
- * ## Notes
- * (markdown, optional)
- * ```
  *
  * @param content - Raw markdown file content
  * @returns Parsed Recipe object
@@ -36,9 +24,6 @@ export function parseRecipe(content: string): Recipe {
   const { frontmatter, body } = splitFrontmatter(content);
   const meta = parseYaml(frontmatter);
 
-  const steps = extractSection(body, 'Steps');
-  const notes = extractSection(body, 'Notes');
-
   return {
     name: meta.name,
     slug: meta.slug,
@@ -46,6 +31,10 @@ export function parseRecipe(content: string): Recipe {
     cuisine: meta.cuisine,
     tags: meta.tags ?? [],
     prepTimeMinutes: meta.prep_time_minutes,
+    structure: (meta.structure ?? []).map((s: Record<string, string>) => ({
+      type: s.type ?? s.component ?? 'main',
+      name: s.name,
+    })),
     perServing: {
       calories: meta.per_serving.calories,
       protein: meta.per_serving.protein,
@@ -58,16 +47,12 @@ export function parseRecipe(content: string): Recipe {
       freezable: meta.storage.freezable,
       reheat: meta.storage.reheat,
     },
-    steps: steps?.trim() ?? '',
-    notes: notes?.trim() || undefined,
+    body: body.trim(),
   };
 }
 
 /**
  * Serialize a Recipe object back to markdown format for writing to disk.
- *
- * @param recipe - The Recipe to serialize
- * @returns Markdown string with YAML frontmatter
  */
 export function serializeRecipe(recipe: Recipe): string {
   const frontmatter = {
@@ -77,6 +62,10 @@ export function serializeRecipe(recipe: Recipe): string {
     cuisine: recipe.cuisine,
     tags: recipe.tags,
     prep_time_minutes: recipe.prepTimeMinutes,
+    structure: recipe.structure.map((s) => ({
+      type: s.type,
+      name: s.name,
+    })),
     per_serving: {
       calories: recipe.perServing.calories,
       protein: recipe.perServing.protein,
@@ -88,6 +77,7 @@ export function serializeRecipe(recipe: Recipe): string {
       amount: ing.amount,
       unit: ing.unit,
       role: ing.role,
+      component: ing.component,
     })),
     storage: {
       fridge_days: recipe.storage.fridgeDays,
@@ -97,12 +87,7 @@ export function serializeRecipe(recipe: Recipe): string {
   };
 
   const yamlStr = stringifyYaml(frontmatter);
-
-  let md = `---\n${yamlStr}---\n\n## Steps\n\n${recipe.steps}\n`;
-  if (recipe.notes) {
-    md += `\n## Notes\n\n${recipe.notes}\n`;
-  }
-  return md;
+  return `---\n${yamlStr}---\n\n${recipe.body}\n`;
 }
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
@@ -112,6 +97,7 @@ interface RawIngredient {
   amount: number;
   unit: string;
   role: string;
+  component?: string;
 }
 
 function mapIngredient(raw: RawIngredient): RecipeIngredient {
@@ -119,13 +105,15 @@ function mapIngredient(raw: RawIngredient): RecipeIngredient {
   const role = validRoles.includes(raw.role as IngredientRole)
     ? (raw.role as IngredientRole)
     : 'base';
-  return { name: raw.name, amount: raw.amount, unit: raw.unit, role };
+  return {
+    name: raw.name,
+    amount: raw.amount,
+    unit: raw.unit,
+    role,
+    component: raw.component ?? 'main',
+  };
 }
 
-/**
- * Split a markdown file into YAML frontmatter and body.
- * Frontmatter is delimited by `---` on its own line at the start of the file.
- */
 function splitFrontmatter(content: string): { frontmatter: string; body: string } {
   const trimmed = content.trim();
   if (!trimmed.startsWith('---')) {
@@ -140,18 +128,3 @@ function splitFrontmatter(content: string): { frontmatter: string; body: string 
     body: trimmed.slice(endIndex + 3).trim(),
   };
 }
-
-/**
- * Extract a markdown section by heading name.
- * Returns the content between `## Name` and the next `##` heading (or end of string).
- */
-function extractSection(body: string, heading: string): string | null {
-  const regex = new RegExp(`^## ${heading}\\s*$`, 'm');
-  const match = regex.exec(body);
-  if (!match) return null;
-
-  const start = match.index + match[0].length;
-  const nextHeading = body.indexOf('\n## ', start);
-  return nextHeading === -1 ? body.slice(start) : body.slice(start, nextHeading);
-}
-

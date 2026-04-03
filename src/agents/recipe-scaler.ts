@@ -94,6 +94,7 @@ Adjust ingredients to hit the new targets following the scaling rules.`;
     ],
     json: true,
     reasoning: 'low',
+    context: 'recipe-scaling',
   });
 
   const parsed = JSON.parse(result.content);

@@ -93,8 +93,16 @@ export const recipeBrowseKeyboard = new InlineKeyboard()
   .text('View recipe', 'view_recipe')
   .text('Add new recipe', 'add_recipe');
 
-/** Recipe save/edit/discard */
-export const recipeSaveKeyboard = new InlineKeyboard()
+/** Recipe review after generation — save, refine, or start over */
+export const recipeReviewKeyboard = new InlineKeyboard()
   .text('Save', 'save_recipe')
-  .text('Edit something', 'edit_recipe')
+  .text('Refine', 'refine_recipe')
+  .row()
+  .text('New recipe', 'new_recipe')
   .text('Discard', 'discard_recipe');
+
+/** Meal type selection for new recipe */
+export const mealTypeKeyboard = new InlineKeyboard()
+  .text('Breakfast', 'meal_type_breakfast')
+  .text('Lunch', 'meal_type_lunch')
+  .text('Dinner', 'meal_type_dinner');

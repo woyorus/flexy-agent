@@ -54,3 +54,25 @@ Key principle: the budget solver and QA validation are deterministic code. The L
 - Keep files focused. One responsibility per file.
 - Prefer explicit over clever. An agent reading this code for the first time should understand it without needing surrounding context.
 - When in doubt about a product decision, read `docs/PROJECT.md` — adherence and low friction always win.
+
+## Debug workflow — how we iterate on this product
+
+The primary development loop is: the user runs the bot, tests it manually via Telegram, then comes back here to discuss issues and request changes. The debug logging system (`src/debug/logger.ts`) is designed specifically for this workflow.
+
+### When the user reports an issue from a test session
+
+1. **Read `logs/debug.log` first.** This file contains the full session log — every Telegram message (incoming and outgoing), every AI call (model, reasoning mode, full prompts, full responses, token usage, duration), every flow state transition, and every QA validation result. Read this before asking questions.
+2. **Correlate the user's complaint with the log.** The log is chronological with `[TG:IN]` / `[TG:OUT]` / `[AI:REQ]` / `[AI:RES]` / `[FLOW]` / `[QA]` tags. Find the relevant interaction, read what the AI was asked, what it returned, and what the bot sent.
+3. **Diagnose from the log, then fix.** The log usually has enough context to understand the root cause without asking the user for more details. If the issue is a bad recipe, the log has the full prompt and response. If the issue is a flow bug, the log has the state transitions. Fix the issue based on what the log tells you.
+
+### What the user will typically say
+
+- "The recipe it generated was too heavy on carbs" → read the log, find the AI response, check the prompt constraints, fix the prompt or validation.
+- "It asked me for preferences twice" → read the log, trace the flow state transitions, find the bug.
+- "The macros didn't add up" → read the log, check the QA validation result, see if correction ran and what happened.
+
+### Debug mode
+
+The bot can run in debug mode (`DEBUG=1 npm run dev` or `npm run dev:debug`) which adds:
+- Verbose console output (all tags, not just info+)
+- A one-line debug footer on Telegram messages showing which AI models were used and timing (e.g., `─── debug: primary/high 3.4s 2300tok → correction 1/2 | total 4.8s`)

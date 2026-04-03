@@ -75,6 +75,7 @@ Respond with ONLY valid JSON:
     ],
     json: true,
     reasoning: 'low',
+    context: 'restaurant-estimation',
   });
 
   const parsed = JSON.parse(result.content);

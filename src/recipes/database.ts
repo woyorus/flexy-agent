@@ -14,6 +14,7 @@ import { readdir, readFile, writeFile, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Recipe } from '../models/types.js';
 import { parseRecipe, serializeRecipe } from './parser.js';
+import { log } from '../debug/logger.js';
 
 /**
  * In-memory recipe database backed by markdown files on disk.
@@ -51,7 +52,7 @@ export class RecipeDatabase {
         const recipe = parseRecipe(content);
         this.recipes.set(recipe.slug, recipe);
       } catch (err) {
-        console.warn(`Skipping malformed recipe file ${file}:`, err);
+        log.warn('DB', `Skipping malformed recipe file ${file}: ${err instanceof Error ? err.message : err}`);
       }
     }
   }

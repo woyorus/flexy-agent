@@ -86,7 +86,7 @@ export function formatShoppingList(list: ShoppingList): string {
  */
 export function formatRecipe(recipe: Recipe): string {
   let msg = `${recipe.name}\n`;
-  msg += `${recipe.perServing.calories} cal | ${recipe.perServing.protein}g protein | ${recipe.perServing.fat}g fat | ${recipe.perServing.carbs}g carbs\n`;
+  msg += `${recipe.perServing.calories} cal | ${recipe.perServing.protein}g P | ${recipe.perServing.fat}g F | ${recipe.perServing.carbs}g C\n`;
   msg += `Cuisine: ${recipe.cuisine} | Prep: ${recipe.prepTimeMinutes} min\n`;
   msg += `Tags: ${recipe.tags.join(', ')}\n\n`;
 
@@ -95,15 +95,7 @@ export function formatRecipe(recipe: Recipe): string {
     msg += `- ${ing.name}: ${ing.amount}${ing.unit}\n`;
   }
 
-  msg += `\n${recipe.steps}\n`;
-
-  if (recipe.notes) {
-    msg += `\nNotes:\n${recipe.notes}\n`;
-  }
-
-  msg += `\nStorage: ${recipe.storage.fridgeDays} days fridge`;
-  if (recipe.storage.freezable) msg += `, freezable`;
-  msg += `\nReheat: ${recipe.storage.reheat}`;
+  msg += `\n${recipe.body}\n`;
 
   return msg;
 }

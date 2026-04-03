@@ -17,8 +17,18 @@
 
 /**
  * A recipe parsed from a markdown file with YAML frontmatter.
- * Recipes are the building blocks of meal prep batches.
- * They are human-readable (markdown) and machine-readable (YAML frontmatter).
+ *
+ * Split into two parts:
+ * - YAML frontmatter: structured data (macros, ingredients with roles/amounts, structure).
+ *   This is what the solver and scaler operate on. Ingredients have a `component` field
+ *   linking them to the meal structure (main, carb_side, side, etc.).
+ * - Markdown body: free-form human-readable text (steps, notes, tips).
+ *   Steps reference ingredients by name only, never by amount — amounts come from YAML
+ *   and are rendered dynamically at display time (supports scaling).
+ *
+ * Recipes store per-serving amounts. Servings are determined at planning time, not stored
+ * on the recipe. The system scales ingredient amounts when generating shopping lists or
+ * displaying for a specific plan.
  */
 export interface Recipe {
   name: string;
@@ -27,13 +37,25 @@ export interface Recipe {
   cuisine: string;
   tags: string[];
   prepTimeMinutes: number;
+  /** Meal composition — e.g., main + carb side, or breakfast components */
+  structure: RecipeComponent[];
   perServing: MacrosWithFatCarbs;
   ingredients: RecipeIngredient[];
   storage: RecipeStorage;
-  /** Markdown steps (raw string) */
-  steps: string;
-  /** Markdown notes (raw string, optional) */
-  notes?: string;
+  /** Free-form recipe text: description, steps, notes, tips. No amounts — those come from ingredients. */
+  body: string;
+}
+
+/**
+ * A named component of a meal.
+ * Lunch/dinner: typically "main" + optional "carb_side" + optional "side".
+ * Breakfast: 2-3 named components (e.g., "Avocado Toast", "Egg Omelette", "Oatmeal").
+ */
+export interface RecipeComponent {
+  /** Component type for scaling logic */
+  type: 'main' | 'carb_side' | 'side' | 'breakfast_component';
+  /** Display name — e.g., "Chicken Pepperonata", "Basmati Rice", "Side Salad" */
+  name: string;
 }
 
 export interface MacrosWithFatCarbs {
@@ -63,6 +85,8 @@ export interface RecipeIngredient {
   amount: number;
   unit: string;
   role: IngredientRole;
+  /** Which meal component this ingredient belongs to (matches RecipeComponent.name) */
+  component: string;
 }
 
 export type IngredientRole = 'protein' | 'carb' | 'fat' | 'vegetable' | 'base' | 'seasoning';
