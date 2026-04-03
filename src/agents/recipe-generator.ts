@@ -214,6 +214,12 @@ ${isBreakfast ? `### Breakfast: component-based
 - Every ingredient belongs to a component (main, carb_side, side, or a breakfast component name).
 - Prefer: olive oil, nuts, avocado, fish for fats. Minimize butter, cream, fatty processed meats.
 - Keep ultra-processed foods low. Minimize added sugar.
+- Be PRECISE about ingredient variants that affect macros. The user will shop for exactly what you specify, and will calculate macros from it. If the fat/calorie content varies significantly by type, you MUST specify which type:
+  - Dairy: "cooking cream (20% fat)", "Greek yogurt (2%)", "whole milk", "semi-skimmed milk"
+  - Meat: "ground beef (10% fat)", "chicken thigh (skin-on)" vs "chicken breast"
+  - Coconut: "coconut milk (full fat)" vs "light coconut milk"
+  - Cheese: "mozzarella" vs "light mozzarella", "cream cheese (full fat)"
+  - General rule: if two common variants of the same ingredient differ by more than 30% in calories, specify which one. Your macro calculations must match the specific variant you name.
 
 ## RECIPE TEXT RULES
 - Write the recipe body as natural, human-readable text.

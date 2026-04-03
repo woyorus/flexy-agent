@@ -21,11 +21,12 @@ import {
   mainMenuKeyboard,
   mealTypeKeyboard,
   recipeReviewKeyboard,
-  recipeBrowseKeyboard,
+  recipeListKeyboard,
+  recipeViewKeyboard,
 } from './keyboards.js';
 import type { LLMProvider } from '../ai/provider.js';
 import { RecipeDatabase } from '../recipes/database.js';
-import { renderRecipe, renderRecipeSummary } from '../recipes/renderer.js';
+import { renderRecipe } from '../recipes/renderer.js';
 import {
   type RecipeFlowState,
   createRecipeFlowState,
@@ -75,6 +76,7 @@ export function createBot(deps: BotDeps): Bot {
 
   // ─── Session state (in-memory for v0.0.1) ──────────────────────────────
   let recipeFlow: RecipeFlowState | null = null;
+  let recipeListPage = 0;
 
   // ─── Logging middleware ─────────────────────────────────────────────────
   bot.use(async (ctx, next) => {
@@ -168,8 +170,34 @@ export function createBot(deps: BotDeps): Bot {
         return;
       }
 
-      if (action === 'view_recipe') {
-        await reply(ctx, 'Which recipe? Send the name.');
+      // Recipe list: view a specific recipe by slug
+      if (action.startsWith('rv_')) {
+        const slug = action.slice(3);
+        const recipe = recipes.getBySlug(slug);
+        if (recipe) {
+          log.debug('FLOW', `recipe view: ${slug}`);
+          await reply(ctx, renderRecipe(recipe), { reply_markup: recipeViewKeyboard });
+        } else {
+          await reply(ctx, 'Recipe not found.', { reply_markup: mainMenuKeyboard });
+        }
+        return;
+      }
+
+      // Recipe list: page navigation
+      if (action.startsWith('rp_')) {
+        const param = action.slice(3);
+        if (param === 'noop') return; // page indicator button, do nothing
+        const page = parseInt(param, 10);
+        if (!isNaN(page)) {
+          recipeListPage = page;
+          await showRecipeList(ctx);
+        }
+        return;
+      }
+
+      // Back to recipe list from recipe view
+      if (action === 'recipe_back') {
+        await showRecipeList(ctx);
         return;
       }
 
@@ -232,11 +260,8 @@ export function createBot(deps: BotDeps): Bot {
             reply_markup: mealTypeKeyboard,
           });
         } else {
-          let text = `Your recipes (${all.length}):\n\n`;
-          for (const r of all) {
-            text += `· ${renderRecipeSummary(r)}\n\n`;
-          }
-          await reply(ctx, text, { reply_markup: recipeBrowseKeyboard });
+          recipeListPage = 0;
+          await showRecipeList(ctx);
         }
         return;
       }
@@ -250,6 +275,19 @@ export function createBot(deps: BotDeps): Bot {
         await reply(ctx, 'No active plan yet.', { reply_markup: mainMenuKeyboard });
         return;
     }
+  }
+
+  /**
+   * Show the paginated recipe list for the current page.
+   * Displays recipe names as a text list with tappable inline buttons below.
+   */
+  async function showRecipeList(ctx: any) {
+    const all = recipes.getAll();
+    const pageSize = 5;
+
+    await reply(ctx, `Your recipes (${all.length}):`, {
+      reply_markup: recipeListKeyboard(all, recipeListPage, pageSize),
+    });
   }
 
   async function handleTextInput(ctx: any, text: string) {

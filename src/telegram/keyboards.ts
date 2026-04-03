@@ -88,9 +88,62 @@ export const shoppingListKeyboard = new InlineKeyboard()
   .text('Add items', 'add_shopping_items')
   .text('Share list', 'share_shopping_list');
 
-/** Recipe browse */
+/** Recipe browse — old static keyboard, replaced by recipeListKeyboard() */
 export const recipeBrowseKeyboard = new InlineKeyboard()
   .text('View recipe', 'view_recipe')
+  .text('Add new recipe', 'add_recipe');
+
+/**
+ * Build a paginated recipe list keyboard.
+ *
+ * Each recipe becomes a tappable inline button (callback data: `rv_{slug}`).
+ * Shows up to `pageSize` recipes per page with prev/next navigation.
+ *
+ * @param recipes - All recipes (will be sliced to the current page)
+ * @param page - Zero-based page index
+ * @param pageSize - Recipes per page (default 5)
+ * @returns InlineKeyboard with recipe buttons, nav row, and "Add new recipe"
+ */
+export function recipeListKeyboard(
+  recipes: { name: string; slug: string }[],
+  page: number,
+  pageSize: number = 5,
+): InlineKeyboard {
+  const totalPages = Math.max(1, Math.ceil(recipes.length / pageSize));
+  const start = page * pageSize;
+  const pageRecipes = recipes.slice(start, start + pageSize);
+
+  const kb = new InlineKeyboard();
+
+  // One button per recipe, one per row
+  for (const r of pageRecipes) {
+    kb.text(r.name, `rv_${r.slug}`).row();
+  }
+
+  // Navigation row (only if more than one page)
+  if (totalPages > 1) {
+    if (page > 0) {
+      kb.text('← Prev', `rp_${page - 1}`);
+    }
+    kb.text(`${page + 1}/${totalPages}`, 'rp_noop');
+    if (page < totalPages - 1) {
+      kb.text('Next →', `rp_${page + 1}`);
+    }
+    kb.row();
+  }
+
+  // Add new recipe button
+  kb.text('Add new recipe', 'add_recipe');
+
+  return kb;
+}
+
+/**
+ * Keyboard shown after viewing a single recipe from the list.
+ * Lets the user go back to the recipe list or add a new recipe.
+ */
+export const recipeViewKeyboard = new InlineKeyboard()
+  .text('← Back to recipes', 'recipe_back')
   .text('Add new recipe', 'add_recipe');
 
 /** Recipe review after generation — save, refine, or start over */
