@@ -9,7 +9,7 @@
  * state machine. Button taps bypass the LLM entirely — they map directly to
  * state machine transitions.
  *
- * Flow structure (from spec Section 7.1):
+ * Flow structure (see docs/product-specs/flows.md):
  *   idle → planning:breakfast → planning:events → planning:fun_foods
  *        → planning:recipes → planning:cooking_schedule → planning:review
  *        → plan_locked

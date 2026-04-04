@@ -1,0 +1,16 @@
+# Product Specs Index
+
+> Scope: Entry point for all product specifications. Load this to find which spec file covers your area. See also: [ARCHITECTURE.md](../ARCHITECTURE.md) for code structure, [PRODUCT_SENSE.md](../PRODUCT_SENSE.md) for the "why."
+
+Flexie is an AI agent that helps users lose weight by managing a weekly calorie budget with built-in flexibility for fun foods, restaurants, and real life. It is planning-first, not tracking-first. The core product is the **agent harness** — state management, budget solver, recipe database, and conversational flows. Telegram is the UI.
+
+## Spec files
+
+| File | Covers | Load when |
+|---|---|---|
+| [core-concepts.md](./core-concepts.md) | Weekly budget, flex slots, planning-first, overconsumption priority, no-waste rule | Understanding the product model or budget logic |
+| [flows.md](./flows.md) | Plan week flow, recipe generation flow, shopping list flow — all phases and handlers | Changing user-facing conversation flows |
+| [solver.md](./solver.md) | Budget solver algorithm, constraints, inputs/outputs | Fixing budget math or allocation |
+| [data-models.md](./data-models.md) | TypeScript interfaces, recipe format, Supabase schema | Changing data shapes or persistence |
+| [ui.md](./ui.md) | Telegram UI, keyboards, message formatting, voice input | Modifying buttons, menus, or display |
+| [recipes.md](./recipes.md) | Recipe format, generation constraints, scaling, meal types, structure | Working on recipe generation, parsing, or storage |

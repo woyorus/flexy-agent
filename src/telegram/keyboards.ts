@@ -28,7 +28,7 @@ export function truncateSlug(slug: string): string {
 
 /**
  * The persistent reply keyboard shown at the bottom of the chat.
- * Four core actions as defined in spec Section 8.
+ * Four core actions (see docs/product-specs/ui.md).
  */
 export const mainMenuKeyboard = new Keyboard()
   .text('📋 Plan Week').text('🛒 Shopping List')

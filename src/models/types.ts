@@ -4,7 +4,7 @@
  * These interfaces define the shape of all data flowing through the system:
  * weekly plans, recipes, meal slots, fun foods, events, batches, and shopping lists.
  *
- * Source of truth: docs/SPEC.md Sections 5.1–5.3.
+ * Source of truth: docs/product-specs/data-models.md
  *
  * Key relationships:
  * - A WeeklyPlan contains MealSlots, CookDays (with Batches), MealEvents, and FunFoodItems.

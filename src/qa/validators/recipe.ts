@@ -1,7 +1,7 @@
 /**
  * Recipe validator.
  *
- * Validates a recipe against the constraints in spec Section 6.2:
+ * Validates a recipe against the constraints in docs/product-specs/recipes.md:
  * - Calories per serving within ±5% of target
  * - Protein per serving within ±5% of target
  * - Fat and carbs present and reasonable

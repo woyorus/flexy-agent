@@ -1,8 +1,6 @@
-# Project Vision Document
+# Flexie — Product Sense
 
-## Working title
-
-Flexie
+> Scope: Vision, principles, and core beliefs. The "why" behind every product decision. This is the tiebreaker doc. See also: [product-specs/](./product-specs/) for what to build, [ARCHITECTURE.md](./ARCHITECTURE.md) for how it's built.
 
 ## What this project is
 

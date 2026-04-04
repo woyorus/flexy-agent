@@ -1,11 +1,10 @@
 # Flexie — Project Structure & Architecture
 
+> Scope: Codebase structure, module layout, dependency flow, data flow diagrams. See also: [PRODUCT_SENSE.md](./PRODUCT_SENSE.md) for the "why", [product-specs/](./product-specs/) for what to build.
+
 ## Overview
 
 Flexie is a Telegram bot that manages a weekly calorie budget with built-in flexibility for fun foods, restaurants, and real life. The codebase is organized by responsibility — each directory owns one concern, and files within it are focused on a single job.
-
-For the product vision behind these decisions, see [PROJECT.md](./PROJECT.md).
-For the full technical spec, see [SPEC.md](./SPEC.md).
 
 ---
 
@@ -15,13 +14,13 @@ For the full technical spec, see [SPEC.md](./SPEC.md).
 flexy-agent/
 ├── src/
 │   ├── index.ts                          Entry point — wires dependencies, starts bot
-│   ├── config.ts                         Env config + hardcoded v0.0.1 user targets
+│   ├── config.ts                         Env config + hardcoded v0.0.1 user targets + food profile
 │   │
 │   ├── models/
-│   │   └── types.ts                      Core data models (WeeklyPlan, Recipe, MealSlot, etc.)
+│   │   └── types.ts                      Core data models (WeeklyPlan, Recipe, MealSlot, FlexSlot, etc.)
 │   │
 │   ├── solver/
-│   │   ├── types.ts                      Solver-specific I/O interfaces
+│   │   ├── types.ts                      Solver I/O interfaces + PlanProposal, ProposedBatch, RecipeGap
 │   │   └── solver.ts                     Deterministic budget allocation algorithm
 │   │
 │   ├── qa/
@@ -33,20 +32,23 @@ flexy-agent/
 │   │
 │   ├── ai/
 │   │   ├── provider.ts                   LLM provider interface (agnostic)
-│   │   └── openai.ts                     OpenAI implementation (GPT-5.4/mini + Whisper)
+│   │   └── openai.ts                     OpenAI implementation (GPT-5.4/mini/nano + Whisper)
 │   │
 │   ├── agents/
-│   │   ├── orchestrator.ts               Central coordinator: LLM + state machine
+│   │   ├── plan-flow.ts                  Plan week flow handler (suggestive-first planning)
+│   │   ├── plan-proposer.ts              Sub-agent: propose weekly plan (variety + flex slots)
+│   │   ├── recipe-flow.ts               Recipe generation/edit flow handler
 │   │   ├── recipe-generator.ts           Sub-agent: generate new recipes to macro targets
 │   │   ├── recipe-scaler.ts              Sub-agent: scale existing recipes to new targets
 │   │   └── restaurant-estimator.ts       Sub-agent: estimate restaurant meal calories
 │   │
 │   ├── state/
-│   │   ├── machine.ts                    Deterministic flow state machine (planning steps)
+│   │   ├── machine.ts                    Deterministic flow state machine (first-run steps)
 │   │   └── store.ts                      Supabase persistence (plans + session state)
 │   │
 │   ├── recipes/
 │   │   ├── parser.ts                     Markdown ↔ Recipe serialization
+│   │   ├── renderer.ts                   Recipe → Telegram display text
 │   │   └── database.ts                   In-memory recipe DB backed by markdown files
 │   │
 │   ├── debug/
@@ -82,25 +84,25 @@ flexy-agent/
 │  Agent Harness (src/agents/, src/solver/,        │
 │    src/state/, src/qa/, src/recipes/,            │
 │    src/shopping/)                                │
-│  Orchestrator, state machine, budget solver,     │
+│  Flow handlers, plan proposer, budget solver,    │
 │  recipe database, QA gate, shopping lists        │
 ├──────────────────────────────────────────────────┤
 │  AI Layer (src/ai/)                              │
 │  LLM provider interface → OpenAI implementation  │
-│  GPT-5.4, GPT-5.4-mini, Whisper STT             │
+│  GPT-5.4, GPT-5.4-mini, GPT-5.4-nano, Whisper   │
 └──────────────────────────────────────────────────┘
 ```
 
-**Telegram Bot** — Pure UI. Routes messages to the orchestrator, sends responses back. Button taps bypass the LLM and go directly to the state machine. Voice messages are transcribed via Whisper then processed as text.
+**Telegram Bot** — Pure UI. Routes messages to flow handlers, sends responses back. Button taps bypass the LLM and map directly to flow actions. Voice messages are transcribed via Whisper then processed as text.
 
 **Agent Harness** — The product. Contains all business logic:
-- **Orchestrator** (`agents/orchestrator.ts`) — The central coordinator. An LLM constrained by a deterministic state machine. Delegates heavy work to sub-agents, math to the solver, and validation to the QA gate.
-- **State machine** (`state/machine.ts`) — Deterministic rails for the planning flow. Controls step progression, valid transitions, and data gates. Never hallucinates.
-- **Budget solver** (`solver/solver.ts`) — Pure arithmetic. Allocates the weekly calorie budget across breakfast, events, fun foods, and meal prep batches. No LLM involved.
+- **Flow handlers** (`agents/plan-flow.ts`, `agents/recipe-flow.ts`) — Phase-driven state machines for the planning and recipe flows. Each exports a state type, factory function, and pure handler functions that return `{text, state}`.
+- **Plan proposer** (`agents/plan-proposer.ts`) — Sub-agent that generates complete weekly plan proposals using the recipe DB, recent history, and variety rules.
+- **Budget solver** (`solver/solver.ts`) — Deterministic code. Recipes keep their natural per-serving macros; the solver validates weekly totals and derives the treat budget as the honest remainder.
 - **QA gate** (`qa/gate.ts`) — Validates all outputs before they reach the user. Retry loop with max 3 attempts.
-- **Sub-agents** — Isolated LLM tasks: recipe generation, recipe scaling, restaurant estimation. Each runs with focused context and returns a condensed result.
+- **Sub-agents** — Isolated LLM tasks: recipe generation (with meal-type-specific prompts), recipe scaling, restaurant estimation. Each runs with focused context and returns a condensed result.
 
-**AI Layer** — LLM calls behind a provider interface. Switching from OpenAI to another provider requires only a new implementation of `ai/provider.ts`.
+**AI Layer** — LLM calls behind a provider interface. Three model tiers: primary (GPT-5.4, complex tasks), mini (GPT-5.4-mini, generation/reasoning), nano (GPT-5.4-nano, classification/parsing). Switching from OpenAI to another provider requires only a new implementation of `ai/provider.ts`.
 
 ---
 
@@ -108,15 +110,19 @@ flexy-agent/
 
 1. **The LLM never does calorie math.** The budget solver and QA gate are deterministic code. The LLM handles conversation, recipe generation, and estimation.
 
-2. **Button taps bypass the LLM.** They map directly to state machine transitions. Only free-form text/voice goes through the orchestrator LLM for interpretation.
+2. **Button taps bypass the LLM.** They map directly to flow handler actions. Only free-form text/voice goes through the LLM for interpretation.
 
-3. **State lives outside the context window.** Weekly plans and session state persist in Supabase. Recipes live as markdown files. The orchestrator holds lightweight references and reads data on demand.
+3. **State lives outside the context window.** Weekly plans persist in Supabase. Recipes live as markdown files. Flow handlers hold in-memory state for the current session.
 
-4. **Sub-agents run with isolated context.** They receive a focused task, do deep work, and return a condensed result (under 2,000 tokens). The orchestrator never sees the sub-agent's full working context.
+4. **Sub-agents run with isolated context.** They receive a focused task, do deep work, and return a condensed result. The flow handler never sees the sub-agent's full working context.
 
 5. **Nothing reaches the user without validation.** Every plan, recipe, and shopping list passes through the QA gate before being shown. If validation fails, the system retries up to 3 times.
 
 6. **The provider interface is agnostic.** All LLM calls go through `ai/provider.ts`. Switching providers means implementing a new class, not rewriting business logic.
+
+7. **Recipes keep their natural macros.** The solver does not force uniform calorie targets. Each recipe's actual per-serving macros are used; the treat budget is derived as whatever's left in the weekly target.
+
+8. **The food profile shapes all generation.** `config.foodProfile` (region, store access, ingredient preferences) is injected into every recipe generation and plan proposal prompt.
 
 ---
 
@@ -127,17 +133,19 @@ index.ts
   └─ config.ts
   └─ ai/openai.ts ← ai/provider.ts
   └─ recipes/database.ts ← recipes/parser.ts ← models/types.ts
-  └─ state/store.ts ← state/machine.ts
-  └─ agents/orchestrator.ts
-  │    ├─ state/machine.ts        (flow control)
-  │    ├─ solver/solver.ts        (budget math)
-  │    ├─ qa/gate.ts              (validation)
-  │    ├─ agents/recipe-generator  (sub-agent)
-  │    ├─ agents/recipe-scaler     (sub-agent)
-  │    ├─ agents/restaurant-est.   (sub-agent)
-  │    ├─ shopping/generator.ts   (list derivation)
-  │    └─ telegram/formatters.ts  (message output)
-  └─ telegram/bot.ts ← telegram/keyboards.ts
+  └─ state/store.ts
+  └─ telegram/bot.ts
+       ├─ agents/plan-flow.ts           (plan week flow)
+       │    ├─ agents/plan-proposer.ts  (sub-agent: plan proposals)
+       │    ├─ agents/recipe-generator  (sub-agent: gap recipes)
+       │    ├─ solver/solver.ts         (budget math)
+       │    ├─ qa/validators/plan.ts    (validation)
+       │    └─ state/store.ts           (persistence)
+       ├─ agents/recipe-flow.ts         (recipe generate/edit flow)
+       │    ├─ agents/recipe-generator  (sub-agent)
+       │    └─ qa/validators/recipe.ts  (validation)
+       ├─ recipes/renderer.ts           (display)
+       └─ telegram/keyboards.ts         (UI)
 ```
 
 ---
@@ -146,21 +154,24 @@ index.ts
 
 ```
 User taps "Plan Week"
-  → bot.ts routes to orchestrator
-  → orchestrator activates state machine (planning:breakfast)
-  → state machine gates each step
+  → bot.ts creates PlanFlowState
+  → shows breakfast confirmation + events question
 
-For each step:
-  Button tap → state machine transition (no LLM)
-  Free text / voice → LLM interprets → state machine validates
+User confirms breakfast, adds events (or none)
+  → plan-proposer sub-agent runs
+     (recipe DB + recent history + variety rules → complete proposal)
+  → solver runs on proposal (validates weekly totals, derives treat budget)
+  → QA gate validates
 
-After all steps:
-  orchestrator → solver (allocate budget)
-  solver output → QA gate (validate plan)
-  QA pass → recipe scaler sub-agent (scale batches)
-  scaled recipes → QA gate (validate recipes)
-  QA pass → state store (persist plan)
-  plan → formatters → bot → Telegram
+If recipe gaps found:
+  → user prompted: [Generate it] [I have an idea] [Skip]
+  → recipe-generator sub-agent fills the gap
+  → solver re-runs with complete batches
+
+Plan presented to user:
+  → [Looks good!] → plan saved to Supabase, shopping list ready
+  → [Swap something] → user describes change → LLM classifies swap type
+     → proposal adjusted → solver re-runs ��� re-presented
 ```
 
 ---
@@ -169,12 +180,15 @@ After all steps:
 
 | Task | Start here |
 |---|---|
-| Change how the planning flow works | `src/state/machine.ts` (steps), `src/agents/orchestrator.ts` (handlers) |
+| Change how the plan week flow works | `src/agents/plan-flow.ts` (phases + handlers) |
+| Change how the plan proposer picks recipes | `src/agents/plan-proposer.ts` (system prompt + variety rules) |
 | Fix budget math or allocation | `src/solver/solver.ts` |
 | Change validation rules | `src/qa/validators/plan.ts`, `recipe.ts`, or `shopping-list.ts` |
 | Add a new LLM provider | Implement `src/ai/provider.ts` interface |
 | Change how recipes are stored | `src/recipes/parser.ts` (format), `src/recipes/database.ts` (CRUD) |
 | Modify Telegram UI or buttons | `src/telegram/keyboards.ts`, `src/telegram/formatters.ts` |
 | Change recipe generation prompts | `src/agents/recipe-generator.ts` |
-| Add a new sub-agent | Create in `src/agents/`, wire into orchestrator |
+| Change the recipe generate/edit flow | `src/agents/recipe-flow.ts` |
+| Add a new sub-agent | Create in `src/agents/`, wire into the relevant flow handler |
 | Change persistence schema | `src/state/store.ts` (Supabase queries) |
+| Change user food preferences | `src/config.ts` (`foodProfile` section) |

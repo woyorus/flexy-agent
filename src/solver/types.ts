@@ -5,7 +5,7 @@
  * inputs describing the week's shape and produces a budget allocation that the
  * recipe engine fills.
  *
- * Source of truth: docs/SPEC.md Section 6.
+ * Source of truth: docs/product-specs/solver.md
  *
  * Relationship to core types:
  * - SolverInput is assembled by the orchestrator from user choices during planning.

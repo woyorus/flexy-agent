@@ -7,7 +7,7 @@
  *
  * NO LLM is involved here. This is pure arithmetic.
  *
- * Algorithm (from spec Section 6):
+ * Algorithm (see docs/product-specs/solver.md):
  * 1. Allocate breakfast (fixed, subtracted upfront)
  * 2. Allocate fixed slots (restaurant meals + fun foods)
  * 3. Calculate remaining budget for meal preps

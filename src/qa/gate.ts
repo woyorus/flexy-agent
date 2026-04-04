@@ -9,7 +9,7 @@
  * This file provides the retry-loop wrapper. Actual validation rules live in
  * `qa/validators/plan.ts`, `qa/validators/recipe.ts`, and `qa/validators/shopping-list.ts`.
  *
- * Flow (from spec Section 6.2):
+ * Flow (see docs/product-specs/solver.md § QA gate):
  *   Output → QA Gate → PASS → show to user
  *                    → FAIL → fix + retry (max 3) → still failing → show best + warning
  */
