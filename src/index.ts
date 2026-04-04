@@ -18,22 +18,26 @@
 import 'dotenv/config';
 import { OpenAIProvider } from './ai/openai.js';
 import { RecipeDatabase } from './recipes/database.js';
+import { StateStore } from './state/store.js';
 import { createBot } from './telegram/bot.js';
 import { config } from './config.js';
 import { log } from './debug/logger.js';
 
 async function main() {
   log.init(config.debug);
-  log.info('BOOT', `Starting Flexie v0.0.1...${config.debug ? ' (DEBUG mode)' : ''}`);
+  log.boot(`Starting Flexie v0.0.1...${config.debug ? ' (DEBUG mode)' : ''}`);
 
   const llm = new OpenAIProvider();
-  log.info('BOOT', 'LLM provider: OpenAI (GPT-5.4 + GPT-5.4-mini + Whisper)');
+  log.boot('LLM provider: OpenAI (GPT-5.4 + GPT-5.4-mini + Whisper)');
 
   const recipes = new RecipeDatabase(config.recipesDir);
   await recipes.load();
-  log.info('BOOT', `Recipes loaded: ${recipes.size}`);
+  log.boot(`Recipes loaded: ${recipes.size}`);
 
-  const bot = createBot({ llm, recipes });
+  const store = new StateStore();
+  log.boot('State store: Supabase');
+
+  const bot = createBot({ llm, recipes, store });
 
   bot.catch((err) => {
     log.error('BOT', 'Unhandled bot error', err);
@@ -41,10 +45,10 @@ async function main() {
 
   await bot.start({
     onStart: () => {
-      log.info('BOOT', `Bot started. Listening for chat ID: ${config.telegram.chatId}`);
-      log.info('BOOT', 'Flexie is running.');
+      log.boot(`Bot started. Listening for chat ID: ${config.telegram.chatId}`);
+      log.boot('Flexie is running.');
       if (config.debug) {
-        log.info('BOOT', 'Debug log: logs/debug.log');
+        log.boot('Debug log: logs/debug.log');
       }
     },
   });

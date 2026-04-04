@@ -79,6 +79,20 @@ export const config = {
     },
   },
 
+  /**
+   * User food profile — shapes ingredient selection and cuisine choices
+   * across recipe generation and plan proposals.
+   *
+   * v0.0.1: hardcoded for single user (southern Spain).
+   * v0.1.0: moves to Supabase user profile, editable via onboarding.
+   */
+  foodProfile: {
+    region: 'Southern Spain',
+    storeAccess: 'Standard European supermarkets (Mercadona, Lidl, Carrefour). Good access to fresh seafood, Mediterranean produce, olive oil, Iberian pork, Spanish cheeses.',
+    ingredientNotes: 'Prefer ingredients commonly available in Spanish supermarkets. Mediterranean, Spanish, and Southern European ingredients are natural choices. Asian ingredients are fine if they are the common ones found in any supermarket (soy sauce, rice, ginger, coconut milk) — avoid specialty Asian grocery items. Avoid niche North American ingredients (Cotija cheese, chipotle en adobo, ranch seasoning, American-style BBQ sauces). When a recipe calls for cheese, prefer commonly available European options (manchego, mozzarella, parmesan, feta, goat cheese).',
+    avoided: [] as string[],
+  },
+
   /** Recipe file storage path relative to project root */
   recipesDir: 'recipes',
 } as const;

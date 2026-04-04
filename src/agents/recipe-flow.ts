@@ -24,7 +24,7 @@ import type { LLMProvider } from '../ai/provider.js';
 import type { Recipe, MacrosWithFatCarbs } from '../models/types.js';
 import { config } from '../config.js';
 import { log } from '../debug/logger.js';
-import { generateRecipe, refineRecipe, correctRecipeMacros, type GenerateResult } from './recipe-generator.js';
+import { generateRecipe, refineRecipe, correctRecipeMacros, buildSystemPrompt, type GenerateResult, type GenerateRecipeInput } from './recipe-generator.js';
 import { RecipeDatabase } from '../recipes/database.js';
 import type { ChatMessage } from '../ai/provider.js';
 import { renderRecipe } from '../recipes/renderer.js';
@@ -47,6 +47,54 @@ export interface RecipeFlowState {
 
 export function createRecipeFlowState(): RecipeFlowState {
   return { phase: 'choose_meal_type' };
+}
+
+/**
+ * Create a recipe flow state for editing an existing recipe.
+ * Seeds the conversation history so the LLM sees the recipe as its own prior
+ * output and makes targeted changes instead of regenerating from scratch.
+ */
+export function createEditFlowState(recipe: Recipe): RecipeFlowState {
+  const mealType = recipe.mealTypes[0] ?? 'dinner';
+  const targets = targetsForMealType(mealType);
+
+  // Reconstruct a minimal conversation history: system prompt + user request + recipe as assistant output
+  const systemPrompt = buildSystemPrompt({ mealType, targets });
+  const recipeJson = JSON.stringify(recipeToRawJson(recipe));
+
+  return {
+    phase: 'awaiting_refinement',
+    mealType,
+    currentRecipe: recipe,
+    conversationHistory: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Create a ${mealType} recipe.` },
+      { role: 'assistant', content: recipeJson },
+    ],
+  };
+}
+
+/** Convert a Recipe back to the raw JSON format the LLM produces. */
+function recipeToRawJson(recipe: Recipe): Record<string, unknown> {
+  return {
+    name: recipe.name,
+    slug: recipe.slug,
+    meal_types: recipe.mealTypes,
+    cuisine: recipe.cuisine,
+    tags: recipe.tags,
+    prep_time_minutes: recipe.prepTimeMinutes,
+    structure: recipe.structure.map((s) => ({ type: s.type, name: s.name })),
+    per_serving: recipe.perServing,
+    ingredients: recipe.ingredients.map((i) => ({
+      name: i.name, amount: i.amount, unit: i.unit, role: i.role, component: i.component,
+    })),
+    storage: {
+      fridge_days: recipe.storage.fridgeDays,
+      freezable: recipe.storage.freezable,
+      reheat: recipe.storage.reheat,
+    },
+    body: recipe.body,
+  };
 }
 
 /** Macro targets per meal type, derived from daily targets. */

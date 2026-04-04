@@ -12,7 +12,7 @@ tags:
   - meal-prep
   - high-protein
   - dinner
-prep_time_minutes: 55
+prep_time_minutes: 80
 structure:
   - type: main
     name: Moroccan beef tagine-style skillet
@@ -105,13 +105,13 @@ storage:
 
 All the sweet-spiced, deeply savory flavor of a Moroccan beef tagine, but made in a regular skillet or Dutch oven instead of the traditional pot. Tender beef, ras el hanout, and apricots give it that classic tagine vibe, while lemon couscous keeps the meal bright and meal-prep friendly.
 
-Prep time: about 55 minutes.
+Prep time: about 80 minutes.
 Equipment: large deep skillet or Dutch oven with a lid, saucepan or kettle, mixing bowl, chopping board, knife, and wooden spoon.
 
 1. Season the beef with salt and black pepper.
 2. Heat the olive oil in a large deep skillet or Dutch oven over medium-high heat. Brown the beef well on all sides, then transfer it to a plate.
 3. Lower the heat to medium. Add the onion and carrot to the pan and cook until softened. Stir in the garlic and ras el hanout, then add the tomato paste and dried apricots and cook for a minute more.
-4. Return the beef to the pan and pour in the beef stock. Bring it to a gentle simmer, cover, and cook until the beef is tender and the sauce has reduced to a glossy, spoon-coating consistency. If it starts to look dry, add a splash of water.
+4. Return the beef to the pan and pour in the beef stock. Bring it to a gentle simmer, cover, and cook slowly for 75-90 minutes, or until the beef is very tender and the sauce has reduced to a glossy, spoon-coating consistency. If it starts to look dry, add a splash of water.
 5. While the beef simmers, make the lemon couscous. Put the couscous in a bowl, stir in the olive oil and parsley, then pour over boiling water just to cover. Cover and leave it to steam, then fluff with a fork and stir through the lemon juice.
 6. Taste the stew and adjust the seasoning. Spoon the couscous into bowls and serve the beef tagine-style skillet over the top.
 

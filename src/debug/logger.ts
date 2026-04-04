@@ -6,7 +6,9 @@
  *
  * All events (Telegram messages, AI calls, state transitions, validations)
  * are logged chronologically to a single file with structured tags.
- * The file is overwritten on each startup — one session per file.
+ * The file is append-only — a single separator line marks each restart.
+ * Boot-sequence messages go to stdout only (not the log file) to avoid
+ * noise from hot-reload restarts.
  *
  * When DEBUG=1, also outputs verbose logs to console and appends a one-line
  * debug footer to Telegram messages showing AI models used and timing.
@@ -27,7 +29,7 @@
  * - ERROR   — errors
  */
 
-import { appendFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const LOGS_DIR = join(process.cwd(), 'logs');
@@ -42,7 +44,9 @@ let operationStart: number = Date.now();
 
 /**
  * Initialize the logger. Call once at startup before any logging.
- * Creates the logs directory and writes the session header to the log file.
+ * Creates the logs directory and appends a one-line restart marker to the log file.
+ * The verbose boot banner goes to stdout only — the log file stays clean across
+ * hot-reload restarts.
  *
  * @param debug - Whether debug mode is enabled (from DEBUG env var)
  */
@@ -50,15 +54,7 @@ export function initLogger(debug: boolean): void {
   debugMode = debug;
   mkdirSync(LOGS_DIR, { recursive: true });
 
-  const header = [
-    '═'.repeat(60),
-    `  Flexie debug session — ${new Date().toISOString()}`,
-    `  DEBUG mode: ${debug ? 'ON' : 'OFF'}`,
-    '═'.repeat(60),
-    '',
-  ].join('\n');
-
-  writeFileSync(LOG_FILE, header, 'utf-8');
+  appendFileSync(LOG_FILE, '', 'utf-8'); // ensure file exists
   initialized = true;
 }
 
@@ -85,6 +81,15 @@ function writeLine(line: string): void {
   } catch {
     // Don't crash the app on log write failure
   }
+}
+
+/**
+ * Log a boot/startup message. Stdout only — not written to the log file.
+ * Use for startup-sequence info that's useful during development but would
+ * just be noise in the debug log (especially with hot-reload restarts).
+ */
+export function boot(message: string): void {
+  console.log(`[${timestamp()}] [BOOT] ${message}`);
 }
 
 /**
@@ -157,13 +162,23 @@ export function telegramIn(type: string, data: string): void {
 
 /**
  * Log an outgoing Telegram message.
- * Console: debug mode only (preview). File: always (full text).
+ * Console: debug mode only (preview). File: always (full text + buttons).
+ *
+ * @param text - The message text
+ * @param buttons - Optional button rows (each row is an array of button labels).
+ *   Rendered in the log file as `[Label1] [Label2]` per row so the full
+ *   reply context is visible when debugging.
  */
-export function telegramOut(text: string): void {
+export function telegramOut(text: string, buttons?: string[][]): void {
   const preview =
     text.length > 150 ? text.slice(0, 150).replace(/\n/g, '\\n') + '...' : text.replace(/\n/g, '\\n');
   if (debugMode) console.log(`[${timestamp()}] [TG:OUT] ${preview}`);
-  writeLine(`[${timestamp()}] [TG:OUT]\n${text}\n${'─'.repeat(40)}`);
+  let entry = `[${timestamp()}] [TG:OUT]\n${text}`;
+  if (buttons && buttons.length > 0) {
+    const rendered = buttons.map((row) => '  ' + row.map((b) => `[${b}]`).join(' ')).join('\n');
+    entry += `\n${rendered}`;
+  }
+  writeLine(`${entry}\n${'─'.repeat(40)}`);
 }
 
 /**
@@ -208,6 +223,7 @@ export function getDebugFooter(): string {
 export const log = {
   init: initLogger,
   isDebug,
+  boot,
   debug,
   info,
   warn,

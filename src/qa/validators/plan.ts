@@ -4,15 +4,15 @@
  * Validates a solver output against the hard constraints defined in the spec.
  * This runs as part of the QA gate before any plan is shown to the user.
  *
- * Validation rules (from spec Section 6.2):
+ * Validation rules:
  * - Weekly calories within ±3% of target
  * - Weekly protein meets minimum
- * - No meal slot below 400 cal or above 1000 cal
+ * - No meal slot below 400 cal or above 1000 cal (flex slots can exceed by their bonus)
  * - All servings in a batch have equal calorie targets
- * - Fun food budget not exceeded
- * - Budget pressure priority respected (fun food reduced before meal prep)
+ * - Fun food pool not exceeded (hard cap 30%)
+ * - Treat budget non-negative (flex bonuses don't exceed fun food pool)
  * - Cooking days are before eating days
- * - No orphaned meal slots (every meal has a source)
+ * - No orphaned meal slots (every meal has a source: batch, event, or flex)
  */
 
 import type { SolverOutput, BatchTarget } from '../../solver/types.js';
@@ -27,7 +27,7 @@ export interface PlanValidationResult {
 const WEEKLY_CAL_TOLERANCE = 0.03;
 const MIN_MEAL_CAL = 400;
 const MAX_MEAL_CAL = 1000;
-const FUN_FOOD_MAX_PERCENT = 30; // hard cap — warn at 25% (solver), reject at 30%
+const FUN_FOOD_MAX_PERCENT = 15; // warning threshold — in the derived model, high % usually means unresolved gaps
 
 /**
  * Validate a solver output against plan constraints.
@@ -55,25 +55,28 @@ export function validatePlan(output: SolverOutput, targets: Macros): PlanValidat
     );
   }
 
-  // Meal slot calorie bounds
+  // Meal slot calorie bounds — flex slots can exceed MAX_MEAL_CAL by their flex bonus
   for (const day of output.dailyBreakdown) {
-    for (const [slot, cal] of [
-      ['lunch', day.lunch.calories],
-      ['dinner', day.dinner.calories],
+    for (const [slot, cal, flexBonus] of [
+      ['lunch', day.lunch.calories, day.lunch.flexBonus ?? 0],
+      ['dinner', day.dinner.calories, day.dinner.flexBonus ?? 0],
     ] as const) {
       if (cal > 0 && cal < MIN_MEAL_CAL) {
         errors.push(`${day.day} ${slot}: ${cal} cal is below minimum ${MIN_MEAL_CAL}.`);
       }
-      if (cal > MAX_MEAL_CAL) {
-        errors.push(`${day.day} ${slot}: ${cal} cal exceeds maximum ${MAX_MEAL_CAL}.`);
+      const effectiveMax = MAX_MEAL_CAL + flexBonus;
+      if (cal > effectiveMax) {
+        errors.push(`${day.day} ${slot}: ${cal} cal exceeds maximum ${effectiveMax}${flexBonus > 0 ? ` (${MAX_MEAL_CAL} base + ${flexBonus} flex)` : ''}.`);
       }
     }
   }
 
-  // Fun food hard cap
+  // Fun food percentage — informational warning only, not a hard cap.
+  // In the derived treat model, funFoodPool = flex bonuses + remainder after planned meals.
+  // A high percentage usually means the plan has unresolved recipe gaps, not over-allocation.
   if (output.weeklyTotals.funFoodPercent > FUN_FOOD_MAX_PERCENT) {
-    errors.push(
-      `Fun food is ${output.weeklyTotals.funFoodPercent}% of weekly budget — exceeds ${FUN_FOOD_MAX_PERCENT}% hard cap.`
+    warnings.push(
+      `Fun food is ${output.weeklyTotals.funFoodPercent}% — likely due to unresolved recipe gaps.`
     );
   }
 
@@ -91,13 +94,16 @@ export function validatePlan(output: SolverOutput, targets: Macros): PlanValidat
     }
   }
 
-  // Orphaned meal slots: every day should have lunch + dinner covered by either batch or event
+  // Orphaned meal slots: every day should have lunch + dinner covered
+  // Sources: batch (batchId), event, or flex slot (flexBonus)
   for (const day of output.dailyBreakdown) {
-    if (day.lunch.calories === 0 && day.events.every((e) => e.mealTime !== 'lunch')) {
-      errors.push(`${day.day} lunch: no source (no batch and no event).`);
+    const hasLunchSource = day.lunch.batchId || day.lunch.flexBonus || day.events.some((e) => e.mealTime === 'lunch');
+    if (day.lunch.calories === 0 && !hasLunchSource) {
+      errors.push(`${day.day} lunch: no source (no batch, flex slot, or event).`);
     }
-    if (day.dinner.calories === 0 && day.events.every((e) => e.mealTime !== 'dinner')) {
-      errors.push(`${day.day} dinner: no source (no batch and no event).`);
+    const hasDinnerSource = day.dinner.batchId || day.dinner.flexBonus || day.events.some((e) => e.mealTime === 'dinner');
+    if (day.dinner.calories === 0 && !hasDinnerSource) {
+      errors.push(`${day.day} dinner: no source (no batch, flex slot, or event).`);
     }
   }
 

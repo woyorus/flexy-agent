@@ -23,13 +23,23 @@ import {
   recipeReviewKeyboard,
   recipeListKeyboard,
   recipeViewKeyboard,
+  planBreakfastKeyboard,
+  planEventsKeyboard,
+  planMoreEventsKeyboard,
+  planProposalKeyboard,
+  planRecipeGapKeyboard,
+  planGapRecipeReviewKeyboard,
+  planConfirmedKeyboard,
 } from './keyboards.js';
 import type { LLMProvider } from '../ai/provider.js';
 import { RecipeDatabase } from '../recipes/database.js';
+import type { Recipe } from '../models/types.js';
+import { StateStore } from '../state/store.js';
 import { renderRecipe } from '../recipes/renderer.js';
 import {
   type RecipeFlowState,
   createRecipeFlowState,
+  createEditFlowState,
   handleMealTypeSelected,
   handlePreferencesAndGenerate,
   handleRefinement,
@@ -37,10 +47,27 @@ import {
   classifyReviewIntent,
   handleRecipeQuestion,
 } from '../agents/recipe-flow.js';
+import {
+  type PlanFlowState,
+  createPlanFlowState,
+  handleNoEvents,
+  handleAddEvent,
+  handleEventText,
+  handleEventsDone,
+  handleGenerateProposal,
+  handleGapResponse,
+  handleGapRecipePrefs,
+  handleGapRecipeReview,
+  handleGapRecipeRefinement,
+  handleApprove,
+  handleSwapRequest,
+  handleSwapText,
+} from '../agents/plan-flow.js';
 
 interface BotDeps {
   llm: LLMProvider;
   recipes: RecipeDatabase;
+  store: StateStore;
 }
 
 /**
@@ -59,23 +86,39 @@ function startTypingIndicator(ctx: any): () => void {
 /**
  * Send a reply through Telegram and log it.
  * In debug mode, appends a debug footer with AI model/timing info.
+ * Extracts button labels from the reply_markup (if any) and includes
+ * them in the debug log so the full reply context is visible.
  */
 async function reply(ctx: any, text: string, options?: any): Promise<void> {
   const debugFooter = log.getDebugFooter();
   const fullText = text + debugFooter;
-  log.telegramOut(fullText);
+  const buttons = extractButtons(options?.reply_markup);
+  log.telegramOut(fullText, buttons);
   await ctx.reply(fullText, options);
+}
+
+/**
+ * Extract button labels from a grammy keyboard for debug logging.
+ * Handles both InlineKeyboard (.inline_keyboard) and Keyboard (.keyboard).
+ * Returns rows of button label strings, or undefined if no keyboard.
+ */
+function extractButtons(markup: any): string[][] | undefined {
+  if (!markup) return undefined;
+  const rows: { text: string }[][] = markup.inline_keyboard ?? markup.keyboard;
+  if (!Array.isArray(rows) || rows.length === 0) return undefined;
+  return rows.map((row) => row.map((btn) => btn.text));
 }
 
 /**
  * Create and configure the Telegram bot.
  */
 export function createBot(deps: BotDeps): Bot {
-  const { llm, recipes } = deps;
+  const { llm, recipes, store } = deps;
   const bot = new Bot(config.telegram.botToken);
 
   // ─── Session state (in-memory for v0.0.1) ──────────────────────────────
   let recipeFlow: RecipeFlowState | null = null;
+  let planFlow: PlanFlowState | null = null;
   let recipeListPage = 0;
 
   // ─── Logging middleware ─────────────────────────────────────────────────
@@ -173,10 +216,41 @@ export function createBot(deps: BotDeps): Bot {
       // Recipe list: view a specific recipe by slug
       if (action.startsWith('rv_')) {
         const slug = action.slice(3);
-        const recipe = recipes.getBySlug(slug);
+        const recipe = recipes.getBySlug(slug) ?? findBySlugPrefix(recipes, slug);
         if (recipe) {
           log.debug('FLOW', `recipe view: ${slug}`);
-          await reply(ctx, renderRecipe(recipe), { reply_markup: recipeViewKeyboard });
+          await reply(ctx, renderRecipe(recipe), { reply_markup: recipeViewKeyboard(slug) });
+        } else {
+          await reply(ctx, 'Recipe not found.', { reply_markup: mainMenuKeyboard });
+        }
+        return;
+      }
+
+      // Recipe delete
+      if (action.startsWith('rd_')) {
+        const slug = action.slice(3);
+        const recipe = recipes.getBySlug(slug) ?? findBySlugPrefix(recipes, slug);
+        if (recipe) {
+          await recipes.remove(recipe.slug);
+          log.info('DB', `Recipe deleted: "${recipe.name}" (${recipe.slug})`);
+          await reply(ctx, `Deleted "${recipe.name}".`);
+          recipeListPage = 0;
+          await showRecipeList(ctx);
+        } else {
+          await reply(ctx, 'Recipe not found.', { reply_markup: mainMenuKeyboard });
+        }
+        return;
+      }
+
+      // Recipe edit — load into refine flow
+      if (action.startsWith('re_')) {
+        const slug = action.slice(3);
+        const recipe = recipes.getBySlug(slug) ?? findBySlugPrefix(recipes, slug);
+        if (recipe) {
+          planFlow = null;
+          recipeFlow = createEditFlowState(recipe);
+          log.debug('FLOW', `editing recipe: ${slug}`);
+          await reply(ctx, 'What would you like to change? (e.g., "swap beef for chicken", "less oil", "add a side salad")');
         } else {
           await reply(ctx, 'Recipe not found.', { reply_markup: mainMenuKeyboard });
         }
@@ -199,6 +273,187 @@ export function createBot(deps: BotDeps): Bot {
       if (action === 'recipe_back') {
         await showRecipeList(ctx);
         return;
+      }
+
+      // Post-plan-confirmation actions
+      if (action === 'view_shopping_list') {
+        planFlow = null;
+        await reply(ctx, 'Shopping list generation is coming soon!', { reply_markup: mainMenuKeyboard });
+        return;
+      }
+      if (action === 'view_plan_recipes') {
+        planFlow = null;
+        recipeListPage = 0;
+        await showRecipeList(ctx);
+        return;
+      }
+
+      // ─── Plan flow callbacks ──────────────────────────────────────────
+      if (action.startsWith('plan_') && planFlow) {
+        log.startOperation();
+
+        // Breakfast confirmation
+        if (action === 'plan_keep_breakfast') {
+          log.debug('FLOW', 'breakfast kept');
+          await reply(ctx, `✓ Breakfast: ${planFlow.breakfast.name}\n\nAny meals out or social events this week?`, {
+            reply_markup: planEventsKeyboard,
+          });
+          return;
+        }
+
+        if (action === 'plan_change_breakfast') {
+          // TODO: breakfast change flow (rare path, v0.0.1 keeps it simple)
+          await reply(ctx, 'Breakfast changes are coming soon. Keeping current breakfast for now.\n\nAny meals out or social events this week?', {
+            reply_markup: planEventsKeyboard,
+          });
+          return;
+        }
+
+        // Events
+        if (action === 'plan_no_events') {
+          const result = handleNoEvents(planFlow);
+          planFlow = result.state;
+          await reply(ctx, result.text);
+          const stopTyping = startTypingIndicator(ctx);
+          try {
+            const proposal = await handleGenerateProposal(planFlow, llm, recipes, store);
+            planFlow = proposal.state;
+            stopTyping();
+            const kb = planFlow.phase === 'recipe_suggestion'
+              ? planRecipeGapKeyboard(planFlow.activeGapIndex ?? 0)
+              : planProposalKeyboard;
+            await reply(ctx, proposal.text, { reply_markup: kb });
+          } catch (err) {
+            stopTyping();
+            throw err;
+          }
+          return;
+        }
+
+        if (action === 'plan_add_event') {
+          const result = handleAddEvent(planFlow);
+          planFlow = result.state;
+          await reply(ctx, result.text);
+          return;
+        }
+
+        if (action === 'plan_events_done') {
+          const doneResult = handleEventsDone(planFlow);
+          planFlow = doneResult.state;
+          await reply(ctx, doneResult.text);
+          const stopTyping = startTypingIndicator(ctx);
+          try {
+            const proposal = await handleGenerateProposal(planFlow, llm, recipes, store);
+            planFlow = proposal.state;
+            stopTyping();
+            const kb = planFlow.phase === 'recipe_suggestion'
+              ? planRecipeGapKeyboard(planFlow.activeGapIndex ?? 0)
+              : planProposalKeyboard;
+            await reply(ctx, proposal.text, { reply_markup: kb });
+          } catch (err) {
+            stopTyping();
+            throw err;
+          }
+          return;
+        }
+
+        // Plan proposal actions
+        if (action === 'plan_approve') {
+          const stopTyping = startTypingIndicator(ctx);
+          try {
+            const result = await handleApprove(planFlow, store);
+            planFlow = result.state;
+            stopTyping();
+            await reply(ctx, result.text, { reply_markup: planConfirmedKeyboard });
+          } catch (err) {
+            stopTyping();
+            throw err;
+          }
+          return;
+        }
+
+        if (action === 'plan_swap') {
+          const result = handleSwapRequest(planFlow);
+          planFlow = result.state;
+          await reply(ctx, result.text);
+          return;
+        }
+
+        if (action === 'plan_cancel') {
+          planFlow = null;
+          await reply(ctx, 'Planning cancelled.', { reply_markup: mainMenuKeyboard });
+          return;
+        }
+
+        // Recipe gap actions
+        if (action.startsWith('plan_gen_gap_')) {
+          const gapIndex = parseInt(action.replace('plan_gen_gap_', ''), 10);
+          planFlow.activeGapIndex = gapIndex;
+          await reply(ctx, 'Generating recipe...');
+          const stopTyping = startTypingIndicator(ctx);
+          try {
+            const result = await handleGapResponse(planFlow, 'generate', llm, recipes);
+            planFlow = result.state;
+            stopTyping();
+            const kb = planFlow.phase === 'reviewing_recipe'
+              ? planGapRecipeReviewKeyboard
+              : planFlow.phase === 'recipe_suggestion'
+              ? planRecipeGapKeyboard(planFlow.activeGapIndex ?? 0)
+              : planProposalKeyboard;
+            await reply(ctx, result.text, { reply_markup: kb });
+          } catch (err) {
+            stopTyping();
+            throw err;
+          }
+          return;
+        }
+
+        if (action.startsWith('plan_idea_gap_')) {
+          const gapIndex = parseInt(action.replace('plan_idea_gap_', ''), 10);
+          planFlow.activeGapIndex = gapIndex;
+          const result = await handleGapResponse(planFlow, 'idea', llm, recipes);
+          planFlow = result.state;
+          await reply(ctx, result.text);
+          return;
+        }
+
+        if (action.startsWith('plan_skip_gap_')) {
+          const gapIndex = parseInt(action.replace('plan_skip_gap_', ''), 10);
+          planFlow.activeGapIndex = gapIndex;
+          const result = await handleGapResponse(planFlow, 'skip', llm, recipes);
+          planFlow = result.state;
+          const kb = planFlow.phase === 'recipe_suggestion'
+            ? planRecipeGapKeyboard(planFlow.activeGapIndex ?? 0)
+            : planProposalKeyboard;
+          await reply(ctx, result.text, { reply_markup: kb });
+          return;
+        }
+
+        // Gap recipe review
+        if (action === 'plan_use_recipe') {
+          const result = await handleGapRecipeReview(planFlow, 'use', recipes, llm);
+          planFlow = result.state;
+          const kb = planFlow.phase === 'recipe_suggestion'
+            ? planRecipeGapKeyboard(planFlow.activeGapIndex ?? 0)
+            : planProposalKeyboard;
+          await reply(ctx, result.text, { reply_markup: kb });
+          return;
+        }
+
+        if (action === 'plan_diff_recipe') {
+          await reply(ctx, 'Generating a different recipe...');
+          const stopTyping = startTypingIndicator(ctx);
+          try {
+            const result = await handleGapRecipeReview(planFlow, 'different', recipes, llm);
+            planFlow = result.state;
+            stopTyping();
+            await reply(ctx, result.text, { reply_markup: planGapRecipeReviewKeyboard });
+          } catch (err) {
+            stopTyping();
+            throw err;
+          }
+          return;
+        }
       }
 
     } catch (err) {
@@ -250,6 +505,7 @@ export function createBot(deps: BotDeps): Bot {
 
   async function handleMenu(ctx: any, action: string) {
     recipeFlow = null; // exit any active flow
+    planFlow = null;
 
     switch (action) {
       case 'my_recipes': {
@@ -265,9 +521,55 @@ export function createBot(deps: BotDeps): Bot {
         }
         return;
       }
-      case 'plan_week':
-        await reply(ctx, 'Weekly planning is being redesigned. Use My Recipes to build your recipe database first!', { reply_markup: mainMenuKeyboard });
+      case 'plan_week': {
+        // Check if we have lunch/dinner recipes to plan with
+        const lunchDinnerRecipes = recipes.getAll().filter(
+          (r) => r.mealTypes.includes('lunch') || r.mealTypes.includes('dinner'),
+        );
+        if (lunchDinnerRecipes.length === 0) {
+          await reply(ctx, 'You need some lunch/dinner recipes first. Add a few, then come back to plan your week!', { reply_markup: mainMenuKeyboard });
+          return;
+        }
+
+        // Calculate week start (this Monday if today is Mon, otherwise next Monday)
+        const weekStart = getNextWeekStart();
+
+        // Load breakfast from last plan or find a breakfast recipe in DB
+        const lastPlan = await store.getCurrentPlan() ?? await store.getLastCompletedPlan();
+        const breakfastRecipes = recipes.getByMealType('breakfast');
+        const breakfast = lastPlan?.breakfast
+          ? {
+              recipeSlug: lastPlan.breakfast.recipeSlug,
+              name: recipes.getBySlug(lastPlan.breakfast.recipeSlug)?.name ?? 'Your breakfast',
+              caloriesPerDay: lastPlan.breakfast.caloriesPerDay,
+              proteinPerDay: lastPlan.breakfast.proteinPerDay,
+            }
+          : breakfastRecipes.length > 0
+          ? {
+              recipeSlug: breakfastRecipes[0]!.slug,
+              name: breakfastRecipes[0]!.name,
+              caloriesPerDay: breakfastRecipes[0]!.perServing.calories,
+              proteinPerDay: breakfastRecipes[0]!.perServing.protein,
+            }
+          : {
+              recipeSlug: 'default-breakfast',
+              name: 'Breakfast',
+              caloriesPerDay: Math.round(config.targets.daily.calories * 0.27),
+              proteinPerDay: Math.round(config.targets.daily.protein * 0.27),
+            };
+
+        planFlow = createPlanFlowState(weekStart, breakfast);
+        log.debug('FLOW', `plan week started: ${weekStart}, breakfast: ${breakfast.name}`);
+
+        const weekEnd = planFlow.weekDays[6]!;
+        const startStr = formatDateForMessage(weekStart);
+        const endStr = formatDateForMessage(weekEnd);
+
+        await reply(ctx, `Planning ${startStr} – ${endStr}.\n\nBreakfast: keep ${breakfast.name} (${breakfast.caloriesPerDay} cal/day)?`, {
+          reply_markup: planBreakfastKeyboard,
+        });
         return;
+      }
       case 'shopping_list':
         await reply(ctx, 'No active plan yet. Plan your week first!', { reply_markup: mainMenuKeyboard });
         return;
@@ -291,6 +593,79 @@ export function createBot(deps: BotDeps): Bot {
   }
 
   async function handleTextInput(ctx: any, text: string) {
+    // If in plan flow, route there first
+    if (planFlow) {
+      log.startOperation();
+
+      if (planFlow.phase === 'awaiting_events') {
+        const stopTyping = startTypingIndicator(ctx);
+        try {
+          const result = await handleEventText(planFlow, text, llm);
+          planFlow = result.state;
+          stopTyping();
+          await reply(ctx, result.text, { reply_markup: planMoreEventsKeyboard });
+        } catch (err) {
+          stopTyping();
+          throw err;
+        }
+        return;
+      }
+
+      if (planFlow.phase === 'awaiting_recipe_prefs') {
+        await reply(ctx, 'Generating recipe...');
+        const stopTyping = startTypingIndicator(ctx);
+        try {
+          const result = await handleGapRecipePrefs(planFlow, text, llm);
+          planFlow = result.state;
+          stopTyping();
+          const kb = planFlow.phase === 'reviewing_recipe'
+            ? planGapRecipeReviewKeyboard
+            : planProposalKeyboard;
+          await reply(ctx, result.text, { reply_markup: kb });
+        } catch (err) {
+          stopTyping();
+          throw err;
+        }
+        return;
+      }
+
+      if (planFlow.phase === 'awaiting_swap') {
+        const stopTyping = startTypingIndicator(ctx);
+        try {
+          const result = await handleSwapText(planFlow, text, llm, recipes, store);
+          planFlow = result.state;
+          stopTyping();
+          const kb = planFlow.phase === 'recipe_suggestion'
+            ? planRecipeGapKeyboard(planFlow.activeGapIndex ?? 0)
+            : planProposalKeyboard;
+          await reply(ctx, result.text, { reply_markup: kb });
+        } catch (err) {
+          stopTyping();
+          throw err;
+        }
+        return;
+      }
+
+      if (planFlow.phase === 'reviewing_recipe') {
+        // User is typing a refinement for the gap recipe (e.g., "swap avocado oil with olive oil")
+        await reply(ctx, 'Refining recipe...');
+        const stopTyping = startTypingIndicator(ctx);
+        try {
+          const result = await handleGapRecipeRefinement(planFlow, text, llm);
+          planFlow = result.state;
+          stopTyping();
+          await reply(ctx, result.text, { reply_markup: planGapRecipeReviewKeyboard });
+        } catch (err) {
+          stopTyping();
+          throw err;
+        }
+        return;
+      }
+
+      // Plan flow active but not awaiting text — ignore
+      return;
+    }
+
     // If in recipe flow, route there
     if (recipeFlow) {
 
@@ -387,4 +762,42 @@ function matchMainMenu(text: string): string | null {
     '📊 Weekly Budget': 'weekly_budget',
   };
   return menuMap[text] ?? null;
+}
+
+/**
+ * Calculate the start date for the plan week.
+ * If today is Monday, plan this week. Otherwise, plan next Monday.
+ */
+function getNextWeekStart(): string {
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0 = Sun, 1 = Mon, ...
+  let daysUntilMonday: number;
+  if (dayOfWeek === 1) {
+    daysUntilMonday = 0; // today is Monday
+  } else if (dayOfWeek === 0) {
+    daysUntilMonday = 1; // tomorrow is Monday
+  } else {
+    daysUntilMonday = 8 - dayOfWeek; // next Monday
+  }
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + daysUntilMonday);
+  const year = monday.getFullYear();
+  const month = String(monday.getMonth() + 1).padStart(2, '0');
+  const day = String(monday.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/** Format a date for display in messages. */
+function formatDateForMessage(isoDate: string): string {
+  const d = new Date(isoDate + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+/**
+ * Find a recipe by slug prefix. Used when callback data was truncated to fit
+ * Telegram's 64-byte limit. Returns the first recipe whose slug starts with
+ * the given prefix, or undefined if no match.
+ */
+function findBySlugPrefix(db: RecipeDatabase, prefix: string): Recipe | undefined {
+  return db.getAll().find((r) => r.slug.startsWith(prefix));
 }

@@ -98,6 +98,41 @@ export class StateStore {
     return data?.data as WeeklyPlan;
   }
 
+  /**
+   * Get the last N completed plans for variety context.
+   * Used by the plan-proposer to avoid recipe repeats and rotate cuisines/protein sources.
+   *
+   * @param limit - How many recent plans to return (default 2)
+   */
+  async getRecentCompletedPlans(limit: number = 2): Promise<WeeklyPlan[]> {
+    const { data, error } = await this.client
+      .from('weekly_plans')
+      .select('data')
+      .eq('user_id', SINGLE_USER_ID)
+      .eq('status', 'completed')
+      .order('week_start', { ascending: false })
+      .limit(limit);
+
+    if (error || !data) return [];
+    return data.map((row: Record<string, unknown>) => row.data as WeeklyPlan);
+  }
+
+  /**
+   * Transition all active plans to completed.
+   * Called when a new plan is approved — the previous week's plan is done.
+   */
+  async completeActivePlans(): Promise<void> {
+    const { error } = await this.client
+      .from('weekly_plans')
+      .update({ status: 'completed', updated_at: new Date().toISOString() })
+      .eq('user_id', SINGLE_USER_ID)
+      .eq('status', 'active');
+
+    if (error) {
+      // Non-fatal — log but don't block the new plan
+    }
+  }
+
   // ─── Session State ───────────────────────────────────────────────────────
 
   /**

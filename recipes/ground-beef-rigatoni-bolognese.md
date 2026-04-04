@@ -17,10 +17,10 @@ structure:
   - type: carb_side
     name: Rigatoni
 per_serving:
-  calories: 908
+  calories: 888
   protein: 55
   fat: 45
-  carbs: 68
+  carbs: 66
 ingredients:
   - name: ground beef
     amount: 200
@@ -47,7 +47,7 @@ ingredients:
     unit: g
     role: seasoning
     component: Lean beef bolognese
-  - name: tomato passata
+  - name: ripe diced tomatoes
     amount: 180
     unit: g
     role: base
@@ -94,7 +94,7 @@ Equipment: large saute pan or wide pot, medium saucepan, colander, knife, choppi
 2. Heat the olive oil in a large saute pan over medium heat. Add the onion, carrot, and sea salt, and cook until softened and lightly sweet.
 3. Add the garlic and dried oregano and cook briefly until fragrant.
 4. Add the ground beef and black pepper. Cook, breaking the meat up well, until browned and no longer wet.
-5. Stir in the tomato passata, bring to a gentle bubble, then lower the heat and simmer until the sauce is thick, rich, and glossy.
+5. Stir in the ripe diced tomatoes, bring to a gentle bubble, then lower the heat and simmer until the sauce is thick, rich, and glossy.
 6. Meanwhile, cook the rigatoni or spaghetti in boiling water until just al dente, then drain well.
 7. Serve the lean beef bolognese over the rigatoni or spaghetti and finish with the parmesan. For meal prep, pack the lean beef bolognese and the pasta separately so the pasta keeps a better texture.
 

@@ -14,6 +14,16 @@
 
 import { Keyboard, InlineKeyboard } from 'grammy';
 
+/**
+ * Telegram limits callback data to 64 bytes. With a 3-char prefix (rv_, rd_, re_),
+ * the slug can be at most 61 chars. Truncate longer slugs — prefix matching in
+ * the handler resolves the full slug from the database.
+ */
+const MAX_SLUG_IN_CALLBACK = 61;
+export function truncateSlug(slug: string): string {
+  return slug.length > MAX_SLUG_IN_CALLBACK ? slug.slice(0, MAX_SLUG_IN_CALLBACK) : slug;
+}
+
 // ─── Reply keyboard (persistent main menu) ───────────────────────────────────
 
 /**
@@ -116,8 +126,9 @@ export function recipeListKeyboard(
   const kb = new InlineKeyboard();
 
   // One button per recipe, one per row
+  // Telegram limits callback data to 64 bytes. With 3-char prefix (rv_), max slug is 61 chars.
   for (const r of pageRecipes) {
-    kb.text(r.name, `rv_${r.slug}`).row();
+    kb.text(r.name, `rv_${truncateSlug(r.slug)}`).row();
   }
 
   // Navigation row (only if more than one page)
@@ -142,9 +153,17 @@ export function recipeListKeyboard(
  * Keyboard shown after viewing a single recipe from the list.
  * Lets the user go back to the recipe list or add a new recipe.
  */
-export const recipeViewKeyboard = new InlineKeyboard()
-  .text('← Back to recipes', 'recipe_back')
-  .text('Add new recipe', 'add_recipe');
+/**
+ * Keyboard shown after viewing a single recipe.
+ * Includes the recipe slug in the delete callback so we know which recipe to remove.
+ */
+export function recipeViewKeyboard(slug: string) {
+  const s = truncateSlug(slug);
+  return new InlineKeyboard()
+    .text('← Back to recipes', 'recipe_back')
+    .text('Edit', `re_${s}`)
+    .text('Delete', `rd_${s}`);
+}
 
 /** Recipe review after generation — save, refine, or start over */
 export const recipeReviewKeyboard = new InlineKeyboard()
@@ -159,3 +178,46 @@ export const mealTypeKeyboard = new InlineKeyboard()
   .text('Breakfast', 'meal_type_breakfast')
   .text('Lunch', 'meal_type_lunch')
   .text('Dinner', 'meal_type_dinner');
+
+// ─── Plan week flow keyboards ───────────────────────────────────────────────────
+
+/** Step 1: Breakfast confirmation */
+export const planBreakfastKeyboard = new InlineKeyboard()
+  .text('Keep it', 'plan_keep_breakfast')
+  .text('Change this week', 'plan_change_breakfast');
+
+/** Step 1: Events question */
+export const planEventsKeyboard = new InlineKeyboard()
+  .text('No events this week', 'plan_no_events')
+  .text('Add event', 'plan_add_event');
+
+/** After adding an event, prompt for more */
+export const planMoreEventsKeyboard = new InlineKeyboard()
+  .text("That's all", 'plan_events_done')
+  .text('Add another', 'plan_add_event');
+
+/** Plan proposal review */
+export const planProposalKeyboard = new InlineKeyboard()
+  .text('Looks good!', 'plan_approve')
+  .text('Swap something', 'plan_swap');
+
+/**
+ * Recipe gap actions — shown when the plan-proposer identifies
+ * a slot that needs a new recipe for variety.
+ */
+export function planRecipeGapKeyboard(gapIndex: number) {
+  return new InlineKeyboard()
+    .text('Generate it', `plan_gen_gap_${gapIndex}`)
+    .text('I have an idea', `plan_idea_gap_${gapIndex}`)
+    .text('Pick from my recipes', `plan_skip_gap_${gapIndex}`);
+}
+
+/** Review a recipe generated within the plan flow */
+export const planGapRecipeReviewKeyboard = new InlineKeyboard()
+  .text('Use it', 'plan_use_recipe')
+  .text('Different one', 'plan_diff_recipe');
+
+/** After plan is confirmed */
+export const planConfirmedKeyboard = new InlineKeyboard()
+  .text('🛒 Shopping list', 'view_shopping_list')
+  .text('📖 View recipes', 'view_plan_recipes');

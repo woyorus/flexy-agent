@@ -111,10 +111,21 @@ export interface WeeklyPlan {
 
   targets: Macros;
 
-  funFoodBudget: {
-    /** Total calories allocated to fun food */
-    total: number;
-    items: FunFoodItem[];
+  /**
+   * The flex budget replaces the old fun food item model. Instead of placing
+   * specific treats on specific days, the system allocates a calorie pool:
+   * - Flex slots: planned meals with a calorie bonus (eat something fun)
+   * - Treat budget: unplanned remainder, spent freely on snacks/desserts
+   */
+  flexBudget: {
+    /** Total fun food pool — 20% of weekly calories */
+    totalPool: number;
+    /** Calories consumed by flex slot bonuses */
+    flexSlotCalories: number;
+    /** Remaining for ad-hoc treats: totalPool - flexSlotCalories */
+    treatBudget: number;
+    /** The flex slots themselves */
+    flexSlots: FlexSlot[];
   };
 
   breakfast: {
@@ -142,6 +153,27 @@ export interface FunFoodItem {
   /** ISO date */
   day: string;
   mealTime: 'snack' | 'dessert' | 'with-lunch' | 'with-dinner';
+}
+
+/**
+ * A flex slot is a meal where the calorie target is boosted above the normal
+ * meal-prep baseline. The extra calories come from the fun food pool.
+ *
+ * Flex slots are planned at plan time (the system suggests them), but the user
+ * decides what to eat in real-time — no specific food is assigned. Common uses:
+ * burger night, pizza, takeout, a richer home-cooked meal.
+ *
+ * The remaining fun food pool after flex bonuses = the "treat budget," which
+ * the user spends freely on snacks/desserts throughout the week.
+ */
+export interface FlexSlot {
+  /** ISO date */
+  day: string;
+  mealTime: 'lunch' | 'dinner';
+  /** Extra calories on top of the normal meal-prep baseline, drawn from the fun food pool */
+  flexBonus: number;
+  /** Optional note — e.g., "fun dinner night", "burger or pizza" */
+  note?: string;
 }
 
 export interface MealEvent {
@@ -187,11 +219,13 @@ export interface MealSlot {
   /** ISO date */
   day: string;
   mealTime: 'breakfast' | 'lunch' | 'dinner';
-  source: 'fresh' | 'meal-prep' | 'restaurant' | 'skipped';
+  source: 'fresh' | 'meal-prep' | 'restaurant' | 'flex' | 'skipped';
   /** Set when source is 'meal-prep' */
   batchId?: string;
   /** Set when source is 'restaurant' */
   eventId?: string;
+  /** If this is a flex slot, the bonus calories from the fun food pool */
+  flexBonus?: number;
   plannedCalories: number;
   plannedProtein: number;
 }

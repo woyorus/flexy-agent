@@ -165,9 +165,70 @@ export async function correctRecipeMacros(
   return { recipe, messages };
 }
 
-function buildSystemPrompt(input: GenerateRecipeInput): string {
-  const isBreakfast = input.mealType === 'breakfast';
+function mealTypeSection(mealType: 'breakfast' | 'lunch' | 'dinner'): string {
+  if (mealType === 'breakfast') {
+    return `### Breakfast: component-based
+- 2-3 distinct components that stand on their own.
+- Example patterns:
+  - Eggs (omelette/scrambled) + Toast with topping
+  - Oatmeal + Yogurt bowl
+  - Avocado toast + Eggs + Small oats/yogurt
+- 3-6 ingredients per component. Keep each component simple.
+- No "Frankenbowls" — don't shove protein powder into oatmeal with random additions.
+- Prep time: 5-15 minutes. Minimal equipment.`;
+  }
 
+  if (mealType === 'lunch') {
+    return `### Lunch: light, practical, one-container meals
+- Lunches are eaten during the day, often reheated at work. They should be LIGHTER in character than dinner — not heavy pasta dishes or rich stews.
+- Preferred styles:
+  - GRAIN/RICE BOWLS: Protein + vegetables + grain base + light dressing/sauce. The default lunch format.
+  - SALADS WITH WARM PROTEIN: Hearty salads with grilled chicken, fish, or legumes. Not sad diet salads — filling and satisfying.
+  - LIGHTER STEWS/SOUPS: Lentil soups, chicken and vegetable stews, lighter curries. Not heavy cream-based.
+  - WRAPS/STUFFED MEALS: When practical and reheatable.
+- The meal has clear, separable parts:
+  - MAIN: Protein + vegetables with a light sauce or dressing. Clear identity (e.g., "lemon herb chicken", "sesame tofu and vegetables").
+  - BASE (often separate): Rice, quinoa, couscous, bulgur, or mixed grains.
+  - SIDE (optional): Fresh component — salad, pickled vegetables, salsa.
+- Sauces should be LIGHT: vinaigrettes, tahini, soy-based, salsa, lemon-herb. Avoid heavy cream sauces, cheese-heavy preparations, or rich meat gravies for lunch.
+- Must be microwave-friendly and hold 2-3 days in the fridge. One-container packing preferred.
+- Do NOT default to pasta, bolognese, traybakes, or other dinner-style meals unless the user specifically asks for them.
+- 6-10 ingredients in the main. Cohesive flavor profile.
+- The base (grain/rice) is the natural calorie scaling lever.
+- Prep time must be REALISTIC. Minimums:
+  - Simple bowl assembly (pre-cooked protein + grain): 25-35 min
+  - Skillet protein + grain side: 35-45 min
+  - Anything with 10+ ingredients: at least 40 min
+  When in doubt, round UP.`;
+  }
+
+  // dinner
+  return `### Dinner: hearty, satisfying sit-down meals
+- Dinners are the main meal of the day, eaten at home. They should be HEARTIER and more comforting than lunch.
+- Preferred styles:
+  - PASTA DISHES: Bolognese, carbonara-style, linguine, rigatoni with rich sauces.
+  - SKILLET/SAUTÉ MEALS: Pan-cooked protein with vegetables and a flavorful sauce.
+  - TRAYBAKES: Sheet pan meals — protein and vegetables roasted together.
+  - STEWS/CURRIES/TAGINES: Slow-cooked or simmered dishes with depth of flavor.
+- The meal has clear, separable parts:
+  - MAIN: The hero dish. Protein + vegetables + cooking technique + rich flavor profile. Must have a clear identity (e.g., "chicken pepperonata", "salmon traybake", "beef tagine").
+  - CARB SIDE (often separate): Pasta, rice, potatoes, couscous, bread. Cooked independently. Simple.
+  - SIDE (optional): Salad, steamed vegetables. Dead simple.
+- Richer sauces and preparations are welcome: cream-based, cheese, slow-cooked tomato, wine-reduced, butter-finished.
+- The main dish has 6-10 ingredients. Cohesive flavor profile. Not random ingredient dumping.
+- The carb side is the natural calorie scaling lever — easily adjusted without breaking the dish.
+- Must reheat well and hold 2-3 days in the fridge. Storage and reheating instructions required.
+- Prep time must be REALISTIC for a home cook. Minimums:
+  - Simple stir-fry: 25-35 min
+  - Pasta dish (boil water + sauce): 35-45 min
+  - Skillet/sauté with sauce + side: 40-55 min
+  - Bolognese, stew, tagine, curry: 50-70 min
+  - Traybake/sheet pan: 40-55 min (includes oven preheat)
+  - Anything with 10+ ingredients: at least 45 min
+  When in doubt, round UP.`;
+}
+
+export function buildSystemPrompt(input: GenerateRecipeInput): string {
   return `You are an expert chef and nutritionist who creates macro-controlled meal prep recipes.
 
 YOUR JOB: Create a recipe that hits specific macro targets while being delicious, practical, and easy to cook.
@@ -183,33 +244,22 @@ It is better to slightly undershoot than overshoot. Overshooting kills caloric d
 
 ## MEAL STRUCTURE RULES
 
-${isBreakfast ? `### Breakfast: component-based
-- 2-3 distinct components that stand on their own.
-- Example patterns:
-  - Eggs (omelette/scrambled) + Toast with topping
-  - Oatmeal + Yogurt bowl
-  - Avocado toast + Eggs + Small oats/yogurt
-- 3-6 ingredients per component. Keep each component simple.
-- No "Frankenbowls" — don't shove protein powder into oatmeal with random additions.
-- Prep time: 5-15 minutes. Minimal equipment.` : `### Lunch/Dinner: composable meal
-- The meal has clear, separable parts:
-  - MAIN: The hero dish. Protein + vegetables + cooking technique + flavor profile. Must have a clear identity (e.g., "chicken pepperonata", "salmon with green beans", "pork stir-fry").
-  - CARB SIDE (often separate): Rice, pasta, potatoes, bread. Cooked independently. Simple.
-  - SIDE (optional): Salad, steamed vegetables. Dead simple.
-- The main dish has 6-10 ingredients. Cohesive flavor profile. Not random ingredient dumping.
-- The carb side is the natural calorie scaling lever — easily adjusted without breaking the dish.
-- Must reheat well and hold 2-3 days in the fridge. Storage and reheating instructions required.
-- Prep time must be REALISTIC for a home cook, not a professional. Include ALL time: washing, chopping, heating pans, browning, simmering, boiling water, cooking sides, plating. People consistently underestimate cook times. Use these minimums:
-  - Simple stir-fry: 25-35 min
-  - Pasta dish (boil water + sauce): 35-45 min
-  - Skillet/sauté with sauce + side: 40-55 min
-  - Bolognese, stew, tagine, curry: 50-70 min
-  - Traybake/sheet pan: 40-55 min (includes oven preheat)
-  - Anything with 10+ ingredients: at least 45 min
-  When in doubt, round UP.`}
+${mealTypeSection(input.mealType)}
 
 ## INGREDIENT RULES
-- Use metric grams/ml with exact quantities per serving.
+- Use metric grams/ml with exact quantities per serving — EXCEPT for naturally countable items.
+- **Countable items use whole units, not grams.** The user can't weigh an egg.
+  - Eggs: "2 eggs" (unit: "whole"), NOT "90g eggs"
+  - Limes/lemons: "1 lime" (unit: "whole") or "juice of 1 lime" — NOT "30g lime"
+  - Garlic: "2 cloves" (unit: "cloves"), NOT "6g garlic"
+  - Bananas, avocados, onions: use count or fraction ("1 avocado", "½ onion") when the natural unit is obvious
+  - For macro calculations, use standard sizes: 1 large egg ≈ 60g, 1 clove garlic ≈ 3g, 1 medium avocado ≈ 150g flesh
+- **ALL amounts must be RAW / UNCOOKED / DRY weight.** This is critical for accurate macro counting and shopping.
+  - Meat and fish: RAW weight (e.g., "chicken breast, raw: 200g")
+  - Pasta, rice, grains: DRY/UNCOOKED weight (e.g., "rigatoni, dry: 65g", "jasmine rice, uncooked: 80g")
+  - Legumes: DRAINED weight for canned (e.g., "canned chickpeas, drained: 100g"), DRY weight for dried
+  - Vegetables: raw/uncooked weight
+  - Your macro calculations MUST be based on the raw/dry weights you specify. Do NOT calculate macros from cooked weights.
 - Every ingredient has a role: protein, carb, fat, vegetable, base, or seasoning.
 - Every ingredient belongs to a component (main, carb_side, side, or a breakfast component name).
 - Prefer: olive oil, nuts, avocado, fish for fats. Minimize butter, cream, fatty processed meats.
@@ -220,6 +270,12 @@ ${isBreakfast ? `### Breakfast: component-based
   - Coconut: "coconut milk (full fat)" vs "light coconut milk"
   - Cheese: "mozzarella" vs "light mozzarella", "cream cheese (full fat)"
   - General rule: if two common variants of the same ingredient differ by more than 30% in calories, specify which one. Your macro calculations must match the specific variant you name.
+
+## USER FOOD PROFILE
+The user lives in ${config.foodProfile.region}. Shopping access: ${config.foodProfile.storeAccess}
+${config.foodProfile.ingredientNotes}
+${config.foodProfile.avoided.length > 0 ? `Avoided ingredients: ${config.foodProfile.avoided.join(', ')}` : ''}
+ALL ingredient choices must respect this profile. Do not suggest ingredients the user cannot easily find in their local stores.
 
 ## RECIPE TEXT RULES
 - Write the recipe body as natural, human-readable text.
@@ -235,7 +291,7 @@ ${isBreakfast ? `### Breakfast: component-based
 Respond with ONLY valid JSON matching this schema:
 {
   "name": "string — the dish name, clear identity",
-  "slug": "string — kebab-case",
+  "slug": "string — kebab-case, max 50 chars (e.g. 'chicken-pepperonata-rice', not 'chicken-pepperonata-with-rice-and-roasted-vegetables-mediterranean-style')",
   "meal_types": ["breakfast" | "lunch" | "dinner"],
   "cuisine": "string",
   "tags": ["string"],

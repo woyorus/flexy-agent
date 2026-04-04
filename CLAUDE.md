@@ -123,7 +123,7 @@ The primary development loop is: the user runs the bot, tests it manually via Te
 
 ### When the user reports an issue from a test session
 
-1. **Read `logs/debug.log` first.** This file contains the full session log — every Telegram message (incoming and outgoing), every AI call (model, reasoning mode, full prompts, full responses, token usage, duration), every flow state transition, and every QA validation result. Read this before asking questions.
+1. **Read the end of `logs/debug.log` first.** The log is append-only and can grow large across many sessions. When the user reports an issue, it's almost always from a recent run — start by reading the last ~200 lines (`offset` from the end), not the beginning. The file contains every Telegram message (incoming and outgoing), every AI call (model, reasoning mode, full prompts, full responses, token usage, duration), every flow state transition, and every QA validation result.
 2. **Correlate the user's complaint with the log.** The log is chronological with `[TG:IN]` / `[TG:OUT]` / `[AI:REQ]` / `[AI:RES]` / `[FLOW]` / `[QA]` tags. Find the relevant interaction, read what the AI was asked, what it returned, and what the bot sent.
 3. **Diagnose from the log, then fix.** The log usually has enough context to understand the root cause without asking the user for more details. If the issue is a bad recipe, the log has the full prompt and response. If the issue is a flow bug, the log has the state transitions. Fix the issue based on what the log tells you.
 

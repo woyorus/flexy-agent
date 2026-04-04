@@ -163,7 +163,10 @@ export function advanceFirstRunStep(state: SessionState): boolean {
     const daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
     const nextMonday = new Date(today);
     nextMonday.setDate(today.getDate() + daysUntilMonday);
-    state.weekStart = nextMonday.toISOString().split('T')[0]!;
+    const year = nextMonday.getFullYear();
+    const month = String(nextMonday.getMonth() + 1).padStart(2, '0');
+    const day = String(nextMonday.getDate()).padStart(2, '0');
+    state.weekStart = `${year}-${month}-${day}`;
 
     state.flow = 'planning';
     state.planningStep = 'breakfast';

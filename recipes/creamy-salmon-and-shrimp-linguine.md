@@ -54,7 +54,7 @@ ingredients:
     unit: ml
     role: base
     component: Creamy salmon and shrimp sauce
-  - name: cooking cream
+  - name: cooking cream (20% fat)
     amount: 40
     unit: g
     role: fat

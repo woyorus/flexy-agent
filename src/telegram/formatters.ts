@@ -18,10 +18,17 @@ import type { SolverOutput, DailyBreakdown } from '../solver/types.js';
 export function formatBudgetReview(output: SolverOutput, targets: { calories: number; protein: number }): string {
   const { weeklyTotals, dailyBreakdown } = output;
 
+  const mealCal = weeklyTotals.calories - weeklyTotals.funFoodPool;
   let msg = `Here's your week:\n\n`;
   msg += `Weekly budget: ${targets.calories.toLocaleString()} cal | ${targets.protein}g protein\n`;
-  msg += `Planned meals: ${(weeklyTotals.calories - weeklyTotals.funFoodCalories).toLocaleString()} cal (${((weeklyTotals.calories - weeklyTotals.funFoodCalories) / targets.calories * 100).toFixed(1)}%)\n`;
-  msg += `Fun food: ${weeklyTotals.funFoodCalories.toLocaleString()} cal (${weeklyTotals.funFoodPercent}%)\n`;
+  msg += `Planned meals: ${mealCal.toLocaleString()} cal (${(mealCal / targets.calories * 100).toFixed(1)}%)\n`;
+  if (weeklyTotals.flexSlotCalories > 0) {
+    msg += `Flex meals: ${weeklyTotals.flexSlotCalories.toLocaleString()} cal\n`;
+  }
+  if (weeklyTotals.treatBudget > 0) {
+    const occasions = Math.round(weeklyTotals.treatBudget / 350);
+    msg += `Treats: ${occasions >= 2 ? `${occasions} × ~${Math.round(weeklyTotals.treatBudget / occasions)}` : `~${weeklyTotals.treatBudget}`} cal (spend whenever)\n`;
+  }
 
   const eventCal = dailyBreakdown.reduce(
     (sum, d) => sum + d.events.reduce((s, e) => s + e.estimatedCalories, 0), 0);
@@ -36,15 +43,13 @@ export function formatBudgetReview(output: SolverOutput, targets: { calories: nu
     const dayName = formatDayShort(day.day);
     const parts: string[] = [
       `Bfast ${day.breakfast.calories}`,
-      `Lunch ${day.lunch.calories}`,
-      `Dinner ${day.dinner.calories}`,
+      `Lunch ${day.lunch.calories}${day.lunch.flexBonus ? ' flex' : ''}`,
+      `Dinner ${day.dinner.calories}${day.dinner.flexBonus ? ' flex' : ''}`,
     ];
 
-    const funFoodStr = day.funFoods.map((f) => f.name).join(', ');
     const eventStr = day.events.map((e) => e.name).join(', ');
 
     let line = `${dayName}  ${day.totalCalories.toLocaleString()} cal  ${day.totalProtein}g P | ${parts.join(' | ')}`;
-    if (funFoodStr) line += ` | ${funFoodStr}`;
     if (eventStr) line += ` | 🍽️ ${eventStr}`;
     msg += line + '\n';
   }
