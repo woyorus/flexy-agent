@@ -1,4 +1,7 @@
-# Docs Organization Rules (Draft — for review)
+# Plan 002: Docs Organization Rules
+
+**Status:** Completed — rules promoted to `docs/DOCS-GUIDE.md`
+**Date:** 2026-04-03
 
 Instructions for the coding agent (Claude Code) on how to organize and maintain the `docs/` folder. Goal: a new agent instance reads CLAUDE.md alone and knows exactly which doc to load — without polluting its context with everything else.
 

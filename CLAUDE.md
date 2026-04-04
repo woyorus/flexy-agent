@@ -27,14 +27,16 @@ Every file, class, and function must be documented. This is not optional.
 | `docs/product-specs/ui.md` | Telegram UI, keyboards, message formatting, voice. | When modifying buttons, menus, or display. |
 | `docs/product-specs/recipes.md` | Recipe format, generation, scaling, structure system. | When working on recipes. |
 | `docs/BACKLOG.md` | Current version scope + versioned feature roadmap. | When checking what's in/out of scope. |
+| `docs/DOCS-GUIDE.md` | Rules for creating and managing docs, plans, design docs, specs. | When creating new docs or unsure where something belongs. |
 | `docs/design-docs/index.md` | Catalog of significant design decisions. | When making or reviewing architectural decisions. |
-| `docs/plans/` | Execution plans for multi-step changes. | When planning or executing multi-step work. |
+| `docs/plans/active/` | Execution plans currently in progress or parked. | When planning or executing multi-step work. |
+| `docs/plans/tech-debt.md` | Known technical debt and deferred cleanup items. | When deferring cleanup or checking what debt exists. |
 
 When adding new docs, update this table. An unlisted doc is invisible to the agent.
 
 ### Docs maintenance rules
 
-See `docs/plans/002-docs-organization-rules.md` for the full rules on how to organize and maintain docs.
+See `docs/DOCS-GUIDE.md` for the full rules on when to create new files, where they go, and how to manage the docs lifecycle.
 
 ### Tech stack
 

@@ -4,6 +4,12 @@
 
 Flexie is an AI agent that helps users lose weight by managing a weekly calorie budget with built-in flexibility for fun foods, restaurants, and real life. It is planning-first, not tracking-first. The core product is the **agent harness** — state management, budget solver, recipe database, and conversational flows. Telegram is the UI.
 
+## Adding a new spec
+
+Create a new file when a new product domain emerges that doesn't fit any existing spec, or when an existing spec exceeds ~300 lines. Name it `<domain>.md`, start with a scope line, add it to the table below and to the docs index in CLAUDE.md — same commit.
+
+Specs describe current behavior, not aspirational design. Update when code changes — same commit.
+
 ## Spec files
 
 | File | Covers | Load when |

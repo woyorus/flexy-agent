@@ -26,24 +26,39 @@
 
 | Feature | Reason | Planned for |
 |---|---|---|
-| Photo tracking | Needs vision model integration | v0.0.4 |
-| Voice/text tracking | Needs running budget state | v0.0.4 |
-| Mid-week adjustment | Needs tracking first | v0.0.4 |
-| Three-tier notifications | Needs tracking + adjustment | v0.0.4 |
-| Proactive nudges | Needs scheduled messages | v0.0.5 |
-| Breakfast variety | Nice-to-have, not core | v0.0.5 |
-| Ingredient-aware suggestions | Needs ingredient inventory | v0.0.6 |
-| Recipe import from URL/photo | Nice-to-have | v0.0.6 |
+| Freeform conversation (Q&A escape hatch from flows) | Needs intent classifier + context injection | v0.0.5 |
+| Photo tracking | Needs vision model integration | v0.0.5 |
+| Voice/text tracking | Needs running budget state | v0.0.5 |
+| Running budget (planned vs actual) | Needs tracking first | v0.0.5 |
+| Mid-week adjustment | Needs tracking + running budget | v0.0.5 |
+| Cook-time ingredient adjustment | Needs daily plan view + running budget | v0.0.5 |
+| Three-tier notifications | Needs tracking + adjustment | v0.0.5 |
+| Messaging overhaul (voice, treats stance, usage guide, method education) | Polish, not blocking daily use | v0.0.6 |
+| Proactive nudges | Needs scheduled messages | v0.0.6 |
+| Breakfast variety | Nice-to-have, not core | v0.0.6 |
+| Ingredient-aware suggestions | Needs ingredient inventory | v0.0.7 |
+| Recipe import from URL/photo | Nice-to-have | v0.0.7 |
 | User onboarding (macro calc) | Needed for multi-user | v0.1.0 |
 | Multi-user support | Not needed for prototype | v0.1.0 |
 | Alternative UI (web/app) | Telegram is sufficient for now | v0.1.0+ |
 
 ## Roadmap
 
-### v0.0.4 — Tracking and adjustment
+### v0.0.4 — Production-ready for personal use (target: 2026-04-05)
 
-The system becomes dynamic. User reports what happened, agent rebalances.
+The minimum required to start using the product daily from Monday. Focus: reliability, not new intelligence.
 
+- **Daily plan view with scaled recipes**: A "what do I cook today" view — shows today's meals from the weekly plan with recipes already scaled to that day's targets. The recipe library stays as-is (original unscaled templates). The plan provides the context: when you open a recipe from your daily plan, you see the scaled version (adjusted quantities, macros, calories). Exact UX to be designed when we build it — needs to feel natural for the "I'm in the kitchen, what do I cook" moment.
+- **Shopping list overhaul**: Current implementation is bare-bones. Needs proper ingredient aggregation, unit handling, and a clean Telegram UI for use at the store.
+- **Daily measurements**: Body weight and waist circumference tracking via Telegram. Store daily entries, display rolling averages to track progress over time.
+- **Test coverage for critical paths**: Unit tests for budget solver, recipe scaling, and shopping list aggregation. The deterministic core must not break silently.
+- **Bug fixes / stability**: No major bugs on Monday. Polish rough edges found during weekend testing.
+
+### v0.0.5 — Tracking, adjustment, and natural conversation
+
+The system becomes dynamic and conversational. User reports what happened, agent rebalances. User asks questions, agent answers without derailing the flow.
+
+- **Freeform conversation layer**: An LLM intent classifier on every inbound message determines whether the user is continuing the current flow or asking an off-flow question. Off-flow messages branch into a freeform conversation with context from the current flow state (e.g., the recipe being viewed, the day being planned). Multi-turn follow-ups are supported. When the side conversation ends, the user returns seamlessly to the flow they were in. The state machine stays deterministic — this is an escape hatch, not a replacement. We solve one specific problem (meal planning), not general chat, but the product must feel natural in a chat UI where users expect to be able to just ask things.
 - **Photo tracking**: Snap a meal photo, vision model estimates calories. Two taps.
 - **Voice/text tracking**: "Had carbonara at that Italian place." Agent extracts estimate.
 - **Running budget**: Planned vs. actual, updated as tracking comes in.
@@ -52,15 +67,20 @@ The system becomes dynamic. User reports what happened, agent rebalances.
   - Informational (300-800 cal): Gentle FYI with optional lever
   - Replan offer (800+ cal or budget-threatening drift): Explicit rebalance offer
 - **Mid-week replanning**: When deviation is large, agent proposes minimal adjustments to remaining days.
+- **Cook-time ingredient adjustment**: Real-world quantities don't match plan quantities — you can't buy exactly 440g of beef, you get 500g and don't want to waste 60g. At cook time, the user tells the system what they actually have ("I have 500g of beef, not 440g") and the recipe rescales around that real quantity. Protein overshoot is acceptable — compensate by trimming carbs or fats to stay close to calorie target. This applies mainly to indivisible ingredients (meat, fish) where cutting to exact grams is wasteful. Vegetables and measurable ingredients can be portioned precisely. The system should be anti-food-waste: use what you bought, adjust the math, don't throw food away.
 
-### v0.0.5 — Polish and proactivity
+### v0.0.6 — Polish and proactivity
 
+- **Messaging overhaul**: Rework the product's communication style and voice across all flows.
+  - Clear stance on treats: hyper-palatable and ultra-processed foods trigger addictive behavior and compulsiveness. The product should be opinionated about this, not neutral.
+  - Product usage guide: in-bot instructions on how to use the system (planning rhythm, what to expect, how measurements work).
+  - Method education: learning materials about the approach — why weekly budgets, why flex slots exist, why we track averages not daily numbers. Help the user understand the "why" so they trust the system.
 - **Planning nudge**: Agent sends one message when it's time to plan next week.
 - **Breakfast variety**: Agent suggests different breakfasts based on recent history.
 - **Recipe rotation**: Track when recipes were last used, avoid repeating too soon.
 - **Week-end review**: Brief, non-judgmental summary of the week.
 
-### v0.0.6 — Intelligence
+### v0.0.7 — Intelligence
 
 - **Ingredient-aware suggestions**: "I have zucchini and peppers to use up."
 - **Recipe import**: Send a URL, photo, or text of a recipe. Agent parses and structures it.
