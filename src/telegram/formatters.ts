@@ -18,7 +18,7 @@ import type { SolverOutput, DailyBreakdown } from '../solver/types.js';
 export function formatBudgetReview(output: SolverOutput, targets: { calories: number; protein: number }): string {
   const { weeklyTotals, dailyBreakdown } = output;
 
-  const mealCal = weeklyTotals.calories - weeklyTotals.funFoodPool;
+  const mealCal = weeklyTotals.calories - weeklyTotals.treatBudget - weeklyTotals.flexSlotCalories;
   let msg = `Here's your week:\n\n`;
   msg += `Weekly budget: ${targets.calories.toLocaleString()} cal | ${targets.protein}g protein\n`;
   msg += `Planned meals: ${mealCal.toLocaleString()} cal (${(mealCal / targets.calories * 100).toFixed(1)}%)\n`;

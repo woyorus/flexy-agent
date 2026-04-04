@@ -19,7 +19,8 @@
  */
 
 import type { LLMProvider, ChatMessage } from '../ai/provider.js';
-import type { Recipe, MealEvent, FlexSlot, WeeklyPlan, Batch, MealSlot, CookDay } from '../models/types.js';
+import type { Recipe, MealEvent, FlexSlot, WeeklyPlan, Batch, MealSlot, CookDay, ScaledIngredient } from '../models/types.js';
+import { scaleRecipe } from './recipe-scaler.js';
 import type { PlanProposal, ProposedBatch, RecipeGap, SolverInput } from '../solver/types.js';
 import { config } from '../config.js';
 import { log } from '../debug/logger.js';
@@ -38,6 +39,7 @@ import {
   correctRecipeMacros,
   type GenerateResult,
 } from './recipe-generator.js';
+import { targetsForMealType } from './recipe-flow.js';
 import { validateRecipe } from '../qa/validators/recipe.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import type { StateStore } from '../state/store.js';
@@ -151,11 +153,23 @@ export async function handleEventText(
 ): Promise<FlowResponse> {
   log.debug('PLAN-FLOW', `event text: "${text}"`);
 
-  // If there's a previous event, classify: is this a correction or a new event?
+  // If there's a previous event, classify: is this a correction, reclassification, or a new event?
   const lastEvent = state.events.length > 0 ? state.events[state.events.length - 1]! : null;
   if (lastEvent) {
     const intent = await classifyEventIntent(text, lastEvent, llm);
     log.debug('PLAN-FLOW', `event intent: ${intent.type}`);
+
+    if (intent.type === 'reclassify_as_treat') {
+      // User clarified that the last "event" is actually a treat, not a meal replacement.
+      // Remove it from state.events so the solver doesn't delete their meal slot.
+      const removed = state.events.pop()!;
+      const treatBudget = Math.round(config.targets.weekly.calories * config.targets.treatBudgetPercent);
+      log.debug('PLAN-FLOW', `event reclassified as treat, removed: ${removed.name}`);
+      return {
+        text: `Got it — that's a treat, not a meal replacement. Your treat budget (~${treatBudget} cal/week) covers it and you still eat your regular meals.\n\nAny actual meals out?`,
+        state,
+      };
+    }
 
     if (intent.type === 'correction') {
       // Apply the correction to the last event
@@ -171,7 +185,7 @@ export async function handleEventText(
       log.debug('PLAN-FLOW', `event corrected: ${lastEvent.name} → ~${lastEvent.estimatedCalories} cal`);
 
       return {
-        text: `Updated — ${lastEvent.name} on ${formatDayShort(lastEvent.day)} ${lastEvent.mealTime} (~${lastEvent.estimatedCalories} cal). Any other events?`,
+        text: `Updated — ${lastEvent.name} on ${formatDayShort(lastEvent.day)} ${lastEvent.mealTime} (~${lastEvent.estimatedCalories} cal). Any other meals out?`,
         state,
       };
     }
@@ -182,8 +196,9 @@ export async function handleEventText(
 }
 
 /**
- * Classify whether a message during event collection is a correction to the
- * last event or a description of a new event.
+ * Classify a follow-up message during event collection.
+ * Three possible intents: correction to last event, reclassification as treat
+ * (user says it's actually a snack, not a meal replacement), or a new event.
  */
 async function classifyEventIntent(
   text: string,
@@ -197,17 +212,18 @@ async function classifyEventIntent(
     messages: [
       {
         role: 'system',
-        content: `The user is adding events to their weekly meal plan. They just added this event:
+        content: `The user is adding meals-out events to their weekly meal plan. They just added this event:
 "${lastEvent.name}" — ${lastEvent.day} ${lastEvent.mealTime}, ~${lastEvent.estimatedCalories} cal
 
-Now they sent a follow-up message. Determine if they are:
-1. CORRECTING the previous event (changing calories, meal time, name, or other details)
-2. Describing a NEW, separate event
+Now they sent a follow-up message. Determine their intent:
+1. CORRECTION — changing calories, meal time, name, or other details of the same event
+2. RECLASSIFY_AS_TREAT — clarifying that this was NOT a meal replacement but just snacks/drinks/dessert that don't replace their regular meal (e.g. "actually those were just cookies", "no, I still eat dinner normally", "it's just a snack")
+3. NEW_EVENT — describing a separate, additional meal out
 
 Respond with JSON:
-- If correction: {"type":"correction","new_calories":number|null,"new_meal_time":"lunch"|"dinner"|null,"new_name":"string"|null}
-  Only include fields that changed. Use null for unchanged fields.
-- If new event: {"type":"new_event"}`,
+- correction: {"type":"correction","new_calories":number|null,"new_meal_time":"lunch"|"dinner"|null,"new_name":"string"|null}
+- reclassify: {"type":"reclassify_as_treat"}
+- new event: {"type":"new_event"}`,
       },
       { role: 'user', content: text },
     ],
@@ -224,6 +240,9 @@ Respond with JSON:
         newName: parsed.new_name ?? undefined,
       };
     }
+    if (parsed.type === 'reclassify_as_treat') {
+      return { type: 'reclassify_as_treat' };
+    }
   } catch { /* fall through */ }
 
   return { type: 'new_event' };
@@ -231,15 +250,21 @@ Respond with JSON:
 
 type EventIntent =
   | { type: 'correction'; newCalories?: number; newMealTime?: 'lunch' | 'dinner'; newName?: string }
+  | { type: 'reclassify_as_treat' }
   | { type: 'new_event' };
 
-/** Parse a new event from free-form text using the LLM. */
+/**
+ * Parse a new event from free-form text using the LLM.
+ * Classifies as meal_replacement (replaces a slot) or treat (treat budget debit).
+ */
 async function parseNewEvent(
   state: PlanFlowState,
   text: string,
   llm: LLMProvider,
 ): Promise<FlowResponse> {
   log.debug('PLAN-FLOW', `parsing new event: "${text}"`);
+
+  const treatBudget = Math.round(config.targets.weekly.calories * config.targets.treatBudgetPercent);
 
   const result = await llm.complete({
     model: 'nano',
@@ -248,11 +273,16 @@ async function parseNewEvent(
     messages: [
       {
         role: 'system',
-        content: `Parse a meal event description into structured data. The week runs ${state.weekDays[0]} to ${state.weekDays[6]}.
+        content: `Parse a meal event description. The week runs ${state.weekDays[0]} to ${state.weekDays[6]}.
 Day names map to: Mon=${state.weekDays[0]}, Tue=${state.weekDays[1]}, Wed=${state.weekDays[2]}, Thu=${state.weekDays[3]}, Fri=${state.weekDays[4]}, Sat=${state.weekDays[5]}, Sun=${state.weekDays[6]}.
+
+CLASSIFY the event type:
+- "meal_replacement": eating a full meal somewhere else (restaurant, dinner party, lunch out, takeout replacing a home meal). The meal prep for that slot is skipped.
+- "treat": snacks, desserts, or extras alongside regular meals (cookies at work, birthday cake, conference snacks, drinks at happy hour). Does NOT replace any meal.
 
 Respond with JSON:
 {
+  "type": "meal_replacement" | "treat",
   "name": "string — short description",
   "day": "ISO date string",
   "meal_time": "lunch" | "dinner",
@@ -267,6 +297,15 @@ Respond with JSON:
 
   try {
     const parsed = JSON.parse(result.content);
+
+    if (parsed.type === 'treat') {
+      log.debug('PLAN-FLOW', `treat detected (not a meal replacement): ${parsed.name} ~${parsed.estimated_calories} cal`);
+      return {
+        text: `That's a treat — your treat budget (~${treatBudget} cal/week) covers it. You still eat your regular meals that day.\n\nAny meals you'll eat out?`,
+        state,
+      };
+    }
+
     const event: MealEvent = {
       name: parsed.name,
       day: parsed.day,
@@ -275,10 +314,10 @@ Respond with JSON:
       notes: parsed.notes ?? undefined,
     };
     state.events.push(event);
-    log.debug('PLAN-FLOW', `event added: ${event.name} on ${event.day} ${event.mealTime} (~${event.estimatedCalories} cal)`);
+    log.debug('PLAN-FLOW', `meal-replacement event added: ${event.name} on ${event.day} ${event.mealTime} (~${event.estimatedCalories} cal)`);
 
     return {
-      text: `Got it — ${event.name} on ${formatDayShort(event.day)} ${event.mealTime} (~${event.estimatedCalories} cal). Any other events?`,
+      text: `Got it — ${event.name} on ${formatDayShort(event.day)} ${event.mealTime} (~${event.estimatedCalories} cal). Any other meals out?`,
       state,
     };
   } catch {
@@ -485,13 +524,9 @@ export async function handleGapRecipeRefinement(
 
   const refined = await refineRecipe(state.recipeGenMessages, feedback, llm);
 
-  // Quick macro validation
-  const targets = {
-    calories: Math.round(config.targets.daily.calories * 0.365),
-    protein: Math.round(config.targets.daily.protein * 0.365),
-    fat: Math.round(config.targets.daily.fat * 0.365),
-    carbs: Math.round(config.targets.daily.carbs * 0.365),
-  };
+  // Quick macro validation — use the same target as the standalone recipe flow
+  const gapMealType = state.pendingGaps?.[state.activeGapIndex ?? 0]?.mealType ?? 'lunch';
+  const targets = targetsForMealType(gapMealType);
   const corrected = await validateAndCorrectRecipe(refined, targets, llm);
 
   state.currentRecipe = corrected.recipe;
@@ -513,6 +548,8 @@ export async function handleGapRecipeRefinement(
 export async function handleApprove(
   state: PlanFlowState,
   store: StateStore,
+  recipes: RecipeDatabase,
+  llm: LLMProvider,
 ): Promise<FlowResponse> {
   if (!state.proposal?.solverOutput) {
     return { text: 'No plan to approve. Something went wrong.', state };
@@ -521,7 +558,7 @@ export async function handleApprove(
   // Transition any existing active plans to completed before saving the new one
   await store.completeActivePlans();
 
-  const plan = buildWeeklyPlan(state);
+  const plan = await buildWeeklyPlan(state, recipes, llm);
   await store.savePlan(plan);
 
   state.phase = 'confirmed';
@@ -568,14 +605,56 @@ export async function handleSwapText(
 
   switch (intent.type) {
     case 'flex_add': {
+      // Enforce config.planning.flexSlotsPerWeek. If already at max, treat this
+      // as a MOVE: drop existing flex slots (restoring their meal prep days)
+      // before adding the new one.
+      if (state.proposal.flexSlots.length >= config.planning.flexSlotsPerWeek) {
+        log.debug('PLAN-FLOW', `flex_add at capacity (${state.proposal.flexSlots.length}/${config.planning.flexSlotsPerWeek}) — treating as move`);
+        const existingFlexes = [...state.proposal.flexSlots];
+        state.proposal.flexSlots = [];
+        for (const existing of existingFlexes) {
+          absorbFreedDay(state, existing.day, existing.mealTime);
+        }
+      }
+
       state.proposal.flexSlots.push({
         day: intent.day,
         mealTime: intent.mealTime,
         flexBonus: 350,
         note: 'flex meal',
       });
-      // Remove any batch covering that day+meal
-      removeBatchDay(state.proposal, intent.day, intent.mealTime);
+
+      // Remove the new flex day from any existing batch; handle any orphan days.
+      const { orphanDays } = removeBatchDay(state.proposal, intent.day, intent.mealTime);
+      for (const orphan of orphanDays) {
+        absorbFreedDay(state, orphan, intent.mealTime);
+      }
+      break;
+    }
+    case 'flex_move': {
+      // Atomic move: remove the "from" flex (or all existing if unambiguous),
+      // then add a new flex at "to". Any resulting orphan days are absorbed
+      // into adjacent batches or become recipe gaps.
+      const fromDay = intent.fromDay ?? state.proposal.flexSlots[0]?.day;
+      const fromMealTime = intent.fromMealTime ?? state.proposal.flexSlots[0]?.mealTime;
+
+      if (fromDay && fromMealTime) {
+        state.proposal.flexSlots = state.proposal.flexSlots.filter(
+          (f) => !(f.day === fromDay && f.mealTime === fromMealTime),
+        );
+        absorbFreedDay(state, fromDay, fromMealTime);
+      }
+
+      state.proposal.flexSlots.push({
+        day: intent.toDay,
+        mealTime: intent.toMealTime,
+        flexBonus: 350,
+        note: 'flex meal',
+      });
+      const { orphanDays } = removeBatchDay(state.proposal, intent.toDay, intent.toMealTime);
+      for (const orphan of orphanDays) {
+        absorbFreedDay(state, orphan, intent.toMealTime);
+      }
       break;
     }
     case 'flex_remove': {
@@ -644,12 +723,7 @@ async function generateGapRecipe(
   state.phase = 'generating_recipe';
   log.debug('PLAN-FLOW', `generating gap recipe: ${preferences}`);
 
-  const targets = {
-    calories: Math.round(config.targets.daily.calories * 0.365),
-    protein: Math.round(config.targets.daily.protein * 0.365),
-    fat: Math.round(config.targets.daily.fat * 0.365),
-    carbs: Math.round(config.targets.daily.carbs * 0.365),
-  };
+  const targets = targetsForMealType(gap.mealType);
 
   const genResult = await generateRecipe({
     mealType: gap.mealType,
@@ -767,6 +841,33 @@ function addBatchFromGap(
 }
 
 /**
+ * Absorb a freed day (orphan from a batch split, or a day where a flex was just
+ * removed) back into the plan. First tries to extend an adjacent batch, then
+ * falls back to creating a recipe gap. Unlike `restoreMealSlot`, this always
+ * succeeds — orphans never silently disappear.
+ */
+function absorbFreedDay(
+  state: PlanFlowState,
+  day: string,
+  mealTime: 'lunch' | 'dinner',
+): void {
+  const restored = restoreMealSlot(state.proposal!, day, mealTime);
+  if (restored) return;
+
+  // No adjacent batch can absorb it — create a recipe gap.
+  const gap: RecipeGap = {
+    mealType: mealTime,
+    days: [day],
+    servings: 1,
+    suggestion: 'any recipe that fits this slot',
+    reason: `${mealTime} on ${formatDayShort(day)} needs a recipe after a flex slot change.`,
+  };
+  state.proposal!.recipesToGenerate.push(gap);
+  if (!state.pendingGaps) state.pendingGaps = [];
+  state.pendingGaps.push(gap);
+}
+
+/**
  * Try to restore a meal-prep slot by extending an adjacent batch.
  * Returns true if successful, false if a recipe gap is needed instead.
  */
@@ -809,23 +910,38 @@ function restoreMealSlot(proposal: PlanProposal, day: string, mealTime: 'lunch' 
  * Remove a day from a batch when a flex slot replaces it.
  * If removing from the middle of a batch (e.g., Tue from Mon-Wed), splits it
  * into two contiguous batches (Mon and Wed) so the cooking schedule stays valid.
+ *
+ * Returns any "orphan" days — single leftover days that would become 1-serving
+ * batches if kept. These violate the min-2-serving rule, so the caller must
+ * re-absorb them (via `restoreMealSlot`) or convert them to recipe gaps.
  */
-function removeBatchDay(proposal: PlanProposal, day: string, mealTime: 'lunch' | 'dinner'): void {
+function removeBatchDay(
+  proposal: PlanProposal,
+  day: string,
+  mealTime: 'lunch' | 'dinner',
+): { orphanDays: string[] } {
   const newBatches: ProposedBatch[] = [];
+  const orphanDays: string[] = [];
 
   for (const batch of proposal.batches) {
     if (batch.mealType === mealTime && batch.days.includes(day)) {
       const remaining = batch.days.filter((d) => d !== day);
       if (remaining.length === 0) continue; // batch fully consumed
 
-      // Split into contiguous runs
+      // Split into contiguous runs. Runs shorter than 2 days would produce
+      // 1-serving batches, which violate the 2-3 serving rule. Extract those
+      // days as orphans for the caller to handle.
       const runs = splitIntoContiguousRuns(remaining);
       for (const run of runs) {
-        newBatches.push({
-          ...batch,
-          days: run,
-          servings: run.length,
-        });
+        if (run.length < 2) {
+          orphanDays.push(...run);
+        } else {
+          newBatches.push({
+            ...batch,
+            days: run,
+            servings: run.length,
+          });
+        }
       }
     } else {
       newBatches.push(batch);
@@ -833,6 +949,7 @@ function removeBatchDay(proposal: PlanProposal, day: string, mealTime: 'lunch' |
   }
 
   proposal.batches = newBatches;
+  return { orphanDays };
 }
 
 /**
@@ -878,9 +995,6 @@ function buildSolverInput(
           mealType: b.mealType,
           days: b.days,
           servings: b.servings,
-          actualMacros: recipe
-            ? { calories: recipe.perServing.calories, protein: recipe.perServing.protein }
-            : undefined,
         };
       }),
     },
@@ -893,29 +1007,67 @@ function buildSolverInput(
   };
 }
 
-/** Build a WeeklyPlan from the confirmed proposal for persistence. */
-function buildWeeklyPlan(state: PlanFlowState): WeeklyPlan {
+/**
+ * Build a WeeklyPlan from the confirmed proposal for persistence.
+ * Scales each recipe to its solver-assigned calorie target via the recipe scaler.
+ */
+async function buildWeeklyPlan(
+  state: PlanFlowState,
+  recipeDb: RecipeDatabase,
+  llm: LLMProvider,
+): Promise<WeeklyPlan> {
   const proposal = state.proposal!;
   const solver = proposal.solverOutput!;
 
   const planId = uuid();
 
-  // Build cook days from solver's cooking schedule
-  const cookDays: CookDay[] = solver.cookingSchedule.map((cs) => ({
-    day: cs.day,
-    batches: cs.batchIds.map((batchId) => {
+  // Build cook days from solver's cooking schedule, scaling each recipe
+  const cookDays: CookDay[] = [];
+  for (const cs of solver.cookingSchedule) {
+    const batches: Batch[] = [];
+    for (const batchId of cs.batchIds) {
       const target = solver.batchTargets.find((b) => b.id === batchId)!;
-      return {
+      const recipe = target.recipeSlug ? recipeDb.getBySlug(target.recipeSlug) : undefined;
+
+      let actualPerServing = { calories: 0, protein: 0, fat: 0, carbs: 0 };
+      let scaledIngredients: ScaledIngredient[] = [];
+
+      if (recipe) {
+        try {
+          const scaled = await scaleRecipe({
+            recipe,
+            targetCalories: target.targetPerServing.calories,
+            calorieTolerance: config.planning.scalerCalorieTolerance,
+            targetProtein: target.targetPerServing.protein,
+            servings: target.servings,
+          }, llm);
+          actualPerServing = scaled.actualPerServing;
+          scaledIngredients = scaled.scaledIngredients;
+          log.debug('PLAN-FLOW', `scaled ${recipe.slug}: ${recipe.perServing.calories} → ${scaled.actualPerServing.calories} cal`);
+        } catch (err) {
+          log.warn('PLAN-FLOW', `scaler failed for ${recipe.slug}, using unscaled ingredients: ${err}`);
+          actualPerServing = recipe.perServing;
+          scaledIngredients = recipe.ingredients.map((ing) => ({
+            name: ing.name,
+            amount: ing.amount,
+            unit: ing.unit,
+            totalForBatch: ing.amount * target.servings,
+          }));
+        }
+      }
+
+      batches.push({
         id: batchId,
         recipeSlug: target.recipeSlug ?? '',
         mealType: target.mealType,
         servings: target.servings,
         targetPerServing: target.targetPerServing,
-        actualPerServing: { calories: 0, protein: 0, fat: 0, carbs: 0 }, // filled after scaling
-        scaledIngredients: [], // filled after scaling
-      } satisfies Batch;
-    }),
-  }));
+        actualPerServing,
+        scaledIngredients,
+      });
+    }
+    cookDays.push({ day: cs.day, batches });
+  }
 
   // Build meal slots from daily breakdown
   const mealSlots: MealSlot[] = [];
@@ -963,9 +1115,8 @@ function buildWeeklyPlan(state: PlanFlowState): WeeklyPlan {
     status: 'active',
     targets: config.targets.weekly,
     flexBudget: {
-      totalPool: solver.weeklyTotals.funFoodPool,
-      flexSlotCalories: solver.weeklyTotals.flexSlotCalories,
       treatBudget: solver.weeklyTotals.treatBudget,
+      flexSlotCalories: solver.weeklyTotals.flexSlotCalories,
       flexSlots: proposal.flexSlots,
     },
     breakfast: {
@@ -988,6 +1139,14 @@ function buildWeeklyPlan(state: PlanFlowState): WeeklyPlan {
 type SwapIntent =
   | { type: 'flex_add'; day: string; mealTime: 'lunch' | 'dinner' }
   | { type: 'flex_remove'; day: string; mealTime: 'lunch' | 'dinner' }
+  | {
+      type: 'flex_move';
+      toDay: string;
+      toMealTime: 'lunch' | 'dinner';
+      /** Optional — if omitted, the handler moves the only existing flex slot. */
+      fromDay?: string;
+      fromMealTime?: 'lunch' | 'dinner';
+    }
   | { type: 'recipe_swap'; batchIndex: number; preference: string }
   | { type: 'unclear' };
 
@@ -1021,10 +1180,13 @@ Current flex slots:
 ${flexDescriptions || '(none)'}
 
 Classify into ONE of:
-- {"type":"flex_add","day":"ISO date","meal_time":"lunch|dinner"} — user wants to add a flex meal on a day
-- {"type":"flex_remove","day":"ISO date","meal_time":"lunch|dinner"} — user wants to remove a flex meal
-- {"type":"recipe_swap","batch_index":number,"preference":"string"} — user wants to change a recipe batch (batch_index from the list above)
-- {"type":"unclear"} — can't determine intent
+- {"type":"flex_move","to_day":"ISO date","to_meal_time":"lunch|dinner","from_day":"ISO date|null","from_meal_time":"lunch|dinner|null"} — user wants to move an existing flex meal to a different day. Use this when the user says things like "put flex on Saturday instead" or "move flex to Fri" or "let's put the flex on Sunday". If "from" is clear from context use it, otherwise set from_day and from_meal_time to null (the only existing flex slot will be moved).
+- {"type":"flex_add","day":"ISO date","meal_time":"lunch|dinner"} — user wants to ADD a flex meal (only when no flex slot currently exists, or when they explicitly want an additional one).
+- {"type":"flex_remove","day":"ISO date","meal_time":"lunch|dinner"} — user wants to remove a flex meal and cook that day instead.
+- {"type":"recipe_swap","batch_index":number,"preference":"string"} — user wants to change a specific meal prep recipe (batch_index from the list above).
+- {"type":"unclear"} — can't determine intent.
+
+CRITICAL: if a flex slot ALREADY exists in the plan and the user mentions putting flex on a different day, that is flex_move, NOT flex_add. flex_add is only for creating the first flex slot or adding an extra one.
 
 Respond with JSON only.`,
       },
@@ -1040,6 +1202,14 @@ Respond with JSON only.`,
         return { type: 'flex_add', day: parsed.day, mealTime: parsed.meal_time };
       case 'flex_remove':
         return { type: 'flex_remove', day: parsed.day, mealTime: parsed.meal_time };
+      case 'flex_move':
+        return {
+          type: 'flex_move',
+          toDay: parsed.to_day,
+          toMealTime: parsed.to_meal_time,
+          fromDay: parsed.from_day ?? undefined,
+          fromMealTime: parsed.from_meal_time ?? undefined,
+        };
       case 'recipe_swap':
         return { type: 'recipe_swap', batchIndex: parsed.batch_index, preference: parsed.preference };
       default:
@@ -1078,7 +1248,7 @@ async function handleRecipeSwap(
       messages: [
         {
           role: 'system',
-          content: `Pick the best recipe matching the user's preference. Respond with {"slug":"the-slug"} or {"slug":"none"} if nothing fits.\n\nAvailable:\n${candidates.join('\n')}`,
+          content: `Pick the best recipe matching the user's preference. Respond with JSON: {"slug":"the-slug"} or {"slug":"none"} if nothing fits.\n\nAvailable:\n${candidates.join('\n')}`,
         },
         { role: 'user', content: intent.preference },
       ],
@@ -1133,16 +1303,33 @@ function formatPlanProposal(state: PlanFlowState): string {
   parts.push(`Breakfast (daily): ${state.breakfast.name} — ${state.breakfast.caloriesPerDay} cal`);
   parts.push('');
 
-  // Meal prep batches
-  parts.push('Meal prep:');
+  // Meal prep batches — solver assigns uniform per-serving calories, so show it
+  // once as a header rather than repeating on every line.
+  const batchCals = proposal.batches
+    .map((b) => {
+      const target = solver.batchTargets.find((bt) =>
+        bt.mealType === b.mealType && bt.days.length === b.days.length &&
+        bt.days[0] === b.days[0],
+      );
+      return target?.targetPerServing.calories;
+    })
+    .filter((c): c is number => c !== undefined);
+  const allSameCal = batchCals.length > 0 && batchCals.every((c) => c === batchCals[0]);
+  const uniformCal = allSameCal ? Math.round(batchCals[0]! / 10) * 10 : undefined;
+
+  parts.push(uniformCal !== undefined ? `Meal prep (each ~${uniformCal} cal/serving):` : 'Meal prep:');
   for (const batch of proposal.batches) {
     const dayRange = batch.days.map(formatDayShort).join(batch.days.length === 2 ? '+' : '-');
-    const target = solver.batchTargets.find((bt) =>
-      bt.mealType === batch.mealType && bt.days.length === batch.days.length &&
-      bt.days[0] === batch.days[0],
-    );
-    const cal = target?.targetPerServing.calories ?? '?';
-    parts.push(`  ${capitalize(batch.mealType)} ${dayRange}: ${batch.recipeName} (${batch.servings} servings, ~${cal} cal)`);
+    if (uniformCal !== undefined) {
+      parts.push(`  ${capitalize(batch.mealType)} ${dayRange}: ${batch.recipeName} (${batch.servings} servings)`);
+    } else {
+      const target = solver.batchTargets.find((bt) =>
+        bt.mealType === batch.mealType && bt.days.length === batch.days.length &&
+        bt.days[0] === batch.days[0],
+      );
+      const cal = target?.targetPerServing.calories ?? '?';
+      parts.push(`  ${capitalize(batch.mealType)} ${dayRange}: ${batch.recipeName} (${batch.servings} servings, ~${cal} cal)`);
+    }
   }
   parts.push('');
 

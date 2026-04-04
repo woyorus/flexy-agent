@@ -12,7 +12,7 @@
  * - SolverOutput feeds into recipe generation (batch targets) and the weekly plan.
  */
 
-import type { FunFoodItem, FlexSlot, Macros, MealEvent } from '../models/types.js';
+import type { FlexSlot, Macros, MealEvent } from '../models/types.js';
 
 /**
  * Everything the solver needs to allocate a weekly budget.
@@ -36,8 +36,8 @@ export interface SolverInput {
 
 /**
  * A request for a specific batch of meal prep.
- * Includes the recipe's actual per-serving macros so the solver can compute
- * the weekly total from real data instead of uniform distribution.
+ * The solver assigns a uniform per-slot calorie target to all batches.
+ * The recipe scaler then adjusts each recipe's ingredients to hit that target.
  */
 export interface RecipeRequest {
   /** From database, or undefined for "generate new" */
@@ -47,8 +47,6 @@ export interface RecipeRequest {
   days: string[];
   /** 2 or 3 servings per batch */
   servings: number;
-  /** Actual per-serving macros from the recipe. If unknown, solver uses average. */
-  actualMacros?: Macros;
   cuisineHint?: string;
 }
 
@@ -60,14 +58,10 @@ export interface SolverOutput {
   weeklyTotals: {
     calories: number;
     protein: number;
-    /** Total fun food pool (20% of weekly target) */
-    funFoodPool: number;
-    /** Calories consumed by flex slot bonuses */
-    flexSlotCalories: number;
-    /** Remaining treat budget: funFoodPool - flexSlotCalories */
+    /** Protected treat budget — config.targets.treatBudgetPercent of weekly calories */
     treatBudget: number;
-    /** funFoodPool as percentage of weekly calories */
-    funFoodPercent: number;
+    /** Sum of flex slot bonuses */
+    flexSlotCalories: number;
   };
   dailyBreakdown: DailyBreakdown[];
   batchTargets: BatchTarget[];

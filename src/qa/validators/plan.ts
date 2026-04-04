@@ -71,12 +71,14 @@ export function validatePlan(output: SolverOutput, targets: Macros): PlanValidat
     }
   }
 
-  // Fun food percentage — informational warning only, not a hard cap.
-  // In the derived treat model, funFoodPool = flex bonuses + remainder after planned meals.
-  // A high percentage usually means the plan has unresolved recipe gaps, not over-allocation.
-  if (output.weeklyTotals.funFoodPercent > FUN_FOOD_MAX_PERCENT) {
+  // Treat budget is now a protected fixed allocation (config.targets.treatBudgetPercent).
+  // No percentage check needed — the solver guarantees it. Warn if flex + treat is large
+  // relative to weekly, which would indicate the meal prep budget is being squeezed.
+  const flexPlusTreat = output.weeklyTotals.treatBudget + output.weeklyTotals.flexSlotCalories;
+  const flexPlusTreatPct = (flexPlusTreat / output.weeklyTotals.calories) * 100;
+  if (flexPlusTreatPct > FUN_FOOD_MAX_PERCENT) {
     warnings.push(
-      `Fun food is ${output.weeklyTotals.funFoodPercent}% — likely due to unresolved recipe gaps.`
+      `Flex + treat is ${flexPlusTreatPct.toFixed(1)}% of weekly budget — meal prep slots may be too small.`
     );
   }
 

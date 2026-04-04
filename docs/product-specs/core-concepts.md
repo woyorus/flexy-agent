@@ -9,45 +9,59 @@ The fundamental unit is the **week**, not the day. The user has a weekly calorie
 - Weekly calories: daily target x 7 (e.g., 2,436 x 7 = 17,052)
 - Weekly protein: daily target x 7 (e.g., 150 x 7 = 1,050g)
 
-## Flex budget (replaces old "fun food" model)
+## Flex budget — protected treat + flex slots
 
-The system allocates ~20% of weekly calories as a **flex pool**. This pool is split into two buckets:
+The flex budget has two **independent** allocations (not a shared pool):
 
-1. **Flex slots** — planned meals where the calorie target is boosted above the normal meal-prep baseline. The extra calories come from the flex pool. Common uses: burger night, pizza, takeout. The plan-proposer suggests these automatically; the user approves or adjusts.
+1. **Treat budget** — a **protected 5% of weekly calories** (`config.planning.treatBudgetPercent = 0.05`, ~853 cal/week). Reserved upfront by the solver before sizing meal prep slots. Spent freely on 2-3 treat occasions per week (ice cream, cookies, chocolate). Not assigned to specific days.
 
-2. **Treat budget** — the remainder after flex slot bonuses. Spent freely on snacks/desserts throughout the week, not assigned to specific days.
+2. **Flex slots** — planned meals where the calorie target is boosted above the normal meal-prep baseline by ~350 cal. Common uses: burger night, pizza, takeout. Currently hard-constrained to **exactly 1 per week** (`config.planning.flexSlotsPerWeek = 1`) — additional flex slots erode every meal prep slot by ~25 cal.
 
 ```
-flexBudget.totalPool = 20% of weekly calories
-flexBudget.flexSlotCalories = sum of all flex slot bonuses
-flexBudget.treatBudget = totalPool - flexSlotCalories
+flexBudget.treatBudget = weeklyCalories × treatBudgetPercent  (protected, ~853 cal)
+flexBudget.flexSlotCalories = sum of all flex slot bonuses     (exactly 1 × 350)
+flexBudget.flexSlots = [FlexSlot]
 ```
 
-The treat budget is **derived as the honest remainder** after all planned meals are accounted for. Recipes keep their natural per-serving calories — the system does not shrink meals to inflate the treat pool.
+The treat budget is **not** a remainder. It's a fixed allocation reserved before any meal sizing happens. This prevents meals from shrinking unpredictably and gives the user a reliable buffer for spontaneous eating.
+
+### Why 5% treat budget
+
+At 5% the user gets 2-3 meaningful treats per week (~300-400 cal each) while meal prep slots stay at ~803 cal — only 10% below the prior ~890 cal baseline. Higher percentages (7-10%) push meals into territory where compensatory snacking and yo-yo patterns become a risk. The tradeoff is encoded in `config.planning.treatBudgetPercent` for future tuning. See `docs/plans/completed/001-calorie-budget-redesign.md`.
 
 ## Planning-first
 
 The system front-loads intelligence into the weekly planning session. Because meal preps are cooked in batches and can't be resized after cooking, the plan must be correct at cook time. Restaurant meals, flex slots, and variable days are accounted for **before** recipes are generated and portions are sized.
 
-## Overconsumption priority: flex budget absorbs first
+## Overconsumption priority: meals absorb budget pressure, treats stay protected
 
-When budget pressure exists (e.g., a large restaurant estimate squeezes the budget), the solver reduces the **flex budget first**, not the healthy meal structure. The 80% healthy structure (meal preps, breakfasts) is the last thing to shrink.
+When budget pressure exists (e.g., a large restaurant estimate squeezes the budget), the **meal prep slots shrink** to absorb it. The treat budget stays fixed — it's the flexibility buffer that makes the system feel livable. The solver warns if per-slot calories drop below 650.
 
 ## No food waste
 
-All servings in a meal prep batch must be consumed. The solver uses actual per-serving calories from each recipe, so batch sizes are naturally correct.
+All servings in a meal prep batch must be consumed. Batches are 2-3 servings with consecutive day ranges, and the solver counts every slot.
 
-## Recipes keep their natural macros
+## Uniform meal prep slots, recipes scaled to match
 
-The solver does NOT force uniform calorie targets across all meals. Each recipe's actual per-serving macros are used. The treat budget is derived as whatever's left after planned meals are accounted for.
+The solver distributes the meal prep budget (weekly − breakfast − events − flex bonuses − treat budget) evenly across all non-event, non-flex lunch/dinner slots. Every batch gets the **same** per-serving calorie target. At plan approval time, the **recipe scaler** (`src/agents/recipe-scaler.ts`) adjusts each recipe's ingredients to hit that target within a ±20 cal tolerance (so it can pick clean amounts like 45g dry pasta instead of chasing 47g). Protein stays precise during scaling — carbs and fat flex to balance the total.
+
+## Event semantics: meal replacement vs treat
+
+Events are classified into two kinds:
+
+- **Meal-replacement events** (restaurant dinners, dinner at a friend's house) — replace a lunch or dinner slot. The solver subtracts their estimated calories and removes the slot from the meal prep grid.
+- **Treat events** (cookies at work, birthday cake, drinks at happy hour) — do NOT replace a meal slot. The user still eats their regular meals; the extras are funded by the treat budget. Treats are not stored as events in the plan.
+
+The event parser LLM classifies incoming descriptions. Only meal replacements get added to `state.events`; treats get explained ("your treat budget covers it") and discarded. See `docs/plans/completed/004-event-type-classification.md` for rationale.
 
 ## Meal structure
 
 - **Breakfast**: Fresh daily. Not meal-prepped. Can be **locked** as a repeating recipe (default). Locked breakfast uses structured components like lunch/dinner recipes.
-- **Lunch**: Meal-prepped. Default 3 servings per batch (option for 2). One-pan/one-pot by default.
-- **Dinner**: Meal-prepped. Default 3 servings per batch (option for 2). One-pan/one-pot by default.
-- **Flex slots**: Replace a lunch or dinner slot. Calorie target = base + flex bonus. No specific food assigned.
-- **Restaurant/social meals**: Replace a meal slot. Estimated at planning time.
+- **Lunch**: Meal-prepped. Plan-proposer prefers 3-serving batches (minimizes cooking); uses 2-serving batches to fine-tune slot coverage. One-pan/one-pot by default.
+- **Dinner**: Meal-prepped. Same batch rules as lunch.
+- **Flex slots**: Replace one lunch or dinner slot per week. Calorie target = uniform per-slot base + flex bonus (~350 cal). No specific food assigned.
+- **Restaurant / meal-replacement events**: Replace a meal slot. Estimated at planning time.
+- **Treat events**: Not in the slot grid. Funded by the protected treat budget.
 
 ## User profile (v0.0.3)
 

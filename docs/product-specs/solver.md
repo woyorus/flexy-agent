@@ -6,28 +6,30 @@ Source: `src/solver/solver.ts`, `src/solver/types.ts`
 
 ## Algorithm
 
-1. **Allocate breakfast** — If locked, subtract (breakfast cal x 7) from weekly budget. Fixed.
-2. **Allocate events** — Sum restaurant meal estimates.
-3. **Sum flex slot bonuses** — Total extra calories drawn from the flex pool.
-4. **Lay out the week grid** — Extract all days from recipe requests + flex slots.
-5. **Create batch targets using real recipe macros** — Each recipe keeps its natural per-serving calories. For recipes without known macros (newly generated), use the average of known ones. Fallback: 36.5% of daily calories.
-6. **Balance** — Clamp any batch target to min 400 / max 1000 cal per serving.
-7. **Derive treat budget** — `weeklyTarget - totalPlannedCalories`. This is the honest remainder, not a fixed reserve.
-8. **Verify** — Weekly calories within +/-3% of target. Protein meets minimum (97%).
+The solver reserves a protected treat budget upfront, then distributes the remaining meal prep budget **uniformly** across all meal prep slots. At plan approval time the recipe scaler adjusts each recipe's ingredients to hit its assigned per-slot target.
 
-### Key difference from original spec
+1. **Allocate breakfast** — `weeklyBreakfastCal = breakfast.caloriesPerDay × 7`. Fixed.
+2. **Allocate meal-replacement events** — sum of restaurant event calories. Treat events are NOT solver inputs (they come from the treat budget).
+3. **Sum flex slot bonuses** — `totalFlexBonus = sum of flexSlots[].flexBonus` (350 each, 1 slot per week).
+4. **Protect treat budget** — `treatBudget = weeklyTargets.calories × config.planning.treatBudgetPercent` (5%, ~853 cal/week). Reserved upfront, never squeezed by events.
+5. **Compute meal prep budget** — `mealPrepBudget = weekly − breakfast − events − flexBonuses − treatBudget`.
+6. **Count slots** — `totalSlots = sum of recipe servings + flex slot count`. Each batch's `days.length` is its serving count.
+7. **Distribute uniformly** — `perSlotCal = mealPrepBudget / totalSlots`. Every batch gets the same target. Protein follows the same pattern: `perSlotProtein = (weeklyProtein − breakfastProtein − eventProtein) / totalSlots`.
+8. **Clamp** — Any batch target below `MIN_MEAL_CAL` (400) or above `MAX_MEAL_CAL` (1000) is clamped with a warning.
+9. **Build daily breakdown** — For each day, lunch/dinner sources are: event > flex slot (perSlotCal + flexBonus) > batch (perSlotCal).
+10. **Verify** — Weekly calories within ±3% of target (after adding back treat budget). Protein meets 97% of target. Warns if perSlotCal drops below 650 cal.
 
-The original spec distributed calories evenly across meal-prep slots. The current solver uses **actual per-serving macros** from each recipe. Recipes keep their natural calories — no forced scaling to a uniform target. The treat budget absorbs the variance as the leftover.
+The **recipe scaler** runs at plan approval time (in `buildWeeklyPlan`), not inside the solver. Each batch is scaled to its assigned `targetPerServing.calories` within a ±20 cal tolerance (configured via `config.planning.scalerCalorieTolerance`). This lets recipes pick clean ingredient amounts (45g dry pasta rather than 47g) while staying within the solver's weekly math.
 
 ## Inputs (`SolverInput`)
 
 ```typescript
 {
   weeklyTargets: { calories, protein },
-  events: MealEvent[],
-  flexSlots: FlexSlot[],        // replaces the old funFoods: FunFoodItem[]
+  events: MealEvent[],            // meal-replacement events only
+  flexSlots: FlexSlot[],
   mealPrepPreferences: {
-    recipes: RecipeRequest[],   // each has optional actualMacros from the recipe DB
+    recipes: RecipeRequest[],     // solver only needs meal type + days + servings
   },
   breakfast: { locked, recipeSlug?, caloriesPerDay, proteinPerDay },
 }
@@ -39,14 +41,13 @@ The original spec distributed calories evenly across meal-prep slots. The curren
 {
   isValid: boolean,
   weeklyTotals: {
-    calories, protein,
-    funFoodPool,              // flex bonuses + treat budget
-    flexSlotCalories,         // sum of all flex bonuses
-    treatBudget,              // funFoodPool - flexSlotCalories
-    funFoodPercent,           // funFoodPool as % of weekly calories
+    calories,                  // total including treat budget
+    protein,
+    treatBudget,               // protected allocation (5% of weekly)
+    flexSlotCalories,          // sum of all flex bonuses
   },
-  dailyBreakdown: DailyBreakdown[],   // per-day calories with sources
-  batchTargets: BatchTarget[],         // per-batch calorie/protein targets
+  dailyBreakdown: DailyBreakdown[],     // per-day calories with sources
+  batchTargets: BatchTarget[],           // uniform per-slot targets
   cookingSchedule: CookingScheduleDay[], // when to cook what
   warnings: string[],
 }
@@ -58,10 +59,10 @@ The original spec distributed calories evenly across meal-prep slots. The curren
 |---|---|---|
 | Min meal calories | 400 cal | Hard (clamped) |
 | Max meal calories | 1000 cal (+ flex bonus for flex slots) | Hard (clamped) |
-| Weekly calorie tolerance | +/-3% | Hard (isValid = false) |
+| Weekly calorie tolerance | ±3% | Hard (isValid = false) |
 | Weekly protein minimum | 97% of target | Hard (isValid = false) |
-| Treat budget warning | < 300 cal/week | Soft (warning) |
-| Fun food pool > 15% | Informational | Soft (warning — usually means unresolved gaps) |
+| Low per-slot warning | < 650 cal | Soft (warning — suggests reducing events or treat budget) |
+| Flex slots per week | Exactly `config.planning.flexSlotsPerWeek` (currently 1) | Hard constraint enforced by plan-proposer with retry |
 
 ## Cooking schedule
 
@@ -72,6 +73,7 @@ Strategy: cook each batch the day before the first eating day. Groups batches th
 Validates solver output before the plan is shown to the user. Checks all hard constraints above, plus:
 - Cooking days must be before eating days
 - Every day must have lunch + dinner covered (batch, event, or flex slot)
-- Flex slots can exceed MAX_MEAL_CAL by their flex bonus amount
+- Flex slots can exceed `MAX_MEAL_CAL` by their flex bonus amount
+- Flex + treat allocation percentage is reasonable (warns if > hard cap, usually indicates unresolved recipe gaps)
 
 When validation fails, the plan flow logs warnings but still presents the plan (the solver output is deterministic and self-consistent — validation catches edge cases).

@@ -22,8 +22,40 @@ export interface RecipeValidationResult {
 const CAL_TOLERANCE = 0.03;  // ±3% — tight, calories are the core product constraint
 const PROT_TOLERANCE = 0.05; // ±5%
 
-/** Rough calories per gram for consistency check */
-const CAL_PER_GRAM = { protein: 4, carbs: 4, fat: 9 } as const;
+/** Atwater factors — calories per gram of each macronutrient. */
+export const CAL_PER_GRAM = { protein: 4, carbs: 4, fat: 9 } as const;
+
+/**
+ * Check that stated calories match the Atwater formula from macros:
+ *   calories = 4 × protein + 4 × carbs + 9 × fat  (all grams)
+ *
+ * LLMs frequently pick macros that don't add up to the stated calorie count.
+ * This is a hard internal consistency requirement — it has nothing to do with
+ * hitting a target, it's about the recipe being mathematically coherent.
+ *
+ * Returns the computed calories, absolute deviation, and percent deviation.
+ */
+export function computeMacroCalorieConsistency(macros: {
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+}): { computed: number; deviation: number; deviationPct: number } {
+  const computed =
+    macros.protein * CAL_PER_GRAM.protein +
+    macros.carbs * CAL_PER_GRAM.carbs +
+    macros.fat * CAL_PER_GRAM.fat;
+  const deviation = Math.abs(computed - macros.calories);
+  const deviationPct = macros.calories > 0 ? deviation / macros.calories : 0;
+  return {
+    computed: Math.round(computed),
+    deviation: Math.round(deviation),
+    deviationPct,
+  };
+}
+
+/** Max acceptable deviation between stated calories and Atwater-computed calories. */
+export const MACRO_CAL_TOLERANCE = 0.05; // ±5%
 
 /**
  * Validate a recipe against its target macros and internal consistency rules.
@@ -48,20 +80,13 @@ export function validateRecipe(recipe: Recipe, target?: Macros): RecipeValidatio
     if (recipe.perServing.fat <= 0) errors.push('Fat must be positive.');
     if (recipe.perServing.carbs <= 0) errors.push('Carbs must be positive.');
 
-    // Internal consistency: do stated macros add up to stated calories?
-    const calculatedCal =
-      recipe.perServing.protein * CAL_PER_GRAM.protein +
-      recipe.perServing.carbs * CAL_PER_GRAM.carbs +
-      recipe.perServing.fat * CAL_PER_GRAM.fat;
-    const calDev = Math.abs(calculatedCal - recipe.perServing.calories) / recipe.perServing.calories;
-    if (calDev > 0.10) {
-      warnings.push(
-        `Stated calories (${recipe.perServing.calories}) vs calculated from macros (${Math.round(calculatedCal)}) differ by ${(calDev * 100).toFixed(1)}%.`
-      );
-    }
-    if (calDev > 0.20) {
+    // Internal consistency: stated macros must add up to stated calories
+    // via Atwater factors (4P + 4C + 9F). This is a hard requirement —
+    // a recipe that doesn't math-check is incoherent regardless of targets.
+    const { computed, deviationPct } = computeMacroCalorieConsistency(recipe.perServing);
+    if (deviationPct > MACRO_CAL_TOLERANCE) {
       errors.push(
-        `Stated calories (${recipe.perServing.calories}) vs calculated from macros (${Math.round(calculatedCal)}) differ by ${(calDev * 100).toFixed(1)}% — too large.`
+        `Macro/calorie mismatch: stated ${recipe.perServing.calories} cal vs computed ${computed} cal from macros (${recipe.perServing.protein}P + ${recipe.perServing.carbs}C + ${recipe.perServing.fat}F), off by ${(deviationPct * 100).toFixed(1)}%.`
       );
     }
   }

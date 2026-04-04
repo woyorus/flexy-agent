@@ -68,6 +68,33 @@ The system becomes dynamic and conversational. User reports what happened, agent
   - Replan offer (800+ cal or budget-threatening drift): Explicit rebalance offer
 - **Mid-week replanning**: When deviation is large, agent proposes minimal adjustments to remaining days.
 - **Cook-time ingredient adjustment**: Real-world quantities don't match plan quantities — you can't buy exactly 440g of beef, you get 500g and don't want to waste 60g. At cook time, the user tells the system what they actually have ("I have 500g of beef, not 440g") and the recipe rescales around that real quantity. Protein overshoot is acceptable — compensate by trimming carbs or fats to stay close to calorie target. This applies mainly to indivisible ingredients (meat, fish) where cutting to exact grams is wasteful. Vegetables and measurable ingredients can be portioned precisely. The system should be anti-food-waste: use what you bought, adjust the math, don't throw food away.
+- **Plan mutation architecture — fast/slow path refactor**: The v0.0.4 swap flow uses a nano classifier to route to deterministic handlers (flex_add, flex_remove, flex_move, recipe_swap). This is the correct foundation but has two problems that should be fixed in v0.0.5 while we're already rebuilding the conversation layer:
+  1. **"Unclear" is a dead end.** Currently when the classifier can't match an intent, it asks the user to rephrase. That's a failure mode. It should fall back to a **slow path**: re-run the plan-proposer (mini, high reasoning) with the current plan as context and the user's free-text request as a mutation instruction. The proposer returns a new valid plan respecting all constraints.
+  2. **Swap handlers duplicate proposer logic.** `flex_add` knows about `flexSlotsPerWeek`. `removeBatchDay` knows about the 2-3 serving rule. `absorbFreedDay` knows batch extension priorities. All of this logic already lives in the proposer prompt — we're rebuilding it inside mutation handlers, which means plan invariants live in two places and will drift.
+
+  **Target architecture (cheap/expensive fast-path pattern):**
+  ```
+  User input
+    ↓
+  Nano classifier (cheap, ~$0.0001, ~1-2s)
+    ├── matches simple intent → fast-path handler
+    │     (handlers express intent as a CONSTRAINT DELTA, not direct mutation;
+    │      delegate plan restructuring to the proposer so invariants live in one place)
+    └── unclear / complex / multi-operation → slow path
+          ↓
+        Mini re-proposer with current plan as context (~$0.05, ~30-60s)
+          Handles anything the user can express. No intent limit.
+  ```
+
+  **Why this matters:** The fast path is deterministic, cheap, and precise — right for the common case (single swap, single flex move). The slow path has no shape limit — right for complex, multi-operation, or unusual requests. Together they scale without an intent explosion. The product shape is "reliable structure + LLM-powered flexibility" — the code should mirror that shape.
+
+  **Do NOT restructure in v0.0.4.** The current handlers work for shipping. This is a v0.0.5 refactor tied to the freeform conversation layer — they share the classifier layer and should be designed together.
+
+  **Open questions for v0.0.5 design:**
+  - How does the classifier distinguish "unclear" (→ slow path) from "off-flow question" (→ side conversation)? Are they the same branch?
+  - Should simple intents ALSO delegate to the proposer (for invariant consolidation), or keep mutating directly (for speed)?
+  - What does a "constraint delta" look like as a prompt input to the proposer? (e.g., `currentPlan + "the flex slot must be on Saturday dinner"`)
+  - How do we handle retry/rejection when the slow-path proposer returns an invalid plan?
 
 ### v0.0.6 — Polish and proactivity
 
@@ -92,4 +119,5 @@ The system becomes dynamic and conversational. User reports what happened, agent
 - **Onboarding flow**: Calculate personalized targets from user data.
 - **User preferences**: Stored dietary/cuisine/ingredient preferences.
 - **Multi-user state**: Supabase schema supports multiple users.
+- **Persistent session state**: Flow state (`planFlow`, `recipeFlow` in `src/telegram/bot.ts`) currently lives in-memory — a bot restart silently drops any in-progress conversation, so pressing a button on a pre-restart message does nothing. For multi-user we need state to survive restarts. MVP approach: serialize per-chat flow state to a flat file on disk (JSON per chat), rehydrate on startup. No Redis, no schema migrations — just enough to not lose in-flight sessions.
 - **Alternative UI**: Web UI or app if needed.

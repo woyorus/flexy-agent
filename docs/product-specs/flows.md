@@ -16,14 +16,18 @@ context → awaiting_events → generating_proposal →
 
 ### Phase details
 
-**context** — Entry point. Shows breakfast confirmation + events question. User taps "Keep it" to confirm breakfast, then either "No events" or "Add event."
+**context** — Entry point. Shows breakfast confirmation + meals-out question: "Any meals you'll eat out this week? (restaurants, dinner parties, etc.)" User taps "Keep it" to confirm breakfast, then either "No meals out" or "Add meal out."
 
-**awaiting_events** — User adds events via free-text or voice. Each message is parsed by nano LLM into a `MealEvent` (day, mealTime, estimatedCalories). Supports corrections to the last event (nano classifies intent: new event vs correction). Loop until user taps "That's all."
+**awaiting_events** — User adds meal-replacement events via free-text or voice. Each message is parsed by nano LLM into one of two types:
+- `meal_replacement` → stored as a `MealEvent` and replaces a lunch/dinner slot in the solver.
+- `treat` → NOT stored as an event. User gets a friendly response explaining the treat budget covers it; the user still eats their regular meals that day.
+
+Follow-up messages classify into: correction to last event, `reclassify_as_treat` (removes the last event from state), or new event. Loop until user taps "That's all."
 
 **generating_proposal** — Heavy async step:
 1. Load available recipes + recent plan history from DB/Supabase
-2. Call plan-proposer sub-agent (generates recipe assignments, flex slot suggestions, identifies recipe gaps)
-3. Run solver on the proposal (using real per-serving macros from recipes)
+2. Call plan-proposer sub-agent (generates recipe assignments, exactly `config.planning.flexSlotsPerWeek` flex slots, identifies recipe gaps). Proposer retries once with correction if it returns the wrong flex slot count.
+3. Run solver on the proposal (protected treat budget upfront, uniform per-slot targets)
 4. Validate solver output via QA gate
 5. If recipe gaps exist → enter gap resolution loop. Otherwise → show proposal.
 
@@ -35,11 +39,18 @@ context → awaiting_events → generating_proposal →
 
 **reviewing_recipe** — User reviews the generated gap recipe. Options: [Use it] / [Different one]. Free-text during this phase is treated as a refinement request (multi-turn conversation with the generator).
 
-**proposal** — Full plan displayed with: breakfast, meal prep batches (recipe name + servings + cal), events, flex meals, treat budget, cooking schedule, weekly totals. User picks: [Looks good!] / [Swap something].
+**proposal** — Full plan displayed with: breakfast, meal prep batches (uniform per-serving calorie shown once as a header, rounded to nearest 10 — e.g. "each ~800 cal/serving"), events, flex meal, treat budget, cooking schedule, weekly totals. User picks: [Looks good!] / [Swap something].
 
-**awaiting_swap** — User describes a swap via free-text. Nano LLM classifies into: `flex_add`, `flex_remove`, `recipe_swap`, or `unclear`. After applying the swap, solver re-runs and proposal is re-presented.
+**awaiting_swap** — User describes a swap via free-text. Nano LLM classifies into one of:
+- `flex_add` — add a new flex slot. If already at `flexSlotsPerWeek` capacity, automatically treated as a move (drops existing flex before adding).
+- `flex_remove` — remove an existing flex slot. Tries to extend an adjacent batch to absorb the freed day; falls back to creating a recipe gap.
+- `flex_move` — atomic move of the existing flex slot to a new day. `from` is optional (defaults to the only existing flex).
+- `recipe_swap` — change a specific batch's recipe. Picks from DB candidates matching the user's preference, or enters gap generation if nothing fits.
+- `unclear` — ask user to rephrase (will be replaced by a slow-path re-proposer in v0.0.5).
 
-**confirmed** — Plan saved to Supabase. Any existing active plans are transitioned to completed first. Shows shopping list / view recipes buttons.
+After any swap, the solver re-runs on the mutated proposal and the display is regenerated. `removeBatchDay` never leaves 1-serving batches — orphan days are absorbed via `absorbFreedDay` (extend adjacent batch or create gap).
+
+**confirmed** — Recipe scaler runs on each batch (adjusts ingredients to the solver's per-slot target within ±20 cal, preserving protein). Plan saved to Supabase. Any existing active plans are transitioned to completed first. Shows shopping list / view recipes buttons.
 
 ### Key behaviors
 

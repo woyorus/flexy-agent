@@ -14,7 +14,7 @@
  * - Rotate protein sources (chicken → fish → beef → veggie)
  * - Rotate cuisines across weeks
  * - Ensure micronutrient diversity through food group variety (LLM heuristic)
- * - Suggest 1-2 flex slots for fun meals (weekends preferred)
+ * - Propose exactly config.planning.flexSlotsPerWeek flex slots (currently 1)
  * - Identify recipe gaps when the DB lacks variety for a good plan
  * - Keep suggestions simple — home cook meals, not restaurant complexity
  *
@@ -108,10 +108,43 @@ export async function proposePlan(
     context: 'plan-proposal',
   });
 
-  const parsed = JSON.parse(result.content);
-  const proposal = mapToProposal(parsed);
+  let parsed = JSON.parse(result.content);
+  let proposal = mapToProposal(parsed);
 
   log.debug('PLAN', `proposal: ${proposal.batches.length} batches, ${proposal.flexSlots.length} flex slots, ${proposal.recipesToGenerate.length} gaps`);
+
+  // Hard-enforce the flex slot constraint. The LLM is told exactly once in the
+  // prompt; if it still returns the wrong count, retry once with a correction
+  // message (preserves conversation context). Truncating silently would create
+  // orphan slots, which would confuse the user.
+  const expectedFlex = config.planning.flexSlotsPerWeek;
+  if (proposal.flexSlots.length !== expectedFlex) {
+    log.warn('PLAN', `proposer returned ${proposal.flexSlots.length} flex slots, expected ${expectedFlex}. Retrying with correction.`);
+
+    const retryResult = await llm.complete({
+      model: 'mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+        { role: 'assistant', content: result.content },
+        {
+          role: 'user',
+          content: `You returned ${proposal.flexSlots.length} flex slots, but the hard constraint is EXACTLY ${expectedFlex}. Rebuild the proposal: cover every non-event, non-flex slot with a batch (prefer 3-serving over 2-serving), and propose exactly ${expectedFlex} flex slot(s). Return the complete corrected JSON.`,
+        },
+      ],
+      json: true,
+      reasoning: 'high',
+      context: 'plan-proposal-retry',
+    });
+
+    parsed = JSON.parse(retryResult.content);
+    proposal = mapToProposal(parsed);
+    log.debug('PLAN', `retry proposal: ${proposal.batches.length} batches, ${proposal.flexSlots.length} flex slots, ${proposal.recipesToGenerate.length} gaps`);
+
+    if (proposal.flexSlots.length !== expectedFlex) {
+      log.error('PLAN', `retry also returned wrong flex count (${proposal.flexSlots.length}). QA validator will surface orphan slots.`);
+    }
+  }
 
   return {
     proposal,
@@ -133,14 +166,30 @@ Given a recipe database, recent meal history, and this week's constraints, propo
 - 7 days, 3 meals each: breakfast (fixed), lunch, dinner
 - Lunch and dinner are meal-prepped in batches of 2-3 servings (consecutive days)
 - Some slots may be taken by restaurant events (provided in the constraints)
-- 1-2 slots can be "flex meals" — the user eats something fun instead of meal prep
+- Exactly ${config.planning.flexSlotsPerWeek} slot(s) per week is a "flex meal" — the user eats something fun instead of meal prep
 
-## BATCH RULES
+## FLEX SLOTS (HARD CONSTRAINT)
 
-- Default batch size: 3 servings (3 consecutive days)
-- Use 2-serving batches when needed to work around events or flex slots
+- Propose EXACTLY ${config.planning.flexSlotsPerWeek} flex meal slot(s) per week — not 0, not 2+
+- Each additional flex slot beyond this shrinks every meal prep slot by ~25 cal, which hurts meal satisfaction
+- Preferred day: Friday or Saturday dinner (social/weekend context)
+- Flex bonus: 300-400 extra calories on top of normal meal budget
+- A flex slot replaces one meal-prep slot — don't assign a recipe batch to that slot
+
+## BATCH SIZING STRATEGY
+
+You must cover this many meal prep slots with batches:
+  meal_prep_slots = 14 - (event slots) - ${config.planning.flexSlotsPerWeek} (flex)
+
+Preference order for filling those slots:
+1. **Prefer 3-serving batches** over 2-serving. A 3-serving batch covers 3 days from one cooking session — fewer cook days, less fridge churn, easier adherence.
+2. **Mix 2 and 3 serving batches** to hit the exact slot count. Example: with 13 slots and 6 recipes, use five 2-serving batches + one 3-serving batch.
+3. **Generate new recipes** ONLY if existing recipes cannot cover all slots even with 3-serving batches (i.e., recipe_count × 3 < slots_needed). This is a last resort.
+
+Rules:
 - A recipe can only appear in ONE batch per week
 - Each batch covers consecutive days for the same meal type (e.g., lunch Mon-Wed)
+- Don't leave slots uncovered — every non-event, non-flex slot must have a batch
 
 ## VARIETY RULES (CRITICAL)
 
@@ -148,13 +197,6 @@ Given a recipe database, recent meal history, and this week's constraints, propo
 2. **Protein source rotation**: If recent weeks used chicken + fish + beef, prefer pork, legumes, or different preparations this week. Aim for at least 2-3 different protein sources across the week.
 3. **Cuisine rotation**: If recent weeks were Mediterranean + Italian, prefer Asian, Latin American, or other profiles this week
 4. **Within-week variety**: Don't use the same protein source for both lunch and dinner on the same day block. If lunch Mon-Wed is chicken, dinner Mon-Wed should be fish or beef, not chicken.
-
-## FLEX SLOTS
-
-- Suggest 1-2 flex meal slots per week (the user eats whatever they want — burger, pizza, takeout)
-- Preferred days: Friday or Saturday dinner (social/weekend context)
-- Flex bonus: 300-400 extra calories on top of normal meal budget
-- A flex slot replaces a meal-prep slot — don't assign a recipe batch to that slot
 
 ## USER FOOD PROFILE
 The user lives in ${config.foodProfile.region}. Shopping: ${config.foodProfile.storeAccess}
@@ -261,7 +303,27 @@ function buildUserPrompt(input: PlanProposerInput): string {
     parts.push('');
   }
 
-  parts.push('Create the best plan for this week. Use the available recipes, respect the constraints, and maximize variety.');
+  // Slot math — explicit arithmetic so the proposer knows exactly what to cover
+  const totalSlots = 14; // 7 lunches + 7 dinners
+  const eventSlots = input.events.length;
+  const flexSlots = config.planning.flexSlotsPerWeek;
+  const mealPrepSlotsNeeded = totalSlots - eventSlots - flexSlots;
+  const maxCoverageWith3Serving = input.availableRecipes.length * 3;
+  parts.push('## SLOT MATH (do this arithmetic carefully)');
+  parts.push(`- Total non-breakfast slots: ${totalSlots} (7 lunches + 7 dinners)`);
+  parts.push(`- Event slots taken: ${eventSlots}`);
+  parts.push(`- Flex slots to propose (required): ${flexSlots}`);
+  parts.push(`- Meal prep slots to cover with batches: ${mealPrepSlotsNeeded}`);
+  parts.push(`- Available recipes: ${input.availableRecipes.length}`);
+  parts.push(`- Max coverage if all batches are 3-serving: ${maxCoverageWith3Serving}`);
+  if (maxCoverageWith3Serving >= mealPrepSlotsNeeded) {
+    parts.push(`- ✓ Existing recipes CAN cover all slots — mix 2 and 3 serving batches to hit exactly ${mealPrepSlotsNeeded}. Do NOT generate new recipes.`);
+  } else {
+    parts.push(`- ✗ Existing recipes cannot cover all slots even with 3-serving batches — you MUST generate ${Math.ceil((mealPrepSlotsNeeded - maxCoverageWith3Serving) / 3)} new recipe(s).`);
+  }
+  parts.push('');
+
+  parts.push(`Create the best plan for this week. Use existing recipes with a mix of 2 and 3 serving batches to cover exactly ${mealPrepSlotsNeeded} meal prep slots + ${flexSlots} flex slot(s). Prefer 3-serving batches where possible.`);
 
   return parts.join('\n');
 }

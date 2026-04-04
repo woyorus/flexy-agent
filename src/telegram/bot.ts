@@ -295,7 +295,7 @@ export function createBot(deps: BotDeps): Bot {
         // Breakfast confirmation
         if (action === 'plan_keep_breakfast') {
           log.debug('FLOW', 'breakfast kept');
-          await reply(ctx, `✓ Breakfast: ${planFlow.breakfast.name}\n\nAny meals out or social events this week?`, {
+          await reply(ctx, `✓ Breakfast: ${planFlow.breakfast.name}\n\nAny meals you'll eat out this week? (restaurants, dinner parties, etc.)`, {
             reply_markup: planEventsKeyboard,
           });
           return;
@@ -303,7 +303,7 @@ export function createBot(deps: BotDeps): Bot {
 
         if (action === 'plan_change_breakfast') {
           // TODO: breakfast change flow (rare path, v0.0.1 keeps it simple)
-          await reply(ctx, 'Breakfast changes are coming soon. Keeping current breakfast for now.\n\nAny meals out or social events this week?', {
+          await reply(ctx, "Breakfast changes are coming soon. Keeping current breakfast for now.\n\nAny meals you'll eat out this week? (restaurants, dinner parties, etc.)", {
             reply_markup: planEventsKeyboard,
           });
           return;
@@ -361,7 +361,7 @@ export function createBot(deps: BotDeps): Bot {
         if (action === 'plan_approve') {
           const stopTyping = startTypingIndicator(ctx);
           try {
-            const result = await handleApprove(planFlow, store);
+            const result = await handleApprove(planFlow, store, recipes, llm);
             planFlow = result.state;
             stopTyping();
             await reply(ctx, result.text, { reply_markup: planConfirmedKeyboard });

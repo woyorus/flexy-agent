@@ -186,10 +186,10 @@ export const planBreakfastKeyboard = new InlineKeyboard()
   .text('Keep it', 'plan_keep_breakfast')
   .text('Change this week', 'plan_change_breakfast');
 
-/** Step 1: Events question */
+/** Step 1: Meals out question */
 export const planEventsKeyboard = new InlineKeyboard()
-  .text('No events this week', 'plan_no_events')
-  .text('Add event', 'plan_add_event');
+  .text('No meals out', 'plan_no_events')
+  .text('Add meal out', 'plan_add_event');
 
 /** After adding an event, prompt for more */
 export const planMoreEventsKeyboard = new InlineKeyboard()

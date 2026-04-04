@@ -27,4 +27,6 @@ A design doc captures: the problem, options considered, the decision, and why. I
 
 ## Catalog
 
-(No design docs yet. Add entries here as decisions are made.)
+| Doc | Status | Summary |
+|---|---|---|
+| [protected-treat-budget.md](./protected-treat-budget.md) | accepted | Protected treat budget (5% of weekly, reserved upfront) + uniform meal prep slots + recipe scaler to hit them. Replaces the earlier "recipes keep natural macros, treat budget is remainder" model. |

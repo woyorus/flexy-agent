@@ -25,7 +25,7 @@ Always visible at the bottom of the chat. Each button enters a flow or shows dat
 | Phase | Keyboard | Buttons |
 |---|---|---|
 | context | `planBreakfastKeyboard` | Keep it / Change this week |
-| context | `planEventsKeyboard` | No events / Add event |
+| context | `planEventsKeyboard` | No meals out / Add meal out |
 | awaiting_events | `planMoreEventsKeyboard` | That's all / Add another |
 | recipe_suggestion | `planRecipeGapKeyboard(i)` | Generate it / I have an idea / Pick from my recipes |
 | reviewing_recipe | `planGapRecipeReviewKeyboard` | Use it / Different one |

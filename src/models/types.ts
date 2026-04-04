@@ -112,18 +112,16 @@ export interface WeeklyPlan {
   targets: Macros;
 
   /**
-   * The flex budget replaces the old fun food item model. Instead of placing
-   * specific treats on specific days, the system allocates a calorie pool:
+   * The flex budget has two independent allocations:
+   * - Treat budget: protected 5% of weekly calories, spent freely on snacks/desserts
    * - Flex slots: planned meals with a calorie bonus (eat something fun)
-   * - Treat budget: unplanned remainder, spent freely on snacks/desserts
+   * Treats are NOT a remainder — they're reserved upfront before sizing meals.
    */
   flexBudget: {
-    /** Total fun food pool — 20% of weekly calories */
-    totalPool: number;
-    /** Calories consumed by flex slot bonuses */
-    flexSlotCalories: number;
-    /** Remaining for ad-hoc treats: totalPool - flexSlotCalories */
+    /** Protected treat budget — 5% of weekly calories (config.targets.treatBudgetPercent) */
     treatBudget: number;
+    /** Sum of flex slot bonuses */
+    flexSlotCalories: number;
     /** The flex slots themselves */
     flexSlots: FlexSlot[];
   };

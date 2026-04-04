@@ -2,34 +2,34 @@
  * Budget solver — deterministic weekly calorie/protein allocation.
  *
  * This is the mathematical core of Flexie. It takes the week's shape (events,
- * fun foods, breakfast, meal prep requests) and produces a precise budget
- * allocation that the recipe engine fills.
+ * flex slots, breakfast, meal prep requests) and produces a precise budget
+ * allocation that the recipe scaler fills.
  *
  * NO LLM is involved here. This is pure arithmetic.
  *
- * Algorithm (see docs/product-specs/solver.md):
+ * Algorithm (see docs/plans/001-calorie-budget-redesign.md):
  * 1. Allocate breakfast (fixed, subtracted upfront)
- * 2. Allocate fixed slots (restaurant meals + fun foods)
- * 3. Calculate remaining budget for meal preps
- * 4. Lay out the week grid (7 days × 3 meals)
- * 5. Distribute evenly across meal prep slots
- * 6. Group into batches
+ * 2. Allocate meal-replacement events (restaurants — not treat events)
+ * 3. Sum flex slot bonuses
+ * 4. Protect treat budget (config.targets.treatBudgetPercent of weekly)
+ * 5. Compute meal prep budget (remainder after 1-4)
+ * 6. Distribute evenly: mealPrepBudget / totalSlots → uniform per-slot target
  * 7. Balance (enforce min/max per slot)
  * 8. Verify (weekly totals within tolerance)
  *
- * Budget pressure priority: when budget is tight, fun food absorbs first.
- * The 80% healthy structure is the last thing to shrink.
+ * Budget pressure priority: when events squeeze the budget, meal prep
+ * slots get smaller. The treat budget is protected and never shrinks.
  *
  * Constraints:
- * - All servings in a batch have equal calorie targets (no waste)
+ * - All servings in a batch have equal calorie targets (uniform distribution)
  * - No meal slot below 400 cal or above 1000 cal
  * - Weekly calories within ±3% of target
  * - Protein minimum must be met
- * - Fun food should not exceed ~25% (soft, warn but allow)
+ * - Solver warns if per-slot drops below 650 cal
  */
 
 import { v4 as uuid } from 'uuid';
-import type { FlexSlot, MealEvent, Macros } from '../models/types.js';
+import type { FlexSlot, MealEvent } from '../models/types.js';
 import { config } from '../config.js';
 import type {
   SolverInput,
@@ -43,9 +43,7 @@ import type {
 const MIN_MEAL_CAL = 400;
 const MAX_MEAL_CAL = 1000;
 const WEEKLY_TOLERANCE = 0.03; // ±3%
-
-/** Warn if the derived treat budget drops below this threshold. */
-const MIN_TREAT_BUDGET_WARNING = 300;
+const LOW_MEAL_WARNING = 650;
 
 /**
  * Solve the weekly budget allocation.
@@ -60,28 +58,40 @@ export function solve(input: SolverInput): SolverOutput {
   const weeklyBreakfastCal = input.breakfast.caloriesPerDay * 7;
   const weeklyBreakfastProtein = input.breakfast.proteinPerDay * 7;
 
-  // Step 2: Allocate events
+  // Step 2: Allocate meal-replacement events (restaurants, not treat events)
   const totalEventsCal = input.events.reduce((sum, e) => sum + e.estimatedCalories, 0);
+  const eventProtein = input.events.length * 25; // conservative per-event estimate
 
   // Step 3: Flex slot bonuses
   const totalFlexBonus = input.flexSlots.reduce((sum, f) => sum + f.flexBonus, 0);
 
-  // Step 4: Lay out the week grid
+  // Step 4: Protected treat budget — reserved upfront, never squeezed by events
+  const treatBudget = Math.round(input.weeklyTargets.calories * config.targets.treatBudgetPercent);
+
+  // Step 5: Meal prep budget — what's left for all non-breakfast, non-event slots
+  const mealPrepBudget = input.weeklyTargets.calories - weeklyBreakfastCal - totalEventsCal - totalFlexBonus - treatBudget;
+
+  // Step 6: Count all slots (recipe servings + flex slots)
+  const recipeServings = input.mealPrepPreferences.recipes.reduce((sum, r) => sum + r.servings, 0);
+  const totalSlots = recipeServings + input.flexSlots.length;
+
+  // Step 7: Uniform per-slot target
+  const perSlotCal = totalSlots > 0 ? Math.round(mealPrepBudget / totalSlots) : 0;
+  const mealProteinBudget = input.weeklyTargets.protein - weeklyBreakfastProtein - eventProtein;
+  const perSlotProtein = totalSlots > 0 ? Math.round(mealProteinBudget / totalSlots) : 0;
+
+  if (perSlotCal < LOW_MEAL_WARNING && totalSlots > 0) {
+    warnings.push(
+      `Per-meal target ${perSlotCal} cal is very low. Consider fewer events or a lower treat budget.`
+    );
+  }
+
+  // Step 8: Lay out the week grid
   const weekDays = getWeekDays(input.mealPrepPreferences.recipes, input.flexSlots);
   const eventsByDay = groupByDay(input.events, (e) => e.day);
   const flexSlotsByDay = groupByDay(input.flexSlots, (f) => f.day);
 
-  // Step 5: Create batch targets using real recipe macros.
-  // Each recipe keeps its natural per-serving calories — no forced scaling.
-  // For recipes without known macros (newly generated), use the average of known ones.
-  const recipesWithMacros = input.mealPrepPreferences.recipes.filter((r) => r.actualMacros);
-  const avgRecipeCal = recipesWithMacros.length > 0
-    ? Math.round(recipesWithMacros.reduce((s, r) => s + r.actualMacros!.calories, 0) / recipesWithMacros.length)
-    : Math.round(config.targets.daily.calories * 0.365);
-  const avgRecipeProtein = recipesWithMacros.length > 0
-    ? Math.round(recipesWithMacros.reduce((s, r) => s + r.actualMacros!.protein, 0) / recipesWithMacros.length)
-    : Math.round(config.targets.daily.protein * 0.365);
-
+  // Step 9: Create batch targets (uniform per-slot calories)
   const batchTargets: BatchTarget[] = input.mealPrepPreferences.recipes.map((req) => ({
     id: uuid(),
     recipeSlug: req.recipeSlug,
@@ -89,12 +99,12 @@ export function solve(input: SolverInput): SolverOutput {
     days: req.days,
     servings: req.servings,
     targetPerServing: {
-      calories: req.actualMacros?.calories ?? avgRecipeCal,
-      protein: req.actualMacros?.protein ?? avgRecipeProtein,
+      calories: perSlotCal,
+      protein: perSlotProtein,
     },
   }));
 
-  // Step 6: Balance — enforce min/max per slot
+  // Step 10: Balance — enforce min/max per slot
   for (const batch of batchTargets) {
     if (batch.targetPerServing.calories < MIN_MEAL_CAL) {
       warnings.push(
@@ -117,31 +127,17 @@ export function solve(input: SolverInput): SolverOutput {
     batchTargets,
     eventsByDay,
     flexSlotsByDay,
-    avgRecipeCal,
-    avgRecipeProtein,
+    perSlotCal,
+    perSlotProtein,
   );
 
   // Build cooking schedule
   const cookingSchedule = buildCookingSchedule(batchTargets);
 
-  // Step 7: Derive the treat budget from what's left.
-  // The treat budget is NOT a fixed reserve — it's the honest remainder after
-  // all planned meals are accounted for. This ensures meals keep their natural
-  // per-serving calories (no shrinking to make room for a predetermined pool).
+  // Verify weekly totals
   const plannedCal = dailyBreakdown.reduce((sum, d) => sum + d.totalCalories, 0);
   const totalPlannedProtein = dailyBreakdown.reduce((sum, d) => sum + d.totalProtein, 0);
-  const treatBudget = Math.max(0, input.weeklyTargets.calories - plannedCal);
-  const funFoodPool = totalFlexBonus + treatBudget;
-  const funFoodPercent = funFoodPool / input.weeklyTargets.calories;
-
-  if (treatBudget < MIN_TREAT_BUDGET_WARNING) {
-    warnings.push(
-      `Treat headroom is tight: only ${treatBudget} cal/week (~${Math.round(treatBudget / 7)} cal/day) left for snacks. Consider lower-calorie recipes for more room.`
-    );
-  }
-
-  // Step 8: Verify weekly totals
-  const totalAllocatedCal = plannedCal + treatBudget; // by definition = weeklyTargets.calories
+  const totalAllocatedCal = plannedCal + treatBudget;
   const calDeviation = Math.abs(totalAllocatedCal - input.weeklyTargets.calories) / input.weeklyTargets.calories;
   const isValid = calDeviation <= WEEKLY_TOLERANCE && totalPlannedProtein >= input.weeklyTargets.protein * 0.97;
 
@@ -161,10 +157,8 @@ export function solve(input: SolverInput): SolverOutput {
     weeklyTotals: {
       calories: totalAllocatedCal,
       protein: totalPlannedProtein,
-      funFoodPool,
-      flexSlotCalories: totalFlexBonus,
       treatBudget,
-      funFoodPercent: Math.round(funFoodPercent * 1000) / 10,
+      flexSlotCalories: totalFlexBonus,
     },
     dailyBreakdown,
     batchTargets,
@@ -205,20 +199,10 @@ function groupByDay<T>(items: T[], getDay: (item: T) => string): Map<string, T[]
 }
 
 /**
- * Estimate protein from restaurant events.
- * Uses a rough 25g protein per event as a conservative placeholder.
- * The actual estimation happens in the restaurant estimator sub-agent;
- * the solver uses this as a minimum floor.
- */
-function estimateEventProtein(events: MealEvent[]): number {
-  return events.length * 25;
-}
-
-/**
  * Build the daily breakdown for each day of the week.
  *
- * Batch slots use the recipe's actual per-serving macros (from the batch target).
- * Flex slots use the fallback average + their flex bonus.
+ * All meal-prep slots use the uniform per-slot target from the solver.
+ * Flex slots use the same base + their flex bonus.
  */
 function buildDailyBreakdown(
   weekDays: string[],

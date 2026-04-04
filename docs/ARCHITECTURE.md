@@ -98,7 +98,7 @@ flexy-agent/
 **Agent Harness** — The product. Contains all business logic:
 - **Flow handlers** (`agents/plan-flow.ts`, `agents/recipe-flow.ts`) — Phase-driven state machines for the planning and recipe flows. Each exports a state type, factory function, and pure handler functions that return `{text, state}`.
 - **Plan proposer** (`agents/plan-proposer.ts`) — Sub-agent that generates complete weekly plan proposals using the recipe DB, recent history, and variety rules.
-- **Budget solver** (`solver/solver.ts`) — Deterministic code. Recipes keep their natural per-serving macros; the solver validates weekly totals and derives the treat budget as the honest remainder.
+- **Budget solver** (`solver/solver.ts`) — Deterministic code. Reserves a protected treat budget upfront (`config.planning.treatBudgetPercent`), then distributes the remaining weekly calories uniformly across all meal prep slots. Every batch gets the same per-slot target; the recipe scaler adjusts each recipe to hit it.
 - **QA gate** (`qa/gate.ts`) — Validates all outputs before they reach the user. Retry loop with max 3 attempts.
 - **Sub-agents** — Isolated LLM tasks: recipe generation (with meal-type-specific prompts), recipe scaling, restaurant estimation. Each runs with focused context and returns a condensed result.
 
@@ -120,7 +120,7 @@ flexy-agent/
 
 6. **The provider interface is agnostic.** All LLM calls go through `ai/provider.ts`. Switching providers means implementing a new class, not rewriting business logic.
 
-7. **Recipes keep their natural macros.** The solver does not force uniform calorie targets. Each recipe's actual per-serving macros are used; the treat budget is derived as whatever's left in the weekly target.
+7. **Treat budget is protected, meal slots are uniform.** The solver reserves a fixed treat budget (`config.planning.treatBudgetPercent` of weekly calories) before sizing meals, then distributes the remainder evenly across all meal prep slots. Each recipe is scaled at plan approval time to hit its assigned per-slot target (±20 cal tolerance for clean ingredient amounts). Protein is preserved precisely during scaling.
 
 8. **The food profile shapes all generation.** `config.foodProfile` (region, store access, ingredient preferences) is injected into every recipe generation and plan proposal prompt.
 
@@ -138,6 +138,7 @@ index.ts
        ├─ agents/plan-flow.ts           (plan week flow)
        │    ├─ agents/plan-proposer.ts  (sub-agent: plan proposals)
        │    ├─ agents/recipe-generator  (sub-agent: gap recipes)
+       │    ├─ agents/recipe-scaler.ts  (sub-agent: scale recipes to solver targets at approval)
        │    ├─ solver/solver.ts         (budget math)
        │    ├─ qa/validators/plan.ts    (validation)
        │    └─ state/store.ts           (persistence)
@@ -157,10 +158,13 @@ User taps "Plan Week"
   → bot.ts creates PlanFlowState
   → shows breakfast confirmation + events question
 
-User confirms breakfast, adds events (or none)
+User confirms breakfast, adds meal-replacement events (or none — treats are
+  never declared here, they come from the protected treat budget)
   → plan-proposer sub-agent runs
-     (recipe DB + recent history + variety rules → complete proposal)
-  → solver runs on proposal (validates weekly totals, derives treat budget)
+     (recipe DB + recent history + variety rules → complete proposal with
+      exactly config.planning.flexSlotsPerWeek flex slots)
+  → solver runs on proposal (reserves protected treat budget, distributes
+     remaining budget uniformly across slots, validates weekly totals)
   → QA gate validates
 
 If recipe gaps found:
@@ -169,9 +173,12 @@ If recipe gaps found:
   → solver re-runs with complete batches
 
 Plan presented to user:
-  → [Looks good!] → plan saved to Supabase, shopping list ready
+  → [Looks good!] → recipe-scaler runs on each batch (adjusts ingredients
+                    to the solver's per-slot target ±20 cal, preserving protein)
+                  → plan saved to Supabase, shopping list ready
   → [Swap something] → user describes change → LLM classifies swap type
-     → proposal adjusted → solver re-runs ��� re-presented
+     (flex_add, flex_remove, flex_move, recipe_swap, unclear)
+     → proposal mutated → solver re-runs → re-presented
 ```
 
 ---

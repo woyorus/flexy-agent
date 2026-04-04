@@ -18,9 +18,8 @@ interface WeeklyPlan {
   targets: Macros;                      // { calories, protein }
 
   flexBudget: {
-    totalPool: number;                  // 20% of weekly calories
-    flexSlotCalories: number;           // consumed by flex slot bonuses
-    treatBudget: number;                // totalPool - flexSlotCalories
+    treatBudget: number;                // protected 5% of weekly calories
+    flexSlotCalories: number;           // sum of flex slot bonuses
     flexSlots: FlexSlot[];
   };
 
@@ -42,20 +41,20 @@ interface WeeklyPlan {
 
 ### FlexSlot
 
-A meal where the calorie target is boosted above normal. The extra calories come from the fun food pool. No specific food is assigned — the user decides in real-time.
+A meal where the calorie target is boosted above the uniform meal-prep baseline. No specific food is assigned — the user decides in real-time. Currently hard-constrained to exactly 1 per week (`config.planning.flexSlotsPerWeek`).
 
 ```typescript
 interface FlexSlot {
   day: string;                          // ISO date
   mealTime: 'lunch' | 'dinner';
-  flexBonus: number;                    // extra cal from fun food pool
+  flexBonus: number;                    // ~350 extra cal on top of per-slot base
   note?: string;                        // e.g., "burger or pizza"
 }
 ```
 
 ### MealEvent
 
-A restaurant or social meal that replaces a meal slot.
+A **meal-replacement event** — a restaurant or social meal that replaces a lunch or dinner slot. Treat events (cookies at work, snacks, drinks) are NOT stored as MealEvent — they're funded by the treat budget and never touch the slot grid. See [core-concepts.md](./core-concepts.md) for event semantics.
 
 ```typescript
 interface MealEvent {
@@ -93,9 +92,9 @@ interface Batch {
   recipeSlug: string;
   mealType: 'lunch' | 'dinner';
   servings: number;
-  targetPerServing: Macros;
-  actualPerServing: MacrosWithFatCarbs;
-  scaledIngredients: ScaledIngredient[];
+  targetPerServing: Macros;             // uniform solver target (all batches equal)
+  actualPerServing: MacrosWithFatCarbs; // scaled result after recipe-scaler runs
+  scaledIngredients: ScaledIngredient[];// adjusted amounts with totalForBatch
 }
 
 interface CookDay {
@@ -104,13 +103,15 @@ interface CookDay {
 }
 ```
 
+`targetPerServing` is the solver's uniform target for all batches that week. `actualPerServing` and `scaledIngredients` are filled at plan approval time by the recipe scaler (`src/agents/recipe-scaler.ts`), which hits the target within a ±20 cal tolerance while preserving protein and picking clean ingredient amounts.
+
 ### Recipe
 
 See [recipes.md](./recipes.md) for full format details.
 
 ### Legacy types
 
-`FunFoodItem` still exists in types.ts but is unused in the active plan flow. It's from the original spec's model where individual fun foods were placed on specific days. The current model uses FlexSlot instead.
+`FunFoodItem` still exists in types.ts but is unused in the active plan flow. It's from the original spec's model where individual fun foods were placed on specific days. The current model uses FlexSlot + the protected treat budget instead.
 
 ## Solver types (`src/solver/types.ts`)
 

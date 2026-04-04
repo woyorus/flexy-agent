@@ -77,6 +77,32 @@ export const config = {
       calories: 2436 * 7, // 17052
       protein: 150 * 7,   // 1050
     },
+    /** Protected treat budget as fraction of weekly calories. 5% = ~853 cal/week. */
+    treatBudgetPercent: 0.05,
+  },
+
+  /**
+   * Weekly planning constraints — shape the plan-proposer's output.
+   * These are tunable knobs, not fundamental limits.
+   */
+  planning: {
+    /**
+     * Exact number of flex meal slots per week. Each additional flex slot
+     * costs ~25 cal per meal prep slot (the 350 cal bonus divided across slots),
+     * which erodes meal satisfaction. Fixed at 1 for now — future versions may
+     * rotate (e.g., one 2-flex week per month).
+     */
+    flexSlotsPerWeek: 1,
+
+    /**
+     * ± calorie tolerance the recipe scaler is allowed when hitting the solver's
+     * per-slot target. Giving the scaler wiggle room lets it pick clean,
+     * measurable ingredient amounts (45g pasta instead of 47g) and produces
+     * recipes that feel more human. Natural variance across meals is absorbed
+     * by the treat budget. LLM macro estimates are ±10% anyway — precision
+     * beyond ~20 cal is illusory.
+     */
+    scalerCalorieTolerance: 20,
   },
 
   /**

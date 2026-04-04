@@ -28,7 +28,7 @@ import { generateRecipe, refineRecipe, correctRecipeMacros, buildSystemPrompt, t
 import { RecipeDatabase } from '../recipes/database.js';
 import type { ChatMessage } from '../ai/provider.js';
 import { renderRecipe } from '../recipes/renderer.js';
-import { validateRecipe } from '../qa/validators/recipe.js';
+import { validateRecipe, computeMacroCalorieConsistency, MACRO_CAL_TOLERANCE } from '../qa/validators/recipe.js';
 
 const MAX_CORRECTION_RETRIES = 2;
 
@@ -98,7 +98,7 @@ function recipeToRawJson(recipe: Recipe): Record<string, unknown> {
 }
 
 /** Macro targets per meal type, derived from daily targets. */
-function targetsForMealType(mealType: 'breakfast' | 'lunch' | 'dinner'): MacrosWithFatCarbs {
+export function targetsForMealType(mealType: 'breakfast' | 'lunch' | 'dinner'): MacrosWithFatCarbs {
   const d = config.targets.daily;
   if (mealType === 'breakfast') {
     // Breakfast: ~27% of daily
@@ -109,8 +109,8 @@ function targetsForMealType(mealType: 'breakfast' | 'lunch' | 'dinner'): MacrosW
       carbs: Math.round(d.carbs * 0.27),
     };
   }
-  // Lunch/dinner: split the remaining ~73% evenly
-  const remaining = 0.365; // each gets ~36.5%
+  // Lunch/dinner: 33% each (5% treat budget + 2% flex bonus account for the rest)
+  const remaining = 0.33; // each gets ~33% (804 cal at 2,436 daily)
   return {
     calories: Math.round(d.calories * remaining),
     protein: Math.round(d.protein * remaining),
@@ -124,8 +124,9 @@ function targetsForMealType(mealType: 'breakfast' | 'lunch' | 'dinner'): MacrosW
  * Returns null if everything is within tolerance.
  *
  * Checks:
- * - Calories: +-3% (weight loss product — overshooting kills caloric deficit)
- * - Protein: +-5%
+ * - Calories: ±3% (weight loss product — overshooting kills caloric deficit)
+ * - Protein: ±5%
+ * - Macro/calorie consistency: ±5% (stated cal must match 4P+4C+9F Atwater formula)
  * - Prep time: minimum thresholds based on ingredient count and meal type
  */
 function buildCorrectionPrompt(recipe: Recipe, targets: MacrosWithFatCarbs): string | null {
@@ -147,6 +148,14 @@ function buildCorrectionPrompt(recipe: Recipe, targets: MacrosWithFatCarbs): str
     macroIssues.push(`- Protein: ${recipe.perServing.protein}g (${dir} by ${Math.abs(Math.round(protDelta))}g, target: ${targets.protein}g)`);
   }
 
+  // Internal consistency: stated calories must match Atwater computation
+  const consistency = computeMacroCalorieConsistency(recipe.perServing);
+  if (consistency.deviationPct > MACRO_CAL_TOLERANCE) {
+    macroIssues.push(
+      `- Macro/calorie mismatch: stated ${recipe.perServing.calories} cal vs computed ${consistency.computed} cal from macros (${recipe.perServing.protein}g P × 4 + ${recipe.perServing.carbs}g C × 4 + ${recipe.perServing.fat}g F × 9), off by ${(consistency.deviationPct * 100).toFixed(1)}%. The numbers MUST add up via Atwater factors.`
+    );
+  }
+
   // Prep time check
   const ingredientCount = recipe.ingredients?.length ?? 0;
   const isBreakfast = recipe.mealTypes?.includes('breakfast');
@@ -161,12 +170,16 @@ function buildCorrectionPrompt(recipe: Recipe, targets: MacrosWithFatCarbs): str
   let prompt = 'CORRECTIONS NEEDED:\n';
 
   if (macroIssues.length > 0) {
-    prompt += `\nMACROS OFF TARGET:\n${macroIssues.join('\n')}\n`;
+    prompt += `\nMACRO ISSUES:\n${macroIssues.join('\n')}\n`;
     prompt += `\nFix macros by adjusting ingredient AMOUNTS ONLY. Priority:
 1. Fat ingredients first (olive oil, butter, cheese, cream) — highest cal/gram
 2. Carb side quantity (pasta, rice, potatoes, bread) — easy scaling lever
 3. NEVER reduce the protein source amount
 4. NEVER change ingredients the user specifically asked for
+
+CRITICAL: The final per_serving numbers must satisfy Atwater:
+  calories = 4 × protein_g + 4 × carbs_g + 9 × fat_g
+All three macro values must add up to the calorie number. Recompute carefully.
 Better to slightly undershoot calories than overshoot.\n`;
   }
 
