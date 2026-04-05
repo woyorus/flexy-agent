@@ -261,7 +261,7 @@
         }
       },
       {
-        "text": "Your week: Mon Apr 6 – Sun Apr 12\n\nBreakfast (daily): Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt — 658 cal\n\nMeal prep (each ~800 cal/serving):\n  Lunch Mon-Tue-Wed: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (3 servings)\n  Dinner Mon-Tue-Wed: Ground Beef Rigatoni Bolognese (3 servings)\n  Lunch Thu+Fri: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (2 servings)\n  Lunch Sat+Sun: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (2 servings)\n  Dinner Thu-Fri-Sat: Ground Beef Rigatoni Bolognese (3 servings)\n\nFlex meal: Sun dinner (~1153 cal — Weekend fun dinner; take the night off from meal prep)\nTreats: 2 this week (~427 cal each)\n  Spend whenever cravings hit — not assigned to specific days\n\nCook:\n  Sun: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa + Ground Beef Rigatoni Bolognese\n  Wed: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa + Ground Beef Rigatoni Bolognese\n  Fri: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\n\nWeekly: 17,051 cal | 1057g protein ✓",
+        "text": "Your week: Mon Apr 6 – Sun Apr 12\n\nBreakfast (daily): Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt — 658 cal\n\nMeal prep (each ~800 cal/serving):\n  Lunch Mon-Tue-Wed: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (3 servings)\n  Dinner Mon-Tue-Wed: Ground Beef Rigatoni Bolognese (3 servings)\n  Lunch Thu+Fri: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (2 servings)\n  Lunch Sat+Sun: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (2 servings)\n  Dinner Thu-Fri-Sat: Ground Beef Rigatoni Bolognese (3 servings)\n\nFlex meal: Sun dinner (~1153 cal — Weekend fun dinner; take the night off from meal prep)\nTreats: 2 this week (~427 cal each)\n  Spend whenever cravings hit — not assigned to specific days\n\nCook:\n  Mon: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa + Ground Beef Rigatoni Bolognese\n  Thu: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa + Ground Beef Rigatoni Bolognese\n  Sat: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\n\nWeekly: 17,051 cal | 1057g protein ✓",
         "keyboard": {
           "kind": "inline",
           "buttons": [
@@ -624,21 +624,21 @@
             ],
             "cookingSchedule": [
               {
-                "day": "2026-04-05",
+                "day": "2026-04-06",
                 "batchIds": [
                   "{{uuid:0}}",
                   "{{uuid:1}}"
                 ]
               },
               {
-                "day": "2026-04-08",
+                "day": "2026-04-09",
                 "batchIds": [
                   "{{uuid:2}}",
                   "{{uuid:3}}"
                 ]
               },
               {
-                "day": "2026-04-10",
+                "day": "2026-04-11",
                 "batchIds": [
                   "{{uuid:4}}"
                 ]
@@ -681,7 +681,7 @@
           "events": [],
           "cookDays": [
             {
-              "day": "2026-04-05",
+              "day": "2026-04-06",
               "batches": [
                 {
                   "id": "{{uuid:1}}",
@@ -872,7 +872,7 @@
               ]
             },
             {
-              "day": "2026-04-08",
+              "day": "2026-04-09",
               "batches": [
                 {
                   "id": "{{uuid:3}}",
@@ -1063,7 +1063,7 @@
               ]
             },
             {
-              "day": "2026-04-10",
+              "day": "2026-04-11",
               "batches": [
                 {
                   "id": "{{uuid:5}}",
@@ -1388,7 +1388,7 @@
         "events": [],
         "cookDays": [
           {
-            "day": "2026-04-05",
+            "day": "2026-04-06",
             "batches": [
               {
                 "id": "{{uuid:1}}",
@@ -1579,7 +1579,7 @@
             ]
           },
           {
-            "day": "2026-04-08",
+            "day": "2026-04-09",
             "batches": [
               {
                 "id": "{{uuid:3}}",
@@ -1770,7 +1770,7 @@
             ]
           },
           {
-            "day": "2026-04-10",
+            "day": "2026-04-11",
             "batches": [
               {
                 "id": "{{uuid:5}}",

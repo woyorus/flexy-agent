@@ -11,7 +11,7 @@
  * - All servings in a batch have equal calorie targets
  * - Fun food pool not exceeded (hard cap 30%)
  * - Treat budget non-negative (flex bonuses don't exceed fun food pool)
- * - Cooking days are before eating days
+ * - Cook day is on or before the first eating day (cook day === first eating day is valid)
  * - No orphaned meal slots (every meal has a source: batch, event, or flex)
  */
 
@@ -82,7 +82,8 @@ export function validatePlan(output: SolverOutput, targets: Macros): PlanValidat
     );
   }
 
-  // Cooking days must be before eating days
+  // Cooking days must not be AFTER the first eating day. Cook day === first
+  // eating day is valid (Plan 008) — the strict `>` check below enforces this.
   for (const cookDay of output.cookingSchedule) {
     for (const batchId of cookDay.batchIds) {
       const batch = output.batchTargets.find((b) => b.id === batchId);

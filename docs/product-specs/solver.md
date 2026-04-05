@@ -66,12 +66,12 @@ The **recipe scaler** runs at plan approval time (in `buildWeeklyPlan`), not ins
 
 ## Cooking schedule
 
-Strategy: cook each batch the day before the first eating day. Groups batches that cook on the same day.
+Strategy: cook each batch on the first eating day itself. The user cooks fresh on the day a batch starts being eaten, not the night before, to protect freshness across the 2–3 day window. Groups batches that cook on the same day.
 
 ## QA gate (`src/qa/validators/plan.ts`)
 
 Validates solver output before the plan is shown to the user. Checks all hard constraints above, plus:
-- Cooking days must be before eating days
+- Cook day must not be after the first eating day (cook day === first eating day is valid)
 - Every day must have lunch + dinner covered (batch, event, or flex slot)
 - Flex slots can exceed `MAX_MEAL_CAL` by their flex bonus amount
 - Flex + treat allocation percentage is reasonable (warns if > hard cap, usually indicates unresolved recipe gaps)

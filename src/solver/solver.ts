@@ -294,17 +294,20 @@ function buildDailyBreakdown(
 /**
  * Build the cooking schedule from batch targets.
  *
- * Strategy: cook each batch on the first day it's needed (or the day before
- * if it starts on day 1). Groups batches that need to be cooked on the same day.
+ * Strategy: cook each batch on the first eating day itself. The user cooks
+ * fresh on the day a batch starts being eaten, not the night before — this
+ * protects freshness across the 2–3 day batch window. Groups batches that
+ * cook on the same day.
  */
 function buildCookingSchedule(batchTargets: BatchTarget[]): CookingScheduleDay[] {
   const scheduleMap = new Map<string, string[]>();
 
   for (const batch of batchTargets) {
     if (batch.days.length === 0) continue;
-    // Cook day = the day before the first eating day, or the first eating day itself
-    const firstEatDay = batch.days[0]!;
-    const cookDay = dayBefore(firstEatDay);
+    // Cook day = first eating day. The user cooks fresh on the day a batch
+    // starts being eaten, not the night before — protecting freshness across
+    // the 2-3 day batch window. See docs/plans/active/008-cook-day-hotfix.md.
+    const cookDay = batch.days[0]!;
 
     const existing = scheduleMap.get(cookDay) ?? [];
     existing.push(batch.id);
@@ -314,19 +317,4 @@ function buildCookingSchedule(batchTargets: BatchTarget[]): CookingScheduleDay[]
   return Array.from(scheduleMap.entries())
     .map(([day, batchIds]) => ({ day, batchIds }))
     .sort((a, b) => a.day.localeCompare(b.day));
-}
-
-/** Get the ISO date string for the day before a given date. */
-function dayBefore(isoDate: string): string {
-  const d = new Date(isoDate + 'T00:00:00');
-  d.setDate(d.getDate() - 1);
-  return toLocalISODate(d);
-}
-
-/** Format a Date as YYYY-MM-DD using local time (not UTC). */
-function toLocalISODate(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }

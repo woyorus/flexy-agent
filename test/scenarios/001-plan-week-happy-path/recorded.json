@@ -217,7 +217,7 @@
         "text": "No events this week. Generating your plan..."
       },
       {
-        "text": "Your week: Mon Apr 6 – Sun Apr 12\n\nBreakfast (daily): Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt — 658 cal\n\nMeal prep (each ~800 cal/serving):\n  Lunch Mon-Tue-Wed: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (3 servings)\n  Lunch Thu+Fri: Mediterranean Tuna, Chickpea and Feta Rice Bowl (2 servings)\n  Lunch Sat+Sun: Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions (2 servings)\n  Dinner Mon+Tue: Creamy Salmon and Shrimp Linguine (2 servings)\n  Dinner Wed+Thu: Ground Beef Rigatoni Bolognese (2 servings)\n  Dinner Sat+Sun: Moroccan Beef Tagine-Style Skillet with Lemon Couscous (2 servings)\n\nFlex meal: Fri dinner (~1153 cal — fun Friday dinner night)\nTreats: 2 this week (~427 cal each)\n  Spend whenever cravings hit — not assigned to specific days\n\nCook:\n  Sun: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa + Creamy Salmon and Shrimp Linguine\n  Tue: Ground Beef Rigatoni Bolognese\n  Wed: Mediterranean Tuna, Chickpea and Feta Rice Bowl\n  Fri: Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions + Moroccan Beef Tagine-Style Skillet with Lemon Couscous\n\nWeekly: 17,051 cal | 1057g protein ✓",
+        "text": "Your week: Mon Apr 6 – Sun Apr 12\n\nBreakfast (daily): Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt — 658 cal\n\nMeal prep (each ~800 cal/serving):\n  Lunch Mon-Tue-Wed: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (3 servings)\n  Lunch Thu+Fri: Mediterranean Tuna, Chickpea and Feta Rice Bowl (2 servings)\n  Lunch Sat+Sun: Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions (2 servings)\n  Dinner Mon+Tue: Creamy Salmon and Shrimp Linguine (2 servings)\n  Dinner Wed+Thu: Ground Beef Rigatoni Bolognese (2 servings)\n  Dinner Sat+Sun: Moroccan Beef Tagine-Style Skillet with Lemon Couscous (2 servings)\n\nFlex meal: Fri dinner (~1153 cal — fun Friday dinner night)\nTreats: 2 this week (~427 cal each)\n  Spend whenever cravings hit — not assigned to specific days\n\nCook:\n  Mon: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa + Creamy Salmon and Shrimp Linguine\n  Wed: Ground Beef Rigatoni Bolognese\n  Thu: Mediterranean Tuna, Chickpea and Feta Rice Bowl\n  Sat: Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions + Moroccan Beef Tagine-Style Skillet with Lemon Couscous\n\nWeekly: 17,051 cal | 1057g protein ✓",
         "keyboard": {
           "kind": "inline",
           "buttons": [
@@ -600,26 +600,26 @@
             ],
             "cookingSchedule": [
               {
-                "day": "2026-04-05",
+                "day": "2026-04-06",
                 "batchIds": [
                   "{{uuid:0}}",
                   "{{uuid:1}}"
                 ]
               },
               {
-                "day": "2026-04-07",
+                "day": "2026-04-08",
                 "batchIds": [
                   "{{uuid:2}}"
                 ]
               },
               {
-                "day": "2026-04-08",
+                "day": "2026-04-09",
                 "batchIds": [
                   "{{uuid:3}}"
                 ]
               },
               {
-                "day": "2026-04-10",
+                "day": "2026-04-11",
                 "batchIds": [
                   "{{uuid:4}}",
                   "{{uuid:5}}"
@@ -663,7 +663,7 @@
           "events": [],
           "cookDays": [
             {
-              "day": "2026-04-05",
+              "day": "2026-04-06",
               "batches": [
                 {
                   "id": "{{uuid:1}}",
@@ -854,7 +854,7 @@
               ]
             },
             {
-              "day": "2026-04-07",
+              "day": "2026-04-08",
               "batches": [
                 {
                   "id": "{{uuid:3}}",
@@ -943,7 +943,7 @@
               ]
             },
             {
-              "day": "2026-04-08",
+              "day": "2026-04-09",
               "batches": [
                 {
                   "id": "{{uuid:4}}",
@@ -1038,7 +1038,7 @@
               ]
             },
             {
-              "day": "2026-04-10",
+              "day": "2026-04-11",
               "batches": [
                 {
                   "id": "{{uuid:5}}",
@@ -1441,7 +1441,7 @@
         "events": [],
         "cookDays": [
           {
-            "day": "2026-04-05",
+            "day": "2026-04-06",
             "batches": [
               {
                 "id": "{{uuid:1}}",
@@ -1632,7 +1632,7 @@
             ]
           },
           {
-            "day": "2026-04-07",
+            "day": "2026-04-08",
             "batches": [
               {
                 "id": "{{uuid:3}}",
@@ -1721,7 +1721,7 @@
             ]
           },
           {
-            "day": "2026-04-08",
+            "day": "2026-04-09",
             "batches": [
               {
                 "id": "{{uuid:4}}",
@@ -1816,7 +1816,7 @@
             ]
           },
           {
-            "day": "2026-04-10",
+            "day": "2026-04-11",
             "batches": [
               {
                 "id": "{{uuid:5}}",
