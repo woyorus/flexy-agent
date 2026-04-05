@@ -20,10 +20,59 @@ import type { SessionState } from './machine.js';
 const SINGLE_USER_ID = 'default';
 
 /**
+ * The subset of the state store contract that `BotCore` and the flows
+ * actually consume. Lives in production territory (not under `src/harness/`)
+ * so that the core can depend on it without ever importing test code.
+ *
+ * `StateStore` declares `implements StateStoreLike` below — a compile-time
+ * safety net that catches drift between the class and the interface the
+ * moment it happens, not when a scenario runs and produces wrong results.
+ *
+ * The harness's `TestStateStore` also `implements StateStoreLike`, so both
+ * the real Supabase-backed class and the in-memory test double share the
+ * exact same surface from the core's point of view.
+ *
+ * Methods included here are determined by auditing every `store.*` call
+ * site in `src/telegram/core.ts`, `src/agents/plan-flow.ts`, and
+ * `src/agents/recipe-flow.ts` — NOT from memory. If the core ever starts
+ * calling a new `store.*` method, both this interface and every
+ * implementation must be updated (`tsc` will fail loudly if either is
+ * forgotten). Currently unused on the class (`saveSession`, `loadSession`,
+ * `getPlan`) are intentionally omitted to keep the contract minimal.
+ */
+export interface StateStoreLike {
+  /** Upsert a weekly plan, keyed by plan id. */
+  savePlan(plan: WeeklyPlan): Promise<void>;
+  /**
+   * Return the most recent plan with `status in ['active', 'planning']`,
+   * ordered by `weekStart` descending. A user currently editing a plan and a
+   * prior active plan are both included so an in-progress plan is never
+   * shadowed by the previous one.
+   */
+  getCurrentPlan(): Promise<WeeklyPlan | null>;
+  /**
+   * Return the most recent plan with `status = 'completed'`, used for
+   * "last week's breakfast" fallback on the plan-week entry.
+   */
+  getLastCompletedPlan(): Promise<WeeklyPlan | null>;
+  /**
+   * Return up to `limit` completed plans ordered by `weekStart` descending.
+   * Used by the plan-proposer for variety context.
+   */
+  getRecentCompletedPlans(limit?: number): Promise<WeeklyPlan[]>;
+  /**
+   * Flip every plan currently at `status = 'active'` to `'completed'`.
+   * Called immediately before persisting a newly-approved plan so the week
+   * transition is atomic from the user's point of view.
+   */
+  completeActivePlans(): Promise<void>;
+}
+
+/**
  * Supabase-backed state store.
  * Handles persistence of weekly plans and session state.
  */
-export class StateStore {
+export class StateStore implements StateStoreLike {
   private client: SupabaseClient;
 
   constructor() {

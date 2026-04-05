@@ -51,7 +51,6 @@ The minimum required to start using the product daily from Monday. Focus: reliab
 - **Daily plan view with scaled recipes**: A "what do I cook today" view — shows today's meals from the weekly plan with recipes already scaled to that day's targets. The recipe library stays as-is (original unscaled templates). The plan provides the context: when you open a recipe from your daily plan, you see the scaled version (adjusted quantities, macros, calories). Exact UX to be designed when we build it — needs to feel natural for the "I'm in the kitchen, what do I cook" moment.
 - **Shopping list overhaul**: Current implementation is bare-bones. Needs proper ingredient aggregation, unit handling, and a clean Telegram UI for use at the store.
 - **Daily measurements**: Body weight and waist circumference tracking via Telegram. Store daily entries, display rolling averages to track progress over time.
-- **Test coverage for critical paths**: Unit tests for budget solver, recipe scaling, and shopping list aggregation. The deterministic core must not break silently.
 - **Bug fixes / stability**: No major bugs on Monday. Polish rough edges found during weekend testing.
 
 ### v0.0.5 — Tracking, adjustment, and natural conversation
@@ -95,6 +94,7 @@ The system becomes dynamic and conversational. User reports what happened, agent
   - Should simple intents ALSO delegate to the proposer (for invariant consolidation), or keep mutating directly (for speed)?
   - What does a "constraint delta" look like as a prompt input to the proposer? (e.g., `currentPlan + "the flex slot must be on Saturday dinner"`)
   - How do we handle retry/rejection when the slow-path proposer returns an invalid plan?
+- **Test coverage for critical paths**: Unit tests for budget solver, recipe scaling, and shopping list aggregation. The deterministic core must not break silently.
 
 ### v0.0.6 — Polish and proactivity
 

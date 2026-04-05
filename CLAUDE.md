@@ -26,6 +26,7 @@ Every file, class, and function must be documented. This is not optional.
 | `docs/product-specs/data-models.md` | TypeScript interfaces, Supabase schema. | When changing data shapes or persistence. |
 | `docs/product-specs/ui.md` | Telegram UI, keyboards, message formatting, voice. | When modifying buttons, menus, or display. |
 | `docs/product-specs/recipes.md` | Recipe format, generation, scaling, structure system. | When working on recipes. |
+| `docs/product-specs/testing.md` | Scenario harness, `npm test`, authoring scenarios, generate mode. | When running tests, writing a new scenario, or updating a stale recording. |
 | `docs/BACKLOG.md` | Current version scope + versioned feature roadmap. | When checking what's in/out of scope. |
 | `docs/DOCS-GUIDE.md` | Rules for creating and managing docs, plans, design docs, specs. | When creating new docs or unsure where something belongs. |
 | `docs/design-docs/index.md` | Catalog of significant design decisions. | When making or reviewing architectural decisions. |
@@ -56,14 +57,37 @@ See `docs/DOCS-GUIDE.md` for the full rules on when to create new files, where t
 
 ## Debug workflow
 
-The primary development loop: user runs the bot, tests via Telegram, comes back to discuss issues and request changes.
+The primary development loop is harness-driven. Scenarios in `test/scenarios/` replay fixture-recorded LLM responses in under a second each, and `npm test` is the main feedback signal for any code change. Real-Telegram testing via `npm run dev` stays as a final sanity check, not as the primary debugging tool.
+
+See `docs/product-specs/testing.md` for the full harness reference.
+
+### Baseline: `npm test` before and after every non-trivial change
+
+Run `npm test` once before starting work to confirm a green baseline. Run it again after the change to verify no regressions. If a scenario fails, the `deepStrictEqual` diff points at the exact reply, session field, or persisted plan that diverged — usually enough to diagnose without any further tooling.
 
 ### When the user reports an issue
 
-1. **Read the end of `logs/debug.log` first.** Append-only, can grow large. Start from the last ~200 lines. Contains every Telegram message, AI call (full prompts/responses/tokens/duration), flow state transition, and QA validation result.
-2. **Correlate with the log.** Tags: `[TG:IN]` / `[TG:OUT]` / `[AI:REQ]` / `[AI:RES]` / `[FLOW]` / `[QA]`. Find the relevant interaction.
-3. **Diagnose from the log, then fix.** The log usually has enough context without asking for more details.
+1. **Read the end of `logs/debug.log` first.** Append-only, can grow large. Start from the last ~200 lines. This is the authoritative record of what happened in the user's actual session — every Telegram message, AI call (full prompts/responses/tokens/duration), flow state transition, and QA validation result. Tags: `[TG:IN]` / `[TG:OUT]` / `[AI:REQ]` / `[AI:RES]` / `[FLOW]` / `[QA]`. The log tells you *what the user did* (the `[TG:IN]` events that become the scenario spec) and *what happened internally* (prompts, state, solver output).
 
-### Debug mode
+2. **Reproduce the bug as a scenario.** Author `test/scenarios/NNN-short-name/spec.ts` using the `[TG:IN]` entries from the log as the script: commands, reply-keyboard taps, inline button callbacks, transcribed voice. Pick a stable clock (anything in the current week) and the appropriate recipe fixture set. Run `npm run test:generate -- <name>` — this captures the current (still buggy) behavior as `recorded.json`. The scenario passes on the broken code because it locks in exactly what the code produces today.
 
-`DEBUG=1 npm run dev` or `npm run dev:debug` — adds verbose console output and a one-line debug footer on Telegram messages showing models used and timing.
+3. **Fix the code, then regenerate the recording.** After the fix, run `npm run test:generate -- <name> --regenerate`. Review the `git diff` on `recorded.json` — the bug should disappear from the transcript exactly where you predicted, and nowhere else. If unrelated fields change, the fix has a broader blast radius than intended and needs narrowing. Commit `spec.ts`, `recorded.json`, and the code fix in one commit.
+
+4. **The scenario becomes a permanent regression test.** Any future change that re-introduces the same bug class fails this scenario on the next `npm test`. Plan 005 → scenario `002-plan-week-flex-move-regression` is the reference example.
+
+### When a new scenario is NOT needed
+
+For code cleanups, refactors, renames, typo fixes, and bug fixes well-covered by existing scenarios, `npm test` alone is the verification — authoring a scenario per trivial change is noise. A new scenario is warranted when: the user caught a bug no existing scenario exercises, you're adding a new user-facing flow, or you want to lock in a regression class.
+
+### When to use `npm run dev` (real Telegram)
+
+Reserve for:
+- Structural migrations where the harness cannot simulate grammY itself (e.g., verifying the `BotCore` extraction didn't break inbound routing).
+- Final UX sanity check before handing work back — captured keyboard shapes are an imperfect proxy for how a message actually renders on a phone.
+- Exploring unfamiliar flows to understand how to author a scenario.
+
+Everything else runs through `npm test`.
+
+### Debug mode (for real-Telegram runs only)
+
+`DEBUG=1 npm run dev` or `npm run dev:debug` — adds verbose console output and a one-line debug footer on Telegram messages showing models used and timing. Only affects real-Telegram runs; harness replays are deterministic regardless of DEBUG mode because the footer is appended exclusively inside the grammY adapter.

@@ -58,10 +58,23 @@ flexy-agent/
 │   ├── shopping/
 │   │   └── generator.ts                  Derive shopping lists from weekly plans
 │   │
-│   └── telegram/
-│       ├── bot.ts                        Bot setup, auth middleware, message routing
-│       ├── keyboards.ts                  Reply + inline keyboard layouts
-│       └── formatters.ts                 Data → user-friendly Telegram messages
+│   ├── telegram/
+│   │   ├── bot.ts                        grammY adapter: middlewares, handlers, sink wiring
+│   │   ├── core.ts                       BotCore: headless dispatch + session state
+│   │   ├── keyboards.ts                  Reply + inline keyboard layouts
+│   │   └── formatters.ts                 Data → user-friendly Telegram messages
+│   │
+│   └── harness/
+│       ├── index.ts                      Public barrel for test/ consumers
+│       ├── define.ts                     defineScenario + event helpers
+│       ├── types.ts                      Scenario + captured-output types
+│       ├── loader.ts                     discoverScenarios, loadScenario
+│       ├── runner.ts                     runScenario: wires deps, drives BotCore, returns result
+│       ├── generate.ts                   CLI for recording fixtures against the real LLM
+│       ├── test-store.ts                 In-memory StateStoreLike for scenarios
+│       ├── capturing-sink.ts             OutputSink that serializes replies for assertions
+│       ├── clock.ts                      Date-freeze utility for scenario replay
+│       └── normalize.ts                  UUID → {{uuid:N}} normalization
 │
 ├── recipes/                              Recipe markdown files (YAML frontmatter + steps)
 │
@@ -199,3 +212,20 @@ Plan presented to user:
 | Add a new sub-agent | Create in `src/agents/`, wire into the relevant flow handler |
 | Change persistence schema | `src/state/store.ts` (Supabase queries) |
 | Change user food preferences | `src/config.ts` (`foodProfile` section) |
+| Run the test suite | `npm test` — see `docs/product-specs/testing.md` for the full reference |
+| Author a new scenario or update a stale recording | `docs/product-specs/testing.md` |
+
+---
+
+## Integration and testing
+
+The Telegram layer is split into two files to support headless testing:
+
+- **`src/telegram/core.ts`** (`BotCore`) — contains ALL conversation logic. Exposes `dispatch(update, sink)` where `update` is a `HarnessUpdate` (`command` / `text` / `callback` / `voice`) and `sink` is an `OutputSink` (three methods: `reply`, `answerCallback`, `startTyping`). Session state lives on `core.session` and is mutated in place.
+- **`src/telegram/bot.ts`** — the grammY adapter. Registers middlewares (auth, inbound logging, operation-timer), translates `ctx` into `HarnessUpdate`, builds a `grammyOutputSink` that forwards to `ctx.reply` and appends the debug footer, and calls `core.dispatch(update, sink)`.
+
+The test harness (`src/harness/`) drives the same `BotCore` via its own runner: constructs a `FixtureLLMProvider` and `TestStateStore` instead of the real OpenAI/Supabase dependencies, freezes `Date`, loops events into `core.dispatch`, and captures every reply via a `CapturingOutputSink`. Three independent assertions (`outputs`, `finalSession`, `finalStore`) run against the recording in `recorded.json`.
+
+The debug footer append lives exclusively inside the grammY adapter. `BotCore` produces clean text so harness transcripts are byte-stable regardless of DEBUG mode. Error handling also lives in the grammY adapter — core throws, grammY handlers catch and reply "Something went wrong" while harness runners let errors propagate so scenarios fail loudly.
+
+See `docs/product-specs/testing.md` and `docs/design-docs/test-harness-architecture.md` for the full harness reference.

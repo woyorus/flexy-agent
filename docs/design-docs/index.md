@@ -30,3 +30,4 @@ A design doc captures: the problem, options considered, the decision, and why. I
 | Doc | Status | Summary |
 |---|---|---|
 | [protected-treat-budget.md](./protected-treat-budget.md) | accepted | Protected treat budget (5% of weekly, reserved upfront) + uniform meal prep slots + recipe scaler to hit them. Replaces the earlier "recipes keep natural macros, treat budget is remainder" model. |
+| [test-harness-architecture.md](./test-harness-architecture.md) | accepted | Five-layer scenario harness: `BotCore` extraction, `StateStoreLike`, `FixtureLLMProvider` with per-hash queuing, scenario authoring API, `node:test` runner + custom generate CLI. Gives the agent a closed feedback loop with fixture-replayed LLM calls and no network on replay. |

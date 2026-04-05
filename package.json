@@ -7,7 +7,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "dev:debug": "DEBUG=1 tsx watch src/index.ts"
+    "dev:debug": "DEBUG=1 tsx watch src/index.ts",
+    "test": "tsx --test --import ./test/setup.ts test/scenarios.test.ts",
+    "test:generate": "tsx --import ./test/setup.ts src/harness/generate.ts"
   },
   "type": "module",
   "engines": {

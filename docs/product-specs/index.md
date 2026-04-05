@@ -20,3 +20,4 @@ Specs describe current behavior, not aspirational design. Update when code chang
 | [data-models.md](./data-models.md) | TypeScript interfaces, recipe format, Supabase schema | Changing data shapes or persistence |
 | [ui.md](./ui.md) | Telegram UI, keyboards, message formatting, voice input | Modifying buttons, menus, or display |
 | [recipes.md](./recipes.md) | Recipe format, generation constraints, scaling, meal types, structure | Working on recipe generation, parsing, or storage |
+| [testing.md](./testing.md) | Scenario harness, fixture replay, `npm test`, authoring new scenarios, generate mode | Running tests, writing a new scenario, updating a stale recording |

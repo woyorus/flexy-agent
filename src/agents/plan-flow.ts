@@ -42,7 +42,7 @@ import {
 import { targetsForMealType } from './recipe-flow.js';
 import { validateRecipe } from '../qa/validators/recipe.js';
 import type { RecipeDatabase } from '../recipes/database.js';
-import type { StateStore } from '../state/store.js';
+import type { StateStoreLike } from '../state/store.js';
 import { v4 as uuid } from 'uuid';
 
 // ─── Flow state ─────────────────────────────────────────────────────────────────
@@ -354,7 +354,7 @@ export async function handleGenerateProposal(
   state: PlanFlowState,
   llm: LLMProvider,
   recipes: RecipeDatabase,
-  store: StateStore,
+  store: StateStoreLike,
 ): Promise<FlowResponse> {
   log.debug('PLAN-FLOW', 'generating proposal');
 
@@ -547,7 +547,7 @@ export async function handleGapRecipeRefinement(
  */
 export async function handleApprove(
   state: PlanFlowState,
-  store: StateStore,
+  store: StateStoreLike,
   recipes: RecipeDatabase,
   llm: LLMProvider,
 ): Promise<FlowResponse> {
@@ -591,7 +591,7 @@ export async function handleSwapText(
   text: string,
   llm: LLMProvider,
   recipes: RecipeDatabase,
-  store: StateStore,
+  store: StateStoreLike,
 ): Promise<FlowResponse> {
   if (!state.proposal) {
     return { text: 'No plan to swap. Something went wrong.', state };
@@ -1238,7 +1238,7 @@ async function handleRecipeSwap(
   intent: { batchIndex: number; preference: string },
   llm: LLMProvider,
   recipes: RecipeDatabase,
-  store: StateStore,
+  store: StateStoreLike,
 ): Promise<FlowResponse | null> {
   const batch = state.proposal?.batches[intent.batchIndex];
   if (!batch) return null;
