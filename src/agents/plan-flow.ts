@@ -694,6 +694,18 @@ export async function handleSwapText(
       };
   }
 
+  // Surface any recipe gaps created by the mutation. Mirrors the initial
+  // proposal path at line 393-398: if absorbFreedDay or a recipe_swap pushed
+  // gaps into recipesToGenerate, route through the gap-resolution sub-flow
+  // instead of silently showing a plan with uncovered slots. flex_remove and
+  // recipe_swap already handle this themselves; flex_move and flex_add reach
+  // this tail and rely on this conditional.
+  if (state.proposal.recipesToGenerate.length > 0) {
+    state.pendingGaps = [...state.proposal.recipesToGenerate];
+    state.activeGapIndex = 0;
+    return presentRecipeGap(state);
+  }
+
   // Re-run solver with updated proposal
   const solverInput = buildSolverInput(state, state.proposal, recipes);
   const solverOutput = solve(solverInput);

@@ -27,34 +27,35 @@ function requireEnv(name: string): string {
 
 export const config = {
   /** Enable verbose debug logging and Telegram debug footers. */
-  debug: process.env.DEBUG === '1' || process.env.DEBUG === 'true',
+  debug: process.env.DEBUG === "1" || process.env.DEBUG === "true",
 
   telegram: {
-    botToken: requireEnv('TELEGRAM_BOT_TOKEN'),
+    botToken: requireEnv("TELEGRAM_BOT_TOKEN"),
     /** Only messages from this chat ID are processed. All others are ignored. */
-    chatId: requireEnv('TELEGRAM_CHAT_ID'),
+    chatId: requireEnv("TELEGRAM_CHAT_ID"),
   },
 
   openai: {
-    apiKey: requireEnv('OPENAI_API_KEY'),
+    apiKey: requireEnv("OPENAI_API_KEY"),
     /** Complex tasks: recipe generation, orchestrator reasoning */
-    primaryModel: 'gpt-5.4' as const,
+    primaryModel: "gpt-5.4" as const,
     /** Medium tasks: conversational answers, estimation */
-    miniModel: 'gpt-5.4-mini' as const,
+    miniModel: "gpt-5.4-mini" as const,
     /** Trivial tasks: classification, intent detection, input parsing */
-    nanoModel: 'gpt-5.4-nano' as const,
+    nanoModel: "gpt-5.4-nano" as const,
     /** Voice message transcription */
-    whisperModel: 'whisper-1' as const,
+    whisperModel: "whisper-1" as const,
   },
 
   supabase: {
-    url: requireEnv('SUPABASE_URL'),
-    anonKey: requireEnv('SUPABASE_ANON_KEY'),
+    url: requireEnv("SUPABASE_URL"),
+    anonKey: requireEnv("SUPABASE_ANON_KEY"),
   },
 
   /**
    * Hardcoded user targets for v0.0.1.
    *
+   * COMMENT: This is a questionable decision - the user may want to know their full macros.
    * Product-facing: calories and protein (what the user sees).
    * Internal: fat and carbs (used by recipe generator for balanced meals).
    *
@@ -75,7 +76,7 @@ export const config = {
     },
     weekly: {
       calories: 2436 * 7, // 17052
-      protein: 150 * 7,   // 1050
+      protein: 150 * 7, // 1050
     },
     /** Protected treat budget as fraction of weekly calories. 5% = ~853 cal/week. */
     treatBudgetPercent: 0.05,
@@ -113,12 +114,14 @@ export const config = {
    * v0.1.0: moves to Supabase user profile, editable via onboarding.
    */
   foodProfile: {
-    region: 'Southern Spain',
-    storeAccess: 'Standard European supermarkets (Mercadona, Lidl, Carrefour). Good access to fresh seafood, Mediterranean produce, olive oil, Iberian pork, Spanish cheeses.',
-    ingredientNotes: 'Prefer ingredients commonly available in Spanish supermarkets. Mediterranean, Spanish, and Southern European ingredients are natural choices. Asian ingredients are fine if they are the common ones found in any supermarket (soy sauce, rice, ginger, coconut milk) — avoid specialty Asian grocery items. Avoid niche North American ingredients (Cotija cheese, chipotle en adobo, ranch seasoning, American-style BBQ sauces). When a recipe calls for cheese, prefer commonly available European options (manchego, mozzarella, parmesan, feta, goat cheese).',
+    region: "Southern Spain",
+    storeAccess:
+      "Standard European supermarkets (Mercadona, Lidl, Carrefour). Good access to fresh seafood, Mediterranean produce, olive oil, Iberian pork, Spanish cheeses.",
+    ingredientNotes:
+      "Prefer ingredients commonly available in Spanish supermarkets. Mediterranean, Spanish, and Southern European ingredients are natural choices. Asian ingredients are fine if they are the common ones found in any supermarket (soy sauce, rice, ginger, coconut milk) — avoid specialty Asian grocery items. Avoid niche North American ingredients (Cotija cheese, chipotle en adobo, ranch seasoning, American-style BBQ sauces). When a recipe calls for cheese, prefer commonly available European options (manchego, mozzarella, parmesan, feta, goat cheese).",
     avoided: [] as string[],
   },
 
   /** Recipe file storage path relative to project root */
-  recipesDir: 'recipes',
+  recipesDir: "recipes",
 } as const;

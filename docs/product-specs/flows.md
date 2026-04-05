@@ -48,7 +48,7 @@ Follow-up messages classify into: correction to last event, `reclassify_as_treat
 - `recipe_swap` — change a specific batch's recipe. Picks from DB candidates matching the user's preference, or enters gap generation if nothing fits.
 - `unclear` — ask user to rephrase (will be replaced by a slow-path re-proposer in v0.0.5).
 
-After any swap, the solver re-runs on the mutated proposal and the display is regenerated. `removeBatchDay` never leaves 1-serving batches — orphan days are absorbed via `absorbFreedDay` (extend adjacent batch or create gap).
+After any swap, if the mutation created any recipe gaps (orphan days that couldn't be reabsorbed into adjacent batches), they are presented via the same inline gap-resolution flow as the initial proposal. Then the solver re-runs on the mutated proposal and the display is regenerated. `removeBatchDay` never leaves 1-serving batches — orphan days are absorbed via `absorbFreedDay` (extend adjacent batch or create gap).
 
 **confirmed** — Recipe scaler runs on each batch (adjusts ingredients to the solver's per-slot target within ±20 cal, preserving protein). Plan saved to Supabase. Any existing active plans are transitioned to completed first. Shows shopping list / view recipes buttons.
 
