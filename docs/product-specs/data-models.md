@@ -6,38 +6,53 @@ Source: `src/models/types.ts`, `src/solver/types.ts`
 
 ## Core types (`src/models/types.ts`)
 
-### WeeklyPlan
+### PlanSession
 
-The central data structure. Created during planning, persisted in Supabase.
+A confirmed 7-day planning horizon. Lightweight marker — batches reference it via `createdInPlanSessionId`, not embedded.
 
 ```typescript
-interface WeeklyPlan {
+interface PlanSession {
   id: string;
-  weekStart: string;                    // ISO date
-  status: 'planning' | 'active' | 'completed';
-  targets: Macros;                      // { calories, protein }
-
-  flexBudget: {
-    treatBudget: number;                // protected 5% of weekly calories
-    flexSlotCalories: number;           // sum of flex slot bonuses
-    flexSlots: FlexSlot[];
-  };
-
+  horizonStart: string;              // ISO date — first day of 7-day horizon
+  horizonEnd: string;                // ISO date — horizonStart + 6 days
   breakfast: {
     locked: boolean;
     recipeSlug: string;
     caloriesPerDay: number;
     proteinPerDay: number;
   };
-
+  treatBudgetCalories: number;
+  flexSlots: FlexSlot[];
   events: MealEvent[];
-  cookDays: CookDay[];
-  mealSlots: MealSlot[];
-  customShoppingItems: string[];        // user-added non-food items
+  confirmedAt: string;               // DB default now() on insert
+  superseded: boolean;               // tombstone for D27 replace-future-only flow
   createdAt: string;
   updatedAt: string;
 }
 ```
+
+`DraftPlanSession` omits `confirmedAt`, `superseded`, `createdAt`, `updatedAt` — these are filled by the DB on insert. The draft's `id` is assigned client-side so batches can reference their parent before the confirm sequence writes.
+
+### Batch
+
+A first-class cook session output: one recipe, 2-3 servings, 2-3 consecutive eating days. Cook day = `eatingDays[0]` (derived, never stored separately).
+
+```typescript
+interface Batch {
+  id: string;
+  recipeSlug: string;
+  mealType: 'lunch' | 'dinner';
+  eatingDays: string[];              // 2-3 contiguous ISO dates. Cook day = [0].
+  servings: number;
+  targetPerServing: Macros;          // uniform solver target
+  actualPerServing: MacrosWithFatCarbs; // scaled result from recipe-scaler
+  scaledIngredients: ScaledIngredient[];
+  status: 'planned' | 'cancelled';   // no 'proposed' — drafts are in-memory only
+  createdInPlanSessionId: string;    // immutable FK (D30)
+}
+```
+
+Batches can span horizon boundaries — a batch cooked on day 7 of session A may have `eatingDays` extending into session B's horizon. The solver sees only in-horizon days; overflow days become pre-committed slots for the next session.
 
 ### FlexSlot
 
@@ -45,75 +60,43 @@ A meal where the calorie target is boosted above the uniform meal-prep baseline.
 
 ```typescript
 interface FlexSlot {
-  day: string;                          // ISO date
+  day: string;                       // ISO date
   mealTime: 'lunch' | 'dinner';
-  flexBonus: number;                    // ~350 extra cal on top of per-slot base
-  note?: string;                        // e.g., "burger or pizza"
+  flexBonus: number;                 // ~350 extra cal on top of per-slot base
+  note?: string;                     // e.g., "burger or pizza"
 }
 ```
 
 ### MealEvent
 
-A **meal-replacement event** — a restaurant or social meal that replaces a lunch or dinner slot. Treat events (cookies at work, snacks, drinks) are NOT stored as MealEvent — they're funded by the treat budget and never touch the slot grid. See [core-concepts.md](./core-concepts.md) for event semantics.
+A meal-replacement event — a restaurant or social meal that replaces a lunch or dinner slot. Treat events (cookies at work, snacks, drinks) are NOT stored as MealEvent — they're funded by the treat budget and never touch the slot grid.
 
 ```typescript
 interface MealEvent {
   name: string;
-  day: string;                          // ISO date
+  day: string;                       // ISO date
   mealTime: 'lunch' | 'dinner';
   estimatedCalories: number;
   notes?: string;
 }
 ```
 
-### MealSlot
-
-One meal in the weekly grid. Every day has 3 slots: breakfast, lunch, dinner.
-
-```typescript
-interface MealSlot {
-  id: string;
-  day: string;
-  mealTime: 'breakfast' | 'lunch' | 'dinner';
-  source: 'fresh' | 'meal-prep' | 'restaurant' | 'flex' | 'skipped';
-  batchId?: string;                     // when source is 'meal-prep'
-  eventId?: string;                     // when source is 'restaurant'
-  flexBonus?: number;                   // when source is 'flex'
-  plannedCalories: number;
-  plannedProtein: number;
-}
-```
-
-### Batch, CookDay
-
-```typescript
-interface Batch {
-  id: string;
-  recipeSlug: string;
-  mealType: 'lunch' | 'dinner';
-  servings: number;
-  targetPerServing: Macros;             // uniform solver target (all batches equal)
-  actualPerServing: MacrosWithFatCarbs; // scaled result after recipe-scaler runs
-  scaledIngredients: ScaledIngredient[];// adjusted amounts with totalForBatch
-}
-
-interface CookDay {
-  day: string;                          // ISO date
-  batches: Batch[];
-}
-```
-
-`targetPerServing` is the solver's uniform target for all batches that week. `actualPerServing` and `scaledIngredients` are filled at plan approval time by the recipe scaler (`src/agents/recipe-scaler.ts`), which hits the target within a ±20 cal tolerance while preserving protein and picking clean ingredient amounts.
-
-### Recipe
-
-See [recipes.md](./recipes.md) for full format details.
-
-### Legacy types
-
-`FunFoodItem` still exists in types.ts but is unused in the active plan flow. It's from the original spec's model where individual fun foods were placed on specific days. The current model uses FlexSlot + the protected treat budget instead.
-
 ## Solver types (`src/solver/types.ts`)
+
+### PreCommittedSlot
+
+Projection of a prior session's batch into the current horizon. Carries frozen macros — the solver subtracts these from the weekly budget before distributing to new batches.
+
+```typescript
+interface PreCommittedSlot {
+  day: string;
+  mealTime: 'lunch' | 'dinner';
+  recipeSlug: string;
+  calories: number;
+  protein: number;
+  sourceBatchId: string;
+}
+```
 
 ### PlanProposal
 
@@ -121,12 +104,14 @@ Generated by the plan-proposer sub-agent. Contains recipe assignments, flex slot
 
 ```typescript
 interface PlanProposal {
-  batches: ProposedBatch[];
+  batches: ProposedBatch[];          // in-horizon day assignments
   flexSlots: FlexSlot[];
-  recipesToGenerate: RecipeGap[];       // recipes not in DB (need generation)
-  solverOutput?: SolverOutput;          // attached after solver runs
+  recipesToGenerate: RecipeGap[];    // recipes not in DB (need generation)
+  solverOutput?: SolverOutput;       // attached after solver runs
 }
 ```
+
+`ProposedBatch.days` contains in-horizon days only. `ProposedBatch.overflowDays` holds days past the horizon end (for cross-horizon batches).
 
 ### RecipeGap
 
@@ -137,13 +122,19 @@ interface RecipeGap {
   mealType: 'lunch' | 'dinner';
   days: string[];
   servings: number;
-  suggestion: string;                   // e.g., "Asian-inspired chicken stir-fry"
-  reason: string;                       // e.g., "no Asian meals in past 2 weeks"
+  suggestion: string;                // e.g., "Asian-inspired chicken stir-fry"
+  reason: string;                    // e.g., "no Asian meals in past 2 weeks"
 }
 ```
 
 ## Persistence
 
-- **Supabase**: WeeklyPlan, session state
+- **Supabase `plan_sessions`**: Confirmed plan sessions (rolling 7-day horizons)
+- **Supabase `batches`**: First-class batches with stable UUIDs, FK to plan_sessions
+- **Supabase `session_state`**: Conversation session state (single-user)
 - **Markdown files**: Recipes (YAML frontmatter + body in `recipes/`)
 - **In-memory**: Flow state during active conversations (PlanFlowState, RecipeFlowState)
+
+### Deleted types (Plan 007)
+
+`WeeklyPlan`, `CookDay`, `MealSlot`, `LegacyBatch` — removed in the rolling-horizon migration. Cook days and meal slots are now derived views, not persisted entities.
