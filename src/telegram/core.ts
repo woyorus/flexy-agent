@@ -72,6 +72,7 @@ import {
   recipeReviewKeyboard,
   recipeListKeyboard,
   recipeViewKeyboard,
+  planReplanKeyboard,
   planBreakfastKeyboard,
   planEventsKeyboard,
   planMoreEventsKeyboard,
@@ -167,6 +168,8 @@ export interface BotCoreSession {
   recipeFlow: RecipeFlowState | null;
   planFlow: PlanFlowState | null;
   recipeListPage: number;
+  /** D27: pending replan confirmation — set when Plan Week detects a future session */
+  pendingReplan?: { replacingSession: import('../models/types.js').PlanSession };
 }
 
 /**
@@ -386,6 +389,28 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       return;
     }
 
+    // ─── Replan confirmation callbacks (D27) ──────────────────────────
+    if (action === 'plan_replan_confirm') {
+      const pending = session.pendingReplan;
+      if (!pending) {
+        await sink.reply('No pending replan. Tap Plan Week again.', { reply_markup: mainMenuKeyboard });
+        return;
+      }
+      session.pendingReplan = undefined;
+      await doStartPlanFlow(
+        { start: pending.replacingSession.horizonStart, replacingSession: pending.replacingSession },
+        pending.replacingSession,
+        sink,
+      );
+      return;
+    }
+
+    if (action === 'plan_replan_cancel') {
+      session.pendingReplan = undefined;
+      await sink.reply('Plan kept. Tap Plan Week again to plan the week after.', { reply_markup: mainMenuKeyboard });
+      return;
+    }
+
     // ─── Plan flow callbacks ────────────────────────────────────────────
     if (action.startsWith('plan_') && session.planFlow) {
       // Breakfast confirmation
@@ -556,6 +581,64 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
   }
 
   // ─── Main-menu reply-button handling ───────────────────────────────────
+
+  /** Start the planning flow with resolved horizon + breakfast. Shared by plan_week and plan_replan_confirm. */
+  async function doStartPlanFlow(
+    horizon: { start: string; replacingSession?: import('../models/types.js').PlanSession },
+    replacingSession: import('../models/types.js').PlanSession | undefined,
+    sink: OutputSink,
+  ): Promise<void> {
+    const breakfastRecipes = recipes.getByMealType('breakfast');
+    let breakfastSource: { recipeSlug: string; caloriesPerDay: number; proteinPerDay: number } | undefined;
+
+    if (replacingSession) {
+      breakfastSource = replacingSession.breakfast;
+    } else {
+      const running = await store.getRunningPlanSession();
+      const fallbackSession = running ?? (await store.getLatestHistoricalPlanSession());
+      if (fallbackSession) {
+        breakfastSource = fallbackSession.breakfast;
+      }
+    }
+
+    const breakfast = breakfastSource
+      ? {
+          recipeSlug: breakfastSource.recipeSlug,
+          name: recipes.getBySlug(breakfastSource.recipeSlug)?.name ?? 'Your breakfast',
+          caloriesPerDay: breakfastSource.caloriesPerDay,
+          proteinPerDay: breakfastSource.proteinPerDay,
+        }
+      : breakfastRecipes.length > 0
+      ? {
+          recipeSlug: breakfastRecipes[0]!.slug,
+          name: breakfastRecipes[0]!.name,
+          caloriesPerDay: breakfastRecipes[0]!.perServing.calories,
+          proteinPerDay: breakfastRecipes[0]!.perServing.protein,
+        }
+      : {
+          recipeSlug: 'default-breakfast',
+          name: 'Breakfast',
+          caloriesPerDay: Math.round(config.targets.daily.calories * 0.27),
+          proteinPerDay: Math.round(config.targets.daily.protein * 0.27),
+        };
+
+    session.planFlow = createPlanFlowStateFromHorizon(
+      horizon.start,
+      breakfast,
+      replacingSession?.id,
+    );
+    log.debug('FLOW', `plan week started: ${horizon.start}, breakfast: ${breakfast.name}${replacingSession ? `, replacing session ${replacingSession.id}` : ''}`);
+
+    const weekEnd = session.planFlow.weekDays[6]!;
+    const startStr = formatDateForMessage(horizon.start);
+    const endStr = formatDateForMessage(weekEnd);
+
+    await sink.reply(
+      `Planning ${startStr} – ${endStr}.\n\nBreakfast: keep ${breakfast.name} (${breakfast.caloriesPerDay} cal/day)?`,
+      { reply_markup: planBreakfastKeyboard },
+    );
+  }
+
   async function handleMenu(action: string, sink: OutputSink): Promise<void> {
     session.recipeFlow = null; // exit any active flow
     session.planFlow = null;
@@ -590,60 +673,20 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         // Plan 007: compute horizon start using rolling-horizon logic
         const horizon = await computeNextHorizonStart(store);
 
-        // Resolve breakfast: replan → inherit from replacing session; normal → running/historical
-        const breakfastRecipes = recipes.getByMealType('breakfast');
-        let breakfastSource: { recipeSlug: string; caloriesPerDay: number; proteinPerDay: number } | undefined;
-
+        // D27: if a future-only session exists, prompt for confirmation before replanning
         if (horizon.replacingSession) {
-          // Replan-future-only: inherit breakfast from the session being replaced (Finding 3)
-          breakfastSource = horizon.replacingSession.breakfast;
-        } else {
-          // Normal path: running → historical → DB fallback
-          const running = await store.getRunningPlanSession();
-          const fallbackSession = running ?? (await store.getLatestHistoricalPlanSession());
-          if (fallbackSession) {
-            breakfastSource = fallbackSession.breakfast;
-          } else {
-            // No session found — breakfast comes from DB default below
-          }
+          const rStart = formatDateForMessage(horizon.replacingSession.horizonStart);
+          const rEnd = formatDateForMessage(horizon.replacingSession.horizonEnd);
+          session.pendingReplan = { replacingSession: horizon.replacingSession };
+          await sink.reply(
+            `You already have a plan for ${rStart} – ${rEnd}. Replan it?`,
+            { reply_markup: planReplanKeyboard },
+          );
+          return;
         }
 
-        const breakfast = breakfastSource
-          ? {
-              recipeSlug: breakfastSource.recipeSlug,
-              name: recipes.getBySlug(breakfastSource.recipeSlug)?.name ?? 'Your breakfast',
-              caloriesPerDay: breakfastSource.caloriesPerDay,
-              proteinPerDay: breakfastSource.proteinPerDay,
-            }
-          : breakfastRecipes.length > 0
-          ? {
-              recipeSlug: breakfastRecipes[0]!.slug,
-              name: breakfastRecipes[0]!.name,
-              caloriesPerDay: breakfastRecipes[0]!.perServing.calories,
-              proteinPerDay: breakfastRecipes[0]!.perServing.protein,
-            }
-          : {
-              recipeSlug: 'default-breakfast',
-              name: 'Breakfast',
-              caloriesPerDay: Math.round(config.targets.daily.calories * 0.27),
-              proteinPerDay: Math.round(config.targets.daily.protein * 0.27),
-            };
-
-        session.planFlow = createPlanFlowStateFromHorizon(
-          horizon.start,
-          breakfast,
-          horizon.replacingSession?.id,
-        );
-        log.debug('FLOW', `plan week started: ${horizon.start}, breakfast: ${breakfast.name}${horizon.replacingSession ? `, replacing session ${horizon.replacingSession.id}` : ''}`);
-
-        const weekEnd = session.planFlow.weekDays[6]!;
-        const startStr = formatDateForMessage(horizon.start);
-        const endStr = formatDateForMessage(weekEnd);
-
-        await sink.reply(
-          `Planning ${startStr} – ${endStr}.\n\nBreakfast: keep ${breakfast.name} (${breakfast.caloriesPerDay} cal/day)?`,
-          { reply_markup: planBreakfastKeyboard },
-        );
+        // Normal flow: no future session to replace
+        await doStartPlanFlow(horizon, undefined, sink);
         return;
       }
       case 'shopping_list':

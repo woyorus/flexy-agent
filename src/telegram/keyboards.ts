@@ -181,6 +181,11 @@ export const mealTypeKeyboard = new InlineKeyboard()
 
 // ─── Plan week flow keyboards ───────────────────────────────────────────────────
 
+/** Replan confirmation (D27) — user already has a future plan */
+export const planReplanKeyboard = new InlineKeyboard()
+  .text('Replan it', 'plan_replan_confirm')
+  .text('Keep current plan', 'plan_replan_cancel');
+
 /** Step 1: Breakfast confirmation */
 export const planBreakfastKeyboard = new InlineKeyboard()
   .text('Keep it', 'plan_keep_breakfast')

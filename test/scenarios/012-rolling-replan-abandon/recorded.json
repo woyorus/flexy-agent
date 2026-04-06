@@ -1,0 +1,190 @@
+{
+  "generatedAt": "2026-04-08T10:00:00.000Z",
+  "specHash": "cef8c1b53773ba4db7a6d661075525ce1dc8baf1ad656a0f4e9fbbc8af3aaa50",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "Welcome to Flexie! Use the menu below to get started.",
+        "keyboard": {
+          "kind": "reply",
+          "buttons": [
+            [
+              "📋 Plan Week",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Weekly Budget"
+            ]
+          ],
+          "persistent": true,
+          "resized": true
+        }
+      },
+      {
+        "text": "You already have a plan for Mon, Apr 13 – Sun, Apr 19. Replan it?",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Replan it",
+                "callback": "plan_replan_confirm"
+              },
+              {
+                "label": "Keep current plan",
+                "callback": "plan_replan_cancel"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "Planning Mon, Apr 13 – Sun, Apr 19.\n\nBreakfast: keep Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt (658 cal/day)?",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Keep it",
+                "callback": "plan_keep_breakfast"
+              },
+              {
+                "label": "Change this week",
+                "callback": "plan_change_breakfast"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "Cancelled.",
+        "keyboard": {
+          "kind": "reply",
+          "buttons": [
+            [
+              "📋 Plan Week",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Weekly Budget"
+            ]
+          ],
+          "persistent": true,
+          "resized": true
+        }
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": {
+        "phase": "context",
+        "weekStart": "2026-04-13",
+        "weekDays": [
+          "2026-04-13",
+          "2026-04-14",
+          "2026-04-15",
+          "2026-04-16",
+          "2026-04-17",
+          "2026-04-18",
+          "2026-04-19"
+        ],
+        "horizonStart": "2026-04-13",
+        "horizonDays": [
+          "2026-04-13",
+          "2026-04-14",
+          "2026-04-15",
+          "2026-04-16",
+          "2026-04-17",
+          "2026-04-18",
+          "2026-04-19"
+        ],
+        "breakfast": {
+          "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
+          "name": "Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt",
+          "caloriesPerDay": 658,
+          "proteinPerDay": 41
+        },
+        "events": [],
+        "replacingSessionId": "session-b-future-00000000-0000-0000-0000-000000000002"
+      },
+      "recipeListPage": 0
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [
+        {
+          "id": "session-a-run-00000000-0000-0000-0000-000000000001",
+          "horizonStart": "2026-04-06",
+          "horizonEnd": "2026-04-12",
+          "breakfast": {
+            "locked": true,
+            "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
+            "caloriesPerDay": 658,
+            "proteinPerDay": 41
+          },
+          "treatBudgetCalories": 853,
+          "flexSlots": [],
+          "events": [],
+          "confirmedAt": "2026-04-05T10:00:00.000Z",
+          "superseded": false,
+          "createdAt": "2026-04-05T10:00:00.000Z",
+          "updatedAt": "2026-04-05T10:00:00.000Z"
+        },
+        {
+          "id": "session-b-future-00000000-0000-0000-0000-000000000002",
+          "horizonStart": "2026-04-13",
+          "horizonEnd": "2026-04-19",
+          "breakfast": {
+            "locked": true,
+            "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
+            "caloriesPerDay": 658,
+            "proteinPerDay": 41
+          },
+          "treatBudgetCalories": 853,
+          "flexSlots": [],
+          "events": [],
+          "confirmedAt": "2026-04-06T10:00:00.000Z",
+          "superseded": false,
+          "createdAt": "2026-04-06T10:00:00.000Z",
+          "updatedAt": "2026-04-06T10:00:00.000Z"
+        }
+      ],
+      "batches": [
+        {
+          "id": "batch-b1-00000000-0000-0000-0000-000000000003",
+          "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-13",
+            "2026-04-14",
+            "2026-04-15"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 800,
+            "protein": 55
+          },
+          "actualPerServing": {
+            "calories": 792,
+            "protein": 57,
+            "fat": 27,
+            "carbs": 80
+          },
+          "scaledIngredients": [
+            {
+              "name": "chicken breast",
+              "amount": 190,
+              "unit": "g",
+              "totalForBatch": 570
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-b-future-00000000-0000-0000-0000-000000000002"
+        }
+      ]
+    }
+  }
+}
