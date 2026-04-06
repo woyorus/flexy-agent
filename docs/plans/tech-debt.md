@@ -13,6 +13,15 @@
 - **CI integration for `npm test`.** Identified: 2026-04-05 during plan 006. The harness has clean exit codes and runs offline (no network on replay), so adding a GitHub Actions workflow is a mechanical drop-in. Not done yet because there's no team to gate merges against — prototype stage, single developer. Graduates to a plan when the first collaborator joins or when a merge-blocking check is wanted on PRs.
   Files: `package.json`, `.github/workflows/` (to be created).
 
+- **Proposer sometimes underfills the week (orphan slots).** Identified: 2026-04-06 during Plan 007 scenario 011. The LLM proposer proposed only 4 batches covering Mon-Thu, leaving Sat-Sun with no batch, flex, or event (4 orphan dinner/lunch slots). The QA validator caught it (6.6% calorie deviation, orphan warnings) but the plan was approved anyway. Root cause: the proposer's prompt says "cover all slots" but the LLM doesn't always comply — especially when the recipe set is small and the model is balancing variety rules vs. coverage. Fix options: (a) retry the proposer when orphan slots exist (expensive but robust), (b) add a hard post-proposal check that fills orphans with the best available recipe before presenting to the user, (c) improve the prompt's slot-math emphasis. Graduates to a plan if users hit this in production.
+  Files: `src/agents/plan-proposer.ts`, `src/agents/plan-flow.ts`.
+
+- **Scenario 009 calorie deviation (4.3%, isValid=false).** Identified: 2026-04-06 during Plan 007. With 1 pre-committed slot (792 cal) and the remaining budget split across 12 new slots + 1 flex, the per-slot target drops to ~760 cal. Combined with recipe scaling variance, the weekly total lands at 16312 cal vs 17052 target (4.3% deviation). This is a natural consequence of carry-over: frozen macros from session A (792 cal) don't match session B's target (~800 cal), creating a ~50 cal/slot gap across carried days. Not a bug per se — the math is correct — but the tolerance threshold (3%) may need adjusting for horizons with carry-over. Graduates to a plan when tracking/running-budget lands in v0.0.5.
+  Files: `src/solver/solver.ts`, `src/qa/validators/plan.ts`.
+
+- **Partial-write cleanup script for confirmPlanSessionReplacing.** Identified: 2026-04-05 during Plan 007 design (D31). If step 3 or 4 of the four-step save-before-destroy sequence fails after steps 1-2 succeed, the old session is partially cleaned up. The failure is self-healing on retry (user taps Plan Week again), but a manual cleanup query should exist for diagnosability. Graduates to a plan if partial writes ever show up in `logs/debug.log`.
+  Files: `src/state/store.ts`.
+
 ## Resolved
 
 (No resolved items yet.)

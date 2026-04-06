@@ -17,7 +17,7 @@ flexy-agent/
 │   ├── config.ts                         Env config + hardcoded v0.0.1 user targets + food profile
 │   │
 │   ├── models/
-│   │   └── types.ts                      Core data models (WeeklyPlan, Recipe, MealSlot, FlexSlot, etc.)
+│   │   └── types.ts                      Core data models (PlanSession, Batch, Recipe, FlexSlot, etc.)
 │   │
 │   ├── solver/
 │   │   ├── types.ts                      Solver I/O interfaces + PlanProposal, ProposedBatch, RecipeGap
@@ -125,7 +125,7 @@ flexy-agent/
 
 2. **Button taps bypass the LLM.** They map directly to flow handler actions. Only free-form text/voice goes through the LLM for interpretation.
 
-3. **State lives outside the context window.** Weekly plans persist in Supabase. Recipes live as markdown files. Flow handlers hold in-memory state for the current session.
+3. **State lives outside the context window.** Plan sessions and batches persist in Supabase. Recipes live as markdown files. Flow handlers hold in-memory state for the current session. The planning model uses rolling 7-day horizons with first-class batches that can span horizon boundaries (Plan 007).
 
 4. **Sub-agents run with isolated context.** They receive a focused task, do deep work, and return a condensed result. The flow handler never sees the sub-agent's full working context.
 
