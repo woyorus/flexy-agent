@@ -27,6 +27,8 @@ Every file, class, and function must be documented. This is not optional.
 | `docs/product-specs/ui.md` | Telegram UI, keyboards, message formatting, voice. | When modifying buttons, menus, or display. |
 | `docs/product-specs/recipes.md` | Recipe format, generation, scaling, structure system. | When working on recipes. |
 | `docs/product-specs/testing.md` | Scenario harness, `npm test`, authoring scenarios, generate mode. | When running tests, writing a new scenario, or updating a stale recording. |
+| `docs/product-specs/jtbd.md` | Jobs To Be Done — real-life user moments, motivations, priority ranking. | When making product/UX decisions or designing new screens. |
+| `docs/product-specs/ui-architecture.md` | Product states, screen inventory, navigation map, information hierarchy, copy tone. | When designing or modifying any UI surface. |
 | `docs/BACKLOG.md` | Current version scope + versioned feature roadmap. | When checking what's in/out of scope. |
 | `docs/DOCS-GUIDE.md` | Rules for creating and managing docs, plans, design docs, specs. | When creating new docs or unsure where something belongs. |
 | `docs/design-docs/index.md` | Catalog of significant design decisions. | When making or reviewing architectural decisions. |
@@ -67,7 +69,7 @@ See `docs/DOCS-GUIDE.md` for the full rules on when to create new files, where t
 
 The primary development loop is harness-driven. Scenarios in `test/scenarios/` replay fixture-recorded LLM responses in under a second each, and `npm test` is the main feedback signal for any code change. Real-Telegram testing via `npm run dev` stays as a final sanity check, not as the primary debugging tool.
 
-See `docs/product-specs/testing.md` for the full harness reference.
+See `docs/product-specs/testing.md` for the full harness reference. Read `test/scenarios/index.md` to see what each scenario tests — don't open individual spec files just to understand coverage.
 
 ### Baseline: `npm test` before and after every non-trivial change
 
