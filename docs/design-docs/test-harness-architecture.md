@@ -2,6 +2,7 @@
 
 > Status: accepted
 > Date: 2026-04-05
+> Note: This design doc was written during Plan 006. The `StateStoreLike` interface described here has since been replaced by Plan 007's rolling-horizon model (`confirmPlanSession`, `getRunningPlanSession`, etc.). The harness architecture itself is unchanged — only the persistence surface evolved.
 
 ## Problem
 

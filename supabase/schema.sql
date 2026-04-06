@@ -1,35 +1,62 @@
--- Flexie v0.0.1 — Supabase schema
--- Run this in the Supabase SQL Editor to create the required tables.
+-- Flexie — Supabase schema (Plan 007: rolling horizons + first-class batches)
+-- This is the canonical post-migration snapshot. For migration history, see supabase/migrations/.
 
--- Weekly plans: stores the full WeeklyPlan object as JSONB.
--- Queried by user_id + status + week_start.
-create table weekly_plans (
-  id         text primary key,
-  user_id    text not null default 'default',
-  week_start date not null,
-  status     text not null check (status in ('planning', 'active', 'completed')),
-  data       jsonb not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+-- Plan sessions: confirmed 7-day horizons. Drafts are in-memory only (D33).
+create table plan_sessions (
+  id                uuid primary key,
+  user_id           text not null,
+  horizon_start     date not null,
+  horizon_end       date not null,
+  breakfast         jsonb not null,
+  treat_budget_calories int not null,
+  flex_slots        jsonb not null default '[]',
+  events            jsonb not null default '[]',
+  confirmed_at      timestamptz not null default now(),
+  superseded        boolean not null default false,
+  created_at        timestamptz default now(),
+  updated_at        timestamptz default now()
 );
 
-create index idx_weekly_plans_user_status on weekly_plans (user_id, status, week_start desc);
+create index plan_sessions_user_horizon on plan_sessions (user_id, horizon_start desc)
+  where not superseded;
+
+-- First-class batches. FK to plan_sessions with ON DELETE RESTRICT.
+create table batches (
+  id                         uuid primary key,
+  user_id                    text not null,
+  recipe_slug                text not null,
+  meal_type                  text not null check (meal_type in ('lunch', 'dinner')),
+  eating_days                date[] not null,
+  servings                   int not null check (servings between 2 and 3),
+  target_per_serving         jsonb not null,
+  actual_per_serving         jsonb not null,
+  scaled_ingredients         jsonb not null,
+  status                     text not null check (status in ('planned', 'cancelled')),
+  created_in_plan_session_id uuid not null references plan_sessions(id) on delete restrict,
+  created_at                 timestamptz default now(),
+  updated_at                 timestamptz default now()
+);
+
+create index batches_eating_days_gin on batches using gin (eating_days);
+create index batches_user_status on batches (user_id, status);
+create index batches_session_id on batches (created_in_plan_session_id);
 
 -- Session state: one row per user, stores the current SessionState as JSONB.
--- v0.0.1 is single-user — there will be exactly one row with user_id = 'default'.
 create table session_state (
   user_id    text primary key,
   data       jsonb not null,
   updated_at timestamptz not null default now()
 );
 
--- Row-level security: disabled for v0.0.1 (single-user, server-side only).
--- Enable and add policies when multi-user support lands in v0.1.0.
-alter table weekly_plans enable row level security;
+-- Row-level security: disabled for v0.0.4 (single-user, server-side only).
+alter table plan_sessions enable row level security;
+alter table batches enable row level security;
 alter table session_state enable row level security;
 
--- Allow the anon key full access (single-user, no public exposure).
-create policy "Allow all for anon" on weekly_plans
+create policy "Allow all for anon" on plan_sessions
+  for all using (true) with check (true);
+
+create policy "Allow all for anon" on batches
   for all using (true) with check (true);
 
 create policy "Allow all for anon" on session_state

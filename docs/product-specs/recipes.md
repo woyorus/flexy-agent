@@ -104,7 +104,7 @@ Multi-turn refinement via conversation history. The LLM sees the recipe as its o
 
 ## Scaling
 
-Recipe scaler sub-agent (`src/agents/recipe-scaler.ts`). Runs at plan approval time in `buildWeeklyPlan` — every batch is scaled to its solver-assigned per-slot target before the plan is persisted.
+Recipe scaler sub-agent (`src/agents/recipe-scaler.ts`). Runs at plan approval time in `buildNewPlanSession` — every batch is scaled to its solver-assigned per-slot target before the plan session and batches are persisted.
 
 - **Model**: GPT-5.4-mini, low reasoning
 - **Input**: original recipe, target calories, `calorieTolerance` (±20 cal from `config.planning.scalerCalorieTolerance`), target protein, servings
