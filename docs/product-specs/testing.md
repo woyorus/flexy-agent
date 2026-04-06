@@ -27,20 +27,113 @@ npm run test:generate -- <scenario-name> --regenerate   # overwrite existing fix
 
 Generate mode prompts for confirmation before calling the real LLM unless stdin is not a TTY (automated contexts) or `--yes` is passed.
 
-## Reviewing recorded output (CRITICAL)
+## Verifying recorded output (MANDATORY)
 
-After every `npm run test:generate`, the recorded.json MUST be reviewed for behavioral correctness. Passing `npm test` only proves determinism — it does NOT prove the system does the right thing. A scenario that locks in wrong behavior is worse than no scenario.
+**This is the most important section of this document.** After every `npm run test:generate`, the agent MUST verify the recorded output by reading through it as if it were the user seeing these messages for the first time. `npm test` passing only proves determinism — it does NOT prove the system behaves correctly. A scenario that locks in wrong behavior is worse than no scenario because it prevents the bug from ever being caught.
 
-Review checklist:
-- **Flow progression**: outputs follow the expected sequence (welcome → breakfast → events → proposal → confirm)
-- **Slot coverage**: every lunch/dinner across the 7 days is covered by a batch, event, flex, or pre-committed slot
-- **Cook days**: each batch's cook day = first eating day
-- **Budget math**: weekly totals within ±3% of target (17052 cal / 1050g protein)
-- **No ghost data**: no 0-calorie batches, no phantom recipes, no duplicate coverage
-- **Keyboards**: present on every interactive message
-- **Pre-committed slots** (if applicable): displayed correctly, not double-booked by new batches
+### Why verification matters
 
-This is the whole point of scenarios: the agent can autonomously test the system as if it were the user, and fix it when it behaves wrong.
+The scenario harness exists so the agent can autonomously test, verify, and improve the system. Scenarios let the agent act as the user: read the bot's responses, check if they make sense, and fix the code if they don't. Skipping verification defeats the entire purpose.
+
+The ghost batch bug (scenario 003, fixed in commit a6dabb5) is the reference case. `npm test` passed — `deepStrictEqual` locked in 8 batches including 3 with 0 calories. Only by reading the recorded output and asking "does this make sense to a user?" did the agent catch that 3 phantom recipes were being displayed and persisted.
+
+### Verification protocol
+
+After every `npm run test:generate -- <name>` (new or `--regenerate`):
+
+**Step 1 — Read the bot's messages as a user.** Open `recorded.json` and read `expected.outputs[].text` sequentially. For each message, ask:
+
+- Does this response make sense given what the user just did?
+- Is the tone right? (Concise, no jargon, no internal state leaking)
+- Are inline keyboards present on every question? Is the reply keyboard on the welcome?
+- Are there any undefined values, empty strings, or "Something went wrong" fallbacks?
+- Does the plan proposal read like a real meal plan you'd follow?
+
+**Step 2 — Verify the plan proposal (the most important output).** Find the output containing "Your week:" and verify:
+
+- **Day coverage**: Build a mental (or code) grid of 7 days × lunch + dinner. Every slot must have exactly one source: batch, event, flex, or pre-committed. No slot should have zero sources (orphan) or two sources (double-booking).
+- **Cook schedule**: Each cook day should be the first eating day of the batches listed for that day. If a batch eats Mon-Wed, it cooks on Mon.
+- **Batch sizes**: Every batch should have 2-3 servings. A 1-serving batch is usually a bug (gap resolution producing an undersized batch).
+- **Cross-horizon annotation**: If a batch has overflow days, the proposal should show "+N into next week".
+- **Pre-committed section**: If carry-over exists, "From prior plan:" should list the correct day, meal type, recipe, and calories.
+- **Weekly totals**: Should be within ~3% of 17,052 cal and ~1,050g protein. If not, check if there's a legitimate reason (carry-over with frozen macros at different targets) or if slots are missing.
+
+**Step 3 — Verify the final store state.** Read `expected.finalStore` and check:
+
+- **planSessions**: Correct number of sessions. New session has `superseded: false`. In replan scenarios, old session has `superseded: true`.
+- **batches**: Every batch has `status: 'planned'` (or `'cancelled'` for superseded sessions). No batch has `actualPerServing.calories === 0` (ghost batch). Every batch's `eatingDays` are contiguous. Every batch's `createdInPlanSessionId` points to the correct session.
+- **Eating days within horizon**: Every batch created in this session has `eatingDays[0]` (cook day) inside `[horizonStart, horizonEnd]` (D30 invariant). Overflow days past `horizonEnd` are allowed in positions `[1]` and `[2]`.
+
+**Step 4 — Check for known issue patterns.** These are bugs that have happened before:
+
+| Pattern | What to look for | Reference |
+|---|---|---|
+| Ghost batches | `actualPerServing.calories === 0` with empty `scaledIngredients` | Scenario 003 ghost batch bug |
+| Double-booked slots | Two batches covering the same (day, mealType) | Scenario 003 gap resolution duplication |
+| Orphan slots | A day × mealTime with no source in the daily breakdown | Scenario 011 proposer underfill |
+| Stale recipe names | Proposal text shows recipe names not in the fixture recipe set | Scenario 003 gap display bug |
+| Missing keyboards | An interactive message with no `keyboard` field | Any scenario — always check |
+| Flex count wrong | More or fewer than `config.planning.flexSlotsPerWeek` flex slots | Proposer retry logic |
+
+**Step 5 — If anything is wrong, fix the code first.** Do NOT commit a recording that captures wrong behavior. The correct sequence is:
+
+1. Spot the issue in the recording.
+2. Diagnose the root cause in the code.
+3. Fix the code.
+4. Re-generate the recording.
+5. Re-verify.
+6. Commit code fix + clean recording together.
+
+If the issue is LLM output quality (proposer didn't fill all slots, bad recipe choice) rather than a code bug, log it to `docs/plans/tech-debt.md` with the scenario name, what went wrong, and potential fix options. Then commit the recording as-is — the scenario still exercises the code path correctly even if the LLM's choices are suboptimal.
+
+### Quick verification script
+
+For scenarios where manual reading is impractical, use this as a starting point (run after generate):
+
+```bash
+node -e "
+const data = require('./test/scenarios/<NAME>/recorded.json');
+const store = data.expected.finalStore;
+const batches = store.batches;
+
+// Ghost batch check
+const ghosts = batches.filter(b => b.actualPerServing?.calories === 0);
+if (ghosts.length) console.log('FAIL: ' + ghosts.length + ' ghost batches with 0 cal');
+
+// Session check
+for (const s of store.planSessions) {
+  console.log('Session', s.horizonStart, '-', s.horizonEnd, 'superseded:', s.superseded);
+}
+
+// Slot coverage check (for the newest non-superseded session)
+const session = store.planSessions.filter(s => !s.superseded).pop();
+const sessionBatches = batches.filter(b => b.createdInPlanSessionId === session?.id);
+const covered = new Set();
+for (const b of sessionBatches) {
+  for (const d of b.eatingDays) covered.add(d + ':' + b.mealType);
+}
+for (const f of (session?.flexSlots ?? [])) covered.add(f.day + ':' + f.mealTime);
+for (const e of (session?.events ?? [])) covered.add(e.day + ':' + e.mealTime);
+// Pre-committed
+const preComm = data.expected.finalSession?.planFlow?.preCommittedSlots ?? [];
+for (const s of preComm) covered.add(s.day + ':' + s.mealTime);
+
+const days = [];
+const d = new Date(session.horizonStart + 'T00:00:00Z');
+for (let i = 0; i < 7; i++) {
+  days.push(d.toISOString().slice(0,10));
+  d.setUTCDate(d.getUTCDate() + 1);
+}
+for (const day of days) {
+  for (const meal of ['lunch', 'dinner']) {
+    if (!covered.has(day + ':' + meal)) console.log('ORPHAN:', day, meal);
+  }
+}
+console.log('Slots covered:', covered.size, '/ 14');
+"
+```
+
+Replace `<NAME>` with the scenario directory name. This catches the mechanical issues; the UX-level review (does the proposal read like a real meal plan?) still requires reading the text output.
 
 ## Directory layout
 
@@ -88,8 +181,9 @@ export default defineScenario({
   clock: '2026-04-05T10:00:00Z',              // frozen Date for entire run
   recipeSet: 'six-balanced',                  // directory under test/fixtures/recipes/
   initialState: {
-    plans: [],                                // TestStateStore seed
-    session: null,
+    session: null,                            // TestStateStore seed
+    // planSessions: [],                      // optional: seed prior plan sessions
+    // batches: [],                           // optional: seed prior batches
   },
   events: [
     command('start'),

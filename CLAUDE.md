@@ -65,6 +65,12 @@ See `docs/product-specs/testing.md` for the full harness reference.
 
 Run `npm test` once before starting work to confirm a green baseline. Run it again after the change to verify no regressions. If a scenario fails, the `deepStrictEqual` diff points at the exact reply, session field, or persisted plan that diverged — usually enough to diagnose without any further tooling.
 
+### After generating or regenerating any scenario (MANDATORY)
+
+Every `npm run test:generate` — new or `--regenerate` — MUST be followed by a full behavioral review. Read the recorded output as if you were the user receiving these Telegram messages. Check that the plan makes sense, slots are covered, there are no ghost batches, cook days match first eating days, and weekly totals are reasonable. If something is wrong, fix the code and re-generate — never commit a recording that captures wrong behavior. See `docs/product-specs/testing.md` § "Verifying recorded output" for the full protocol with the step-by-step checklist and known-issue patterns.
+
+This is not optional. `npm test` passing proves determinism. Verification proves correctness. The ghost batch bug (scenario 003) was caught by reading the output, not by `deepStrictEqual`.
+
 ### When the user reports an issue
 
 1. **Read the end of `logs/debug.log` first.** Append-only, can grow large. Start from the last ~200 lines. This is the authoritative record of what happened in the user's actual session — every Telegram message, AI call (full prompts/responses/tokens/duration), flow state transition, and QA validation result. Tags: `[TG:IN]` / `[TG:OUT]` / `[AI:REQ]` / `[AI:RES]` / `[FLOW]` / `[QA]`. The log tells you *what the user did* (the `[TG:IN]` events that become the scenario spec) and *what happened internally* (prompts, state, solver output).

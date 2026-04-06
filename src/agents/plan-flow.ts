@@ -353,7 +353,7 @@ async function parseNewEvent(
       {
         role: 'system',
         content: `Parse a meal event description. The week runs ${state.weekDays[0]} to ${state.weekDays[6]}.
-Day names map to: Mon=${state.weekDays[0]}, Tue=${state.weekDays[1]}, Wed=${state.weekDays[2]}, Thu=${state.weekDays[3]}, Fri=${state.weekDays[4]}, Sat=${state.weekDays[5]}, Sun=${state.weekDays[6]}.
+Day names map to: ${state.weekDays.map((d) => `${formatDayShort(d)}=${d}`).join(', ')}.
 
 CLASSIFY the event type:
 - "meal_replacement": eating a full meal somewhere else (restaurant, dinner party, lunch out, takeout replacing a home meal). The meal prep for that slot is skipped.
@@ -1389,7 +1389,7 @@ async function classifySwapIntent(
       {
         role: 'system',
         content: `Classify a plan swap request. The week is ${state.weekDays[0]} to ${state.weekDays[6]}.
-Day names: Mon=${state.weekDays[0]}, Tue=${state.weekDays[1]}, Wed=${state.weekDays[2]}, Thu=${state.weekDays[3]}, Fri=${state.weekDays[4]}, Sat=${state.weekDays[5]}, Sun=${state.weekDays[6]}.
+Day names: ${state.weekDays.map((d) => `${formatDayShort(d)}=${d}`).join(', ')}.
 
 Current batches:
 ${batchDescriptions}
