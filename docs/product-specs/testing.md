@@ -27,6 +27,21 @@ npm run test:generate -- <scenario-name> --regenerate   # overwrite existing fix
 
 Generate mode prompts for confirmation before calling the real LLM unless stdin is not a TTY (automated contexts) or `--yes` is passed.
 
+## Reviewing recorded output (CRITICAL)
+
+After every `npm run test:generate`, the recorded.json MUST be reviewed for behavioral correctness. Passing `npm test` only proves determinism — it does NOT prove the system does the right thing. A scenario that locks in wrong behavior is worse than no scenario.
+
+Review checklist:
+- **Flow progression**: outputs follow the expected sequence (welcome → breakfast → events → proposal → confirm)
+- **Slot coverage**: every lunch/dinner across the 7 days is covered by a batch, event, flex, or pre-committed slot
+- **Cook days**: each batch's cook day = first eating day
+- **Budget math**: weekly totals within ±3% of target (17052 cal / 1050g protein)
+- **No ghost data**: no 0-calorie batches, no phantom recipes, no duplicate coverage
+- **Keyboards**: present on every interactive message
+- **Pre-committed slots** (if applicable): displayed correctly, not double-booked by new batches
+
+This is the whole point of scenarios: the agent can autonomously test the system as if it were the user, and fix it when it behaves wrong.
+
 ## Directory layout
 
 ```

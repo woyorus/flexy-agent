@@ -6,20 +6,21 @@ Source: `src/solver/solver.ts`, `src/solver/types.ts`
 
 ## Algorithm
 
-The solver reserves a protected treat budget upfront, then distributes the remaining meal prep budget **uniformly** across all meal prep slots. At plan approval time the recipe scaler adjusts each recipe's ingredients to hit its assigned per-slot target.
+The solver reserves a protected treat budget upfront, subtracts any pre-committed slot calories (carry-over from prior sessions), then distributes the remaining meal prep budget **uniformly** across all new meal prep slots. At plan approval time the recipe scaler adjusts each recipe's ingredients to hit its assigned per-slot target.
 
 1. **Allocate breakfast** — `weeklyBreakfastCal = breakfast.caloriesPerDay × 7`. Fixed.
 2. **Allocate meal-replacement events** — sum of restaurant event calories. Treat events are NOT solver inputs (they come from the treat budget).
 3. **Sum flex slot bonuses** — `totalFlexBonus = sum of flexSlots[].flexBonus` (350 each, 1 slot per week).
 4. **Protect treat budget** — `treatBudget = weeklyTargets.calories × config.planning.treatBudgetPercent` (5%, ~853 cal/week). Reserved upfront, never squeezed by events.
-5. **Compute meal prep budget** — `mealPrepBudget = weekly − breakfast − events − flexBonuses − treatBudget`.
-6. **Count slots** — `totalSlots = sum of recipe servings + flex slot count`. Each batch's `days.length` is its serving count.
-7. **Distribute uniformly** — `perSlotCal = mealPrepBudget / totalSlots`. Every batch gets the same target. Protein follows the same pattern: `perSlotProtein = (weeklyProtein − breakfastProtein − eventProtein) / totalSlots`.
-8. **Clamp** — Any batch target below `MIN_MEAL_CAL` (400) or above `MAX_MEAL_CAL` (1000) is clamped with a warning.
-9. **Build daily breakdown** — For each day, lunch/dinner sources are: event > flex slot (perSlotCal + flexBonus) > batch (perSlotCal).
-10. **Verify** — Weekly calories within ±3% of target (after adding back treat budget). Protein meets 97% of target. Warns if perSlotCal drops below 650 cal.
+5. **Subtract pre-committed slots** — `preCommittedCal = sum of carriedOverSlots[].calories`. These are frozen macros from prior sessions' batches whose eating days overlap the current horizon.
+6. **Compute meal prep budget** — `mealPrepBudget = weekly − breakfast − events − flexBonuses − treatBudget − preCommittedCal`.
+7. **Count slots** — `totalSlots = sum of new recipe servings + flex slot count`. Pre-committed slots are NOT counted (already subtracted).
+8. **Distribute uniformly** — `perSlotCal = mealPrepBudget / totalSlots`. Every new batch gets the same target. Protein follows the same pattern.
+9. **Clamp** — Any batch target below `MIN_MEAL_CAL` (400) or above `MAX_MEAL_CAL` (1000) is clamped with a warning.
+10. **Build daily breakdown** — For each day in `horizonDays`, sources are: event > flex slot > pre-committed slot (frozen macros) > new batch.
+11. **Verify** — Weekly calories within ±3% of target (after adding back treat budget). Protein meets 97% of target. Warns if perSlotCal drops below 650 cal.
 
-The **recipe scaler** runs at plan approval time (in `buildWeeklyPlan`), not inside the solver. Each batch is scaled to its assigned `targetPerServing.calories` within a ±20 cal tolerance (configured via `config.planning.scalerCalorieTolerance`). This lets recipes pick clean ingredient amounts (45g dry pasta rather than 47g) while staying within the solver's weekly math.
+The **recipe scaler** runs at plan approval time (in `buildNewPlanSession`), not inside the solver. Each batch is scaled to its assigned `targetPerServing.calories` within a ±20 cal tolerance (configured via `config.planning.scalerCalorieTolerance`). This lets recipes pick clean ingredient amounts (45g dry pasta rather than 47g) while staying within the solver's weekly math.
 
 ## Inputs (`SolverInput`)
 
@@ -32,6 +33,8 @@ The **recipe scaler** runs at plan approval time (in `buildWeeklyPlan`), not ins
     recipes: RecipeRequest[],     // solver only needs meal type + days + servings
   },
   breakfast: { locked, recipeSlug?, caloriesPerDay, proteinPerDay },
+  horizonDays?: string[],         // explicit 7 ISO dates (D32 — closes latent getWeekDays bug)
+  carriedOverSlots?: PreCommittedSlot[], // frozen macros from prior sessions' batches
 }
 ```
 
