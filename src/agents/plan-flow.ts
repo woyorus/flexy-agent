@@ -21,7 +21,7 @@
 import type { LLMProvider, ChatMessage } from '../ai/provider.js';
 import type { Recipe, MealEvent, FlexSlot, WeeklyPlan, LegacyBatch, MealSlot, CookDay, ScaledIngredient } from '../models/types.js';
 import { scaleRecipe } from './recipe-scaler.js';
-import type { PlanProposal, ProposedBatch, RecipeGap, SolverInput } from '../solver/types.js';
+import type { PlanProposal, ProposedBatch, RecipeGap, SolverInput, PreCommittedSlot } from '../solver/types.js';
 import { config } from '../config.js';
 import { log } from '../debug/logger.js';
 import { solve } from '../solver/solver.js';
@@ -30,10 +30,12 @@ import {
   proposePlan,
   buildRecipeSummaries,
   buildRecentPlanSummaries,
+  buildRecentPlanSummariesFromSessions,
   getWeekDays,
   toLocalISODate,
   type PlanProposerInput,
 } from './plan-proposer.js';
+import type { Batch as NewBatch } from '../models/types.js';
 import {
   generateRecipe,
   correctRecipeMacros,
@@ -434,10 +436,37 @@ export async function handleGenerateProposal(
 ): Promise<FlowResponse> {
   log.debug('PLAN-FLOW', 'generating proposal');
 
+  // Plan 007: load pre-committed slots from prior sessions
+  let preCommittedSlots: PreCommittedSlot[] = [];
+  if (state.horizonDays) {
+    const carriedBatches = await store.getBatchesOverlapping({
+      horizonStart: state.horizonDays[0]!,
+      horizonEnd: state.horizonDays[6]!,
+      statuses: ['planned'],
+    });
+    // In replan flows, filter out the session being replaced (D27)
+    const effectiveBatches = state.replacingSessionId
+      ? carriedBatches.filter((b: NewBatch) => b.createdInPlanSessionId !== state.replacingSessionId)
+      : carriedBatches;
+    preCommittedSlots = materializeSlotsFromBatches(effectiveBatches, state.horizonDays);
+  }
+
   // Build context for the proposer
   const availableRecipes = buildRecipeSummaries(recipes.getAll());
-  const recentPlans = await store.getRecentCompletedPlans(2);
-  const recentSummaries = buildRecentPlanSummaries(recentPlans, recipes);
+
+  // Variety engine: use rolling-path sessions if available, else legacy plans
+  let recentSummaries;
+  if (state.horizonDays) {
+    const recentSessions = await store.getRecentPlanSessions(2);
+    const batchesBySession = new Map<string, NewBatch[]>();
+    for (const s of recentSessions) {
+      batchesBySession.set(s.id, await store.getBatchesByPlanSessionId(s.id));
+    }
+    recentSummaries = buildRecentPlanSummariesFromSessions(recentSessions, batchesBySession, recipes);
+  } else {
+    const recentPlans = await store.getRecentCompletedPlans(2);
+    recentSummaries = buildRecentPlanSummaries(recentPlans, recipes);
+  }
 
   const proposerInput: PlanProposerInput = {
     weekStart: state.weekStart,
@@ -447,6 +476,10 @@ export async function handleGenerateProposal(
     availableRecipes,
     recentPlans: recentSummaries,
     weeklyTargets: config.targets.weekly,
+    // Plan 007 fields (only populated on rolling path)
+    horizonStart: state.horizonStart,
+    horizonDays: state.horizonDays,
+    preCommittedSlots: preCommittedSlots.length > 0 ? preCommittedSlots : undefined,
   };
 
   // Call plan-proposer
@@ -454,12 +487,12 @@ export async function handleGenerateProposal(
   log.debug('PLAN', `proposer reasoning: ${reasoning}`);
 
   // Run solver on the proposal using real recipe macros
-  const solverInput = buildSolverInput(state, proposal, recipes);
+  const solverInput = buildSolverInput(state, proposal, recipes, preCommittedSlots);
   const solverOutput = solve(solverInput);
   proposal.solverOutput = solverOutput;
 
   // Validate
-  const validation = validatePlan(solverOutput, config.targets.weekly);
+  const validation = validatePlan(solverOutput, config.targets.weekly, preCommittedSlots);
   if (!validation.valid) {
     log.warn('QA', `plan validation warnings: ${validation.errors.join('; ')}`);
   }
@@ -1070,6 +1103,7 @@ function buildSolverInput(
   state: PlanFlowState,
   proposal: PlanProposal,
   recipeDb?: RecipeDatabase,
+  preCommittedSlots?: PreCommittedSlot[],
 ): SolverInput {
   return {
     weeklyTargets: config.targets.weekly,
@@ -1092,7 +1126,39 @@ function buildSolverInput(
       caloriesPerDay: state.breakfast.caloriesPerDay,
       proteinPerDay: state.breakfast.proteinPerDay,
     },
+    // Plan 007: explicit horizon days and carry-over
+    horizonDays: state.horizonDays,
+    carriedOverSlots: preCommittedSlots,
   };
+}
+
+/**
+ * Materialize pre-committed slots from carried-over batches (Plan 007).
+ *
+ * Walks each batch's eatingDays, filters to those within the given horizon,
+ * and emits one PreCommittedSlot per matching day.
+ */
+function materializeSlotsFromBatches(
+  batches: NewBatch[],
+  horizonDays: string[],
+): PreCommittedSlot[] {
+  const horizonSet = new Set(horizonDays);
+  const slots: PreCommittedSlot[] = [];
+  for (const batch of batches) {
+    for (const day of batch.eatingDays) {
+      if (horizonSet.has(day)) {
+        slots.push({
+          day,
+          mealTime: batch.mealType,
+          recipeSlug: batch.recipeSlug,
+          calories: batch.actualPerServing.calories,
+          protein: batch.actualPerServing.protein,
+          sourceBatchId: batch.id,
+        });
+      }
+    }
+  }
+  return slots;
 }
 
 /**

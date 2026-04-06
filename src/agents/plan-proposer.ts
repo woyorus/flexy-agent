@@ -165,11 +165,14 @@ export async function proposePlan(
 // ─── Context builders ───────────────────────────────────────────────────────────
 
 function buildSystemPrompt(input: PlanProposerInput): string {
-  const isRolling = !!input.horizonDays;
   const hasPreCommitted = (input.preCommittedSlots ?? []).length > 0;
+  // Use the rolling-horizon prompt only when there are pre-committed slots
+  // or other rolling-specific content. During the strangler-fig, fresh plans
+  // (no carry-over) still use the legacy prompt so existing scenario fixtures
+  // match. Phase 7b re-records all scenarios and switches everything to rolling.
+  const isRolling = hasPreCommitted;
 
   if (!isRolling) {
-    // Legacy path — unchanged prompt for existing scenarios during strangler-fig
     return buildLegacySystemPrompt();
   }
 
@@ -393,7 +396,7 @@ Respond with ONLY valid JSON:
 
 function buildUserPrompt(input: PlanProposerInput): string {
   const parts: string[] = [];
-  const isRolling = !!input.horizonDays;
+  const isRolling = (input.preCommittedSlots ?? []).length > 0;
   const effectiveDays = input.horizonDays ?? input.weekDays;
   const effectiveStart = input.horizonStart ?? input.weekStart;
   const preCommitted = input.preCommittedSlots ?? [];
