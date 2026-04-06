@@ -19,7 +19,7 @@
  */
 
 import type { LLMProvider, ChatMessage } from '../ai/provider.js';
-import type { Recipe, MealEvent, FlexSlot, WeeklyPlan, LegacyBatch, MealSlot, CookDay, ScaledIngredient } from '../models/types.js';
+import type { Recipe, MealEvent, FlexSlot, WeeklyPlan, LegacyBatch, MealSlot, CookDay, ScaledIngredient, DraftPlanSession } from '../models/types.js';
 import { scaleRecipe } from './recipe-scaler.js';
 import type { PlanProposal, ProposedBatch, RecipeGap, SolverInput, PreCommittedSlot } from '../solver/types.js';
 import { config } from '../config.js';
@@ -664,9 +664,8 @@ export async function handleApprove(
     return { text: 'No plan to approve. Something went wrong.', state };
   }
 
-  // Transition any existing active plans to completed before saving the new one
+  // Persistence: legacy WeeklyPlan path (will be replaced in Phase 7)
   await store.completeActivePlans();
-
   const plan = await buildWeeklyPlan(state, recipes, llm);
   await store.savePlan(plan);
 
@@ -1159,6 +1158,102 @@ function materializeSlotsFromBatches(
     }
   }
   return slots;
+}
+
+/**
+ * Build a DraftPlanSession + Batch[] from the confirmed proposal (Plan 007).
+ *
+ * Constructs the in-memory draft session and its batches, scales each recipe,
+ * and asserts D30's invariant (eatingDays[0] inside the session's horizon)
+ * on every batch before returning.
+ */
+async function buildNewPlanSession(
+  state: PlanFlowState,
+  recipeDb: RecipeDatabase,
+  llm: LLMProvider,
+): Promise<{ session: DraftPlanSession; batches: Array<Omit<NewBatch, 'createdAt' | 'updatedAt'>> }> {
+  const proposal = state.proposal!;
+  const solver = proposal.solverOutput!;
+  const sessionId = uuid();
+  const horizonStart = state.horizonStart ?? state.weekStart;
+  const horizonEnd = state.horizonDays?.[6] ?? state.weekDays[6]!;
+
+  const session: DraftPlanSession = {
+    id: sessionId,
+    horizonStart,
+    horizonEnd,
+    breakfast: {
+      locked: true,
+      recipeSlug: state.breakfast.recipeSlug,
+      caloriesPerDay: state.breakfast.caloriesPerDay,
+      proteinPerDay: state.breakfast.proteinPerDay,
+    },
+    treatBudgetCalories: solver.weeklyTotals.treatBudget,
+    flexSlots: proposal.flexSlots,
+    events: state.events,
+  };
+
+  const batches: Array<Omit<NewBatch, 'createdAt' | 'updatedAt'>> = [];
+
+  for (const batchTarget of solver.batchTargets) {
+    const proposedBatch = proposal.batches.find((b) => b.recipeSlug === batchTarget.recipeSlug && b.mealType === batchTarget.mealType);
+    const recipe = batchTarget.recipeSlug ? recipeDb.getBySlug(batchTarget.recipeSlug) : undefined;
+
+    let actualPerServing = { calories: 0, protein: 0, fat: 0, carbs: 0 };
+    let scaledIngredients: ScaledIngredient[] = [];
+
+    if (recipe) {
+      try {
+        const scaled = await scaleRecipe({
+          recipe,
+          targetCalories: batchTarget.targetPerServing.calories,
+          calorieTolerance: config.planning.scalerCalorieTolerance,
+          targetProtein: batchTarget.targetPerServing.protein,
+          servings: batchTarget.servings,
+        }, llm);
+        actualPerServing = scaled.actualPerServing;
+        scaledIngredients = scaled.scaledIngredients;
+      } catch (err) {
+        log.warn('PLAN-FLOW', `scaler failed for ${recipe.slug}, using unscaled: ${err}`);
+        actualPerServing = recipe.perServing;
+        scaledIngredients = recipe.ingredients.map((ing) => ({
+          name: ing.name,
+          amount: ing.amount,
+          unit: ing.unit,
+          totalForBatch: ing.amount * batchTarget.servings,
+        }));
+      }
+    }
+
+    // Full eating days = in-horizon days + overflow days
+    const overflowDays = proposedBatch?.overflowDays ?? [];
+    const eatingDays = [...batchTarget.days, ...overflowDays];
+
+    // D30 invariant: cook day (eatingDays[0]) must be inside the session's horizon
+    if (eatingDays.length > 0) {
+      const cookDay = eatingDays[0]!;
+      if (cookDay < horizonStart || cookDay > horizonEnd) {
+        throw new Error(
+          `D30 invariant violation: batch ${batchTarget.recipeSlug} has cook day ${cookDay} outside horizon [${horizonStart}, ${horizonEnd}]`,
+        );
+      }
+    }
+
+    batches.push({
+      id: batchTarget.id,
+      recipeSlug: batchTarget.recipeSlug ?? '',
+      mealType: batchTarget.mealType,
+      eatingDays,
+      servings: eatingDays.length,
+      targetPerServing: batchTarget.targetPerServing,
+      actualPerServing,
+      scaledIngredients,
+      status: 'planned',
+      createdInPlanSessionId: sessionId,
+    });
+  }
+
+  return { session, batches };
 }
 
 /**
