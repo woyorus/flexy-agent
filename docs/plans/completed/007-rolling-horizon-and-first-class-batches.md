@@ -1,6 +1,6 @@
 # Plan 007: Rolling 7-day horizon + batches as first-class entities
 
-**Status:** Active
+**Status:** Done
 **Date:** 2026-04-05 (last revised 2026-04-05, post-review)
 **Affects:** `src/models/types.ts`, `src/solver/types.ts`, `src/solver/solver.ts`, `src/agents/plan-flow.ts`, `src/agents/plan-proposer.ts`, `src/state/store.ts`, `src/state/machine.ts`, `src/shopping/generator.ts`, `src/telegram/bot.ts`, `src/telegram/core.ts`, `src/telegram/formatters.ts`, `src/telegram/keyboards.ts`, `src/harness/test-store.ts`, all scenarios in `test/scenarios/`, `docs/product-specs/*`, Supabase schema
 

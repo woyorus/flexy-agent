@@ -35,6 +35,14 @@ Every file, class, and function must be documented. This is not optional.
 
 When adding new docs, update this table. An unlisted doc is invisible to the agent.
 
+### Plans go to `docs/plans/active/`, NEVER to `~/.claude/plans/`
+
+All execution plans MUST be written to `docs/plans/active/NNN-topic.md` using the format in `docs/plans/README.md`. Never use `~/.claude/plans/` — that path is invisible to the project and to future agents. Check the highest plan number across `active/` and `completed/` before creating a new one.
+
+### Never start implementing a plan without explicit user approval
+
+After writing a plan, STOP and wait for the user to review it and explicitly say to proceed. Exiting plan mode means the plan is ready for review — it does NOT mean "start coding." Do not begin implementation until the user gives clear approval (e.g., "go ahead", "implement it", "looks good, do it").
+
 ### Docs maintenance rules
 
 See `docs/DOCS-GUIDE.md` for the full rules on when to create new files, where they go, and how to manage the docs lifecycle.
