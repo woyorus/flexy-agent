@@ -38,6 +38,7 @@ import type {
   BatchTarget,
   CookingScheduleDay,
   RecipeRequest,
+  PreCommittedSlot,
 } from './types.js';
 
 const MIN_MEAL_CAL = 400;
@@ -53,6 +54,7 @@ const LOW_MEAL_WARNING = 650;
  */
 export function solve(input: SolverInput): SolverOutput {
   const warnings: string[] = [];
+  const carried = input.carriedOverSlots ?? [];
 
   // Step 1: Allocate breakfast
   const weeklyBreakfastCal = input.breakfast.caloriesPerDay * 7;
@@ -68,16 +70,20 @@ export function solve(input: SolverInput): SolverOutput {
   // Step 4: Protected treat budget — reserved upfront, never squeezed by events
   const treatBudget = Math.round(input.weeklyTargets.calories * config.targets.treatBudgetPercent);
 
-  // Step 5: Meal prep budget — what's left for all non-breakfast, non-event slots
-  const mealPrepBudget = input.weeklyTargets.calories - weeklyBreakfastCal - totalEventsCal - totalFlexBonus - treatBudget;
+  // Plan 007: subtract pre-committed slot calories/protein from budget
+  const preCommittedCal = carried.reduce((s, x) => s + x.calories, 0);
+  const preCommittedProtein = carried.reduce((s, x) => s + x.protein, 0);
 
-  // Step 6: Count all slots (recipe servings + flex slots)
+  // Step 5: Meal prep budget — what's left for all non-breakfast, non-event slots
+  const mealPrepBudget = input.weeklyTargets.calories - weeklyBreakfastCal - totalEventsCal - totalFlexBonus - treatBudget - preCommittedCal;
+
+  // Step 6: Count all slots (recipe servings + flex slots — pre-committed are already covered)
   const recipeServings = input.mealPrepPreferences.recipes.reduce((sum, r) => sum + r.servings, 0);
   const totalSlots = recipeServings + input.flexSlots.length;
 
   // Step 7: Uniform per-slot target
   const perSlotCal = totalSlots > 0 ? Math.round(mealPrepBudget / totalSlots) : 0;
-  const mealProteinBudget = input.weeklyTargets.protein - weeklyBreakfastProtein - eventProtein;
+  const mealProteinBudget = input.weeklyTargets.protein - weeklyBreakfastProtein - eventProtein - preCommittedProtein;
   const perSlotProtein = totalSlots > 0 ? Math.round(mealProteinBudget / totalSlots) : 0;
 
   if (perSlotCal < LOW_MEAL_WARNING && totalSlots > 0) {
@@ -86,10 +92,11 @@ export function solve(input: SolverInput): SolverOutput {
     );
   }
 
-  // Step 8: Lay out the week grid
-  const weekDays = getWeekDays(input.mealPrepPreferences.recipes, input.flexSlots);
+  // Step 8: Lay out the week grid — use explicit horizonDays if provided (D32)
+  const weekDays = resolveHorizonDays(input);
   const eventsByDay = groupByDay(input.events, (e) => e.day);
   const flexSlotsByDay = groupByDay(input.flexSlots, (f) => f.day);
+  const carriedByDayMeal = groupCarriedSlots(carried);
 
   // Step 9: Create batch targets (uniform per-slot calories)
   const batchTargets: BatchTarget[] = input.mealPrepPreferences.recipes.map((req) => ({
@@ -127,6 +134,7 @@ export function solve(input: SolverInput): SolverOutput {
     batchTargets,
     eventsByDay,
     flexSlotsByDay,
+    carriedByDayMeal,
     perSlotCal,
     perSlotProtein,
   );
@@ -170,20 +178,39 @@ export function solve(input: SolverInput): SolverOutput {
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
 /**
- * Extract the set of days covered by recipe requests and flex slots.
- * Returns them sorted chronologically.
+ * Resolve the horizon days for the solver.
+ *
+ * Plan 007 (D32): if `horizonDays` is provided, use it directly (7 explicit
+ * ISO dates). This closes a latent bug where days covered only by events were
+ * missing from dailyBreakdown. Falls back to the legacy derivation from
+ * recipes + flexSlots during the strangler-fig window.
  */
-function getWeekDays(recipes: RecipeRequest[], flexSlots: FlexSlot[]): string[] {
+function resolveHorizonDays(input: SolverInput): string[] {
+  if (input.horizonDays) {
+    return input.horizonDays;
+  }
+  // Legacy fallback: derive from recipes + flexSlots
   const daySet = new Set<string>();
-  for (const req of recipes) {
+  for (const req of input.mealPrepPreferences.recipes) {
     for (const day of req.days) {
       daySet.add(day);
     }
   }
-  for (const flex of flexSlots) {
+  for (const flex of input.flexSlots) {
     daySet.add(flex.day);
   }
   return Array.from(daySet).sort();
+}
+
+/**
+ * Group pre-committed slots by "day:mealTime" for O(1) lookup in buildDailyBreakdown.
+ */
+function groupCarriedSlots(slots: PreCommittedSlot[]): Map<string, PreCommittedSlot> {
+  const map = new Map<string, PreCommittedSlot>();
+  for (const s of slots) {
+    map.set(`${s.day}:${s.mealTime}`, s);
+  }
+  return map;
 }
 
 /** Group items by day using a key extractor. */
@@ -203,6 +230,9 @@ function groupByDay<T>(items: T[], getDay: (item: T) => string): Map<string, T[]
  *
  * All meal-prep slots use the uniform per-slot target from the solver.
  * Flex slots use the same base + their flex bonus.
+ * Pre-committed slots (Plan 007) use frozen macros from the source batch.
+ *
+ * Source priority per (day, mealTime): event > flex > pre-committed > new batch.
  */
 function buildDailyBreakdown(
   weekDays: string[],
@@ -210,27 +240,30 @@ function buildDailyBreakdown(
   batchTargets: BatchTarget[],
   eventsByDay: Map<string, MealEvent[]>,
   flexSlotsByDay: Map<string, FlexSlot[]>,
+  carriedByDayMeal: Map<string, PreCommittedSlot>,
   flexBaseCal: number,
   flexBaseProtein: number,
 ): DailyBreakdown[] {
   return weekDays.map((day) => {
     const dayEvents = eventsByDay.get(day) ?? [];
     const dayFlexSlots = flexSlotsByDay.get(day) ?? [];
+    const lunchCarried = carriedByDayMeal.get(`${day}:lunch`);
+    const dinnerCarried = carriedByDayMeal.get(`${day}:dinner`);
 
     const hasLunchEvent = dayEvents.some((e) => e.mealTime === 'lunch');
     const hasDinnerEvent = dayEvents.some((e) => e.mealTime === 'dinner');
     const lunchFlex = dayFlexSlots.find((f) => f.mealTime === 'lunch');
     const dinnerFlex = dayFlexSlots.find((f) => f.mealTime === 'dinner');
 
-    // Find batch targets for this day (only if not an event or flex slot)
-    const lunchBatch = (!hasLunchEvent && !lunchFlex)
+    // Find batch targets for this day (only if not covered by event, flex, or pre-committed)
+    const lunchBatch = (!hasLunchEvent && !lunchFlex && !lunchCarried)
       ? batchTargets.find((b) => b.mealType === 'lunch' && b.days.includes(day))
       : undefined;
-    const dinnerBatch = (!hasDinnerEvent && !dinnerFlex)
+    const dinnerBatch = (!hasDinnerEvent && !dinnerFlex && !dinnerCarried)
       ? batchTargets.find((b) => b.mealType === 'dinner' && b.days.includes(day))
       : undefined;
 
-    // Lunch calories: event > flex > batch
+    // Lunch calories: event > flex > pre-committed > batch
     let lunchCal: number;
     let lunchProtein: number;
     let lunchFlexBonus: number | undefined;
@@ -241,12 +274,15 @@ function buildDailyBreakdown(
       lunchCal = flexBaseCal + lunchFlex.flexBonus;
       lunchProtein = flexBaseProtein;
       lunchFlexBonus = lunchFlex.flexBonus;
+    } else if (lunchCarried) {
+      lunchCal = lunchCarried.calories;
+      lunchProtein = lunchCarried.protein;
     } else {
       lunchCal = lunchBatch?.targetPerServing.calories ?? 0;
       lunchProtein = lunchBatch?.targetPerServing.protein ?? 0;
     }
 
-    // Dinner calories: event > flex > batch
+    // Dinner calories: event > flex > pre-committed > batch
     let dinnerCal: number;
     let dinnerProtein: number;
     let dinnerFlexBonus: number | undefined;
@@ -257,6 +293,9 @@ function buildDailyBreakdown(
       dinnerCal = flexBaseCal + dinnerFlex.flexBonus;
       dinnerProtein = flexBaseProtein;
       dinnerFlexBonus = dinnerFlex.flexBonus;
+    } else if (dinnerCarried) {
+      dinnerCal = dinnerCarried.calories;
+      dinnerProtein = dinnerCarried.protein;
     } else {
       dinnerCal = dinnerBatch?.targetPerServing.calories ?? 0;
       dinnerProtein = dinnerBatch?.targetPerServing.protein ?? 0;

@@ -19,7 +19,7 @@
  */
 
 import type { LLMProvider, ChatMessage } from '../ai/provider.js';
-import type { Recipe, MealEvent, FlexSlot, WeeklyPlan, Batch, MealSlot, CookDay, ScaledIngredient } from '../models/types.js';
+import type { Recipe, MealEvent, FlexSlot, WeeklyPlan, LegacyBatch, MealSlot, CookDay, ScaledIngredient } from '../models/types.js';
 import { scaleRecipe } from './recipe-scaler.js';
 import type { PlanProposal, ProposedBatch, RecipeGap, SolverInput } from '../solver/types.js';
 import { config } from '../config.js';
@@ -1036,7 +1036,7 @@ async function buildWeeklyPlan(
   // Build cook days from solver's cooking schedule, scaling each recipe
   const cookDays: CookDay[] = [];
   for (const cs of solver.cookingSchedule) {
-    const batches: Batch[] = [];
+    const batches: LegacyBatch[] = [];
     for (const batchId of cs.batchIds) {
       const target = solver.batchTargets.find((b) => b.id === batchId)!;
       const recipe = target.recipeSlug ? recipeDb.getBySlug(target.recipeSlug) : undefined;

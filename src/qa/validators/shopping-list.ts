@@ -10,7 +10,7 @@
  * If they do, it signals a bug in the generator, not bad LLM output.
  */
 
-import type { ShoppingList, Batch } from '../../models/types.js';
+import type { ShoppingList, LegacyBatch } from '../../models/types.js';
 
 export interface ShoppingListValidationResult {
   valid: boolean;
@@ -26,7 +26,7 @@ export interface ShoppingListValidationResult {
  */
 export function validateShoppingList(
   list: ShoppingList,
-  batches: Batch[],
+  batches: LegacyBatch[],
 ): ShoppingListValidationResult {
   const errors: string[] = [];
 

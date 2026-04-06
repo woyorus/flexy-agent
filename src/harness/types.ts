@@ -14,7 +14,7 @@
  *     `deepStrictEqual` can compare runs against recordings.
  */
 
-import type { WeeklyPlan } from '../models/types.js';
+import type { WeeklyPlan, PlanSession, Batch } from '../models/types.js';
 import type { SessionState } from '../state/machine.js';
 import type { LLMFixture } from '../ai/fixture.js';
 
@@ -44,6 +44,10 @@ export interface ScenarioInitialState {
   plans?: WeeklyPlan[];
   /** Pre-existing session slot. Null = no active session. */
   session?: SessionState | null;
+  /** Plan 007: seed plan sessions for rolling-horizon scenarios. */
+  planSessions?: PlanSession[];
+  /** Plan 007: seed batches for rolling-horizon scenarios. */
+  batches?: Batch[];
 }
 
 /**

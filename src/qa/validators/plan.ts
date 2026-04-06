@@ -15,7 +15,7 @@
  * - No orphaned meal slots (every meal has a source: batch, event, or flex)
  */
 
-import type { SolverOutput, BatchTarget } from '../../solver/types.js';
+import type { SolverOutput, BatchTarget, PreCommittedSlot } from '../../solver/types.js';
 import type { Macros } from '../../models/types.js';
 
 export interface PlanValidationResult {
@@ -36,7 +36,12 @@ const FUN_FOOD_MAX_PERCENT = 15; // warning threshold — in the derived model, 
  * @param targets - The weekly calorie/protein targets
  * @returns Validation result with errors and warnings
  */
-export function validatePlan(output: SolverOutput, targets: Macros): PlanValidationResult {
+export function validatePlan(
+  output: SolverOutput,
+  targets: Macros,
+  /** Plan 007: pre-committed slots provide a fourth valid source type for orphan checks. */
+  carriedOverSlots?: PreCommittedSlot[],
+): PlanValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
 
@@ -98,13 +103,18 @@ export function validatePlan(output: SolverOutput, targets: Macros): PlanValidat
   }
 
   // Orphaned meal slots: every day should have lunch + dinner covered
-  // Sources: batch (batchId), event, or flex slot (flexBonus)
+  // Sources: batch (batchId), event, flex slot (flexBonus), or pre-committed slot (Plan 007)
+  const carriedSet = new Set((carriedOverSlots ?? []).map((s) => `${s.day}:${s.mealTime}`));
   for (const day of output.dailyBreakdown) {
-    const hasLunchSource = day.lunch.batchId || day.lunch.flexBonus || day.events.some((e) => e.mealTime === 'lunch');
+    const hasLunchSource = day.lunch.batchId || day.lunch.flexBonus
+      || day.events.some((e) => e.mealTime === 'lunch')
+      || carriedSet.has(`${day.day}:lunch`);
     if (day.lunch.calories === 0 && !hasLunchSource) {
       errors.push(`${day.day} lunch: no source (no batch, flex slot, or event).`);
     }
-    const hasDinnerSource = day.dinner.batchId || day.dinner.flexBonus || day.events.some((e) => e.mealTime === 'dinner');
+    const hasDinnerSource = day.dinner.batchId || day.dinner.flexBonus
+      || day.events.some((e) => e.mealTime === 'dinner')
+      || carriedSet.has(`${day.day}:dinner`);
     if (day.dinner.calories === 0 && !hasDinnerSource) {
       errors.push(`${day.day} dinner: no source (no batch, flex slot, or event).`);
     }

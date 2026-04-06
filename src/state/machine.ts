@@ -75,8 +75,15 @@ export interface SessionState {
   /** ID of the active weekly plan being created/viewed. */
   activePlanId?: string;
 
-  /** Week start date for the plan being created. */
+  /** Week start date for the plan being created. (Legacy — use horizonStart in new code.) */
   weekStart?: string;
+
+  // ─── Plan 007: rolling horizon fields (strangler-fig — coexist with weekStart) ───
+
+  /** ISO date — first day of the 7-day horizon being planned. */
+  horizonStart?: string;
+  /** 7 ISO date strings covering [horizonStart, horizonStart+6]. */
+  horizonDays?: string[];
 }
 
 /**

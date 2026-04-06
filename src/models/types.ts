@@ -2,15 +2,19 @@
  * Core data model types for Flexie.
  *
  * These interfaces define the shape of all data flowing through the system:
- * weekly plans, recipes, meal slots, fun foods, events, batches, and shopping lists.
+ * plan sessions, batches, recipes, meal slots, fun foods, events, and shopping lists.
  *
  * Source of truth: docs/product-specs/data-models.md
  *
- * Key relationships:
- * - A WeeklyPlan contains MealSlots, CookDays (with Batches), MealEvents, and FunFoodItems.
- * - A Batch references a Recipe by slug and contains ScaledIngredients.
- * - A MealSlot references either a Batch (meal-prep) or a MealEvent (restaurant).
- * - The ShoppingList is derived from the WeeklyPlan — not stored separately.
+ * Key relationships (rolling-horizon model — Plan 007):
+ * - A PlanSession is a confirmed 7-day planning horizon. Batches reference it via createdInPlanSessionId.
+ * - A Batch is a first-class entity: one recipe, 2-3 servings, 2-3 consecutive eating days.
+ *   Cook day = eatingDays[0] (derived, not stored). Batches can span horizon boundaries.
+ * - PreCommittedSlot (in solver/types.ts) projects prior sessions' batches into the current horizon.
+ * - CookDay and MealSlot are derived views, not persisted (P5).
+ *
+ * Legacy types (WeeklyPlan, LegacyBatch, CookDay, MealSlot) are retained during the
+ * strangler-fig migration and will be deleted in Phase 7b.
  */
 
 // ─── Recipe (parsed from markdown files) ─────────────────────────────────────
@@ -186,15 +190,15 @@ export interface MealEvent {
 export interface CookDay {
   /** ISO date */
   day: string;
-  batches: Batch[];
+  batches: LegacyBatch[];
 }
 
 /**
- * A batch of meal prep — multiple servings of one recipe cooked at once.
- * The solver sets calorie/protein targets per serving. The recipe generator
- * fills in fat/carbs to produce balanced meals internally.
+ * LEGACY — renamed from Batch during Plan 007 strangler-fig (Phase 1).
+ * Used by WeeklyPlan.cookDays[].batches. Will be deleted in Phase 7b
+ * once all call sites migrate to the new first-class Batch type.
  */
-export interface Batch {
+export interface LegacyBatch {
   id: string;
   recipeSlug: string;
   mealType: 'lunch' | 'dinner';
@@ -226,6 +230,84 @@ export interface MealSlot {
   flexBonus?: number;
   plannedCalories: number;
   plannedProtein: number;
+}
+
+// ─── Plan Session + First-class Batch (Plan 007: rolling horizon model) ─────
+
+/**
+ * A confirmed plan session — a 7-day rolling horizon.
+ *
+ * Represents a PERSISTED (confirmed) session. Per D33, there is no such thing as
+ * an unpersisted PlanSession — drafts live in memory as DraftPlanSession.
+ * Batches are not embedded; they reference this session via createdInPlanSessionId.
+ *
+ * "What's in this session" is a query: `WHERE created_in_plan_session_id = id`.
+ */
+export interface PlanSession {
+  id: string;
+  /** ISO date — first day of the 7-day horizon */
+  horizonStart: string;
+  /** ISO date — horizonStart + 6 days */
+  horizonEnd: string;
+  breakfast: {
+    locked: boolean;
+    recipeSlug: string;
+    caloriesPerDay: number;
+    proteinPerDay: number;
+  };
+  treatBudgetCalories: number;
+  flexSlots: FlexSlot[];
+  events: MealEvent[];
+  /** Populated by DB default now() on insert */
+  confirmedAt: string;
+  /** Tombstone flag for D27's replace-future-only flow */
+  superseded: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * In-memory draft shape during the planning flow (D33).
+ *
+ * Accepted by store.confirmPlanSession() and returned by buildPlanSession().
+ * Never persisted until the user taps Confirm. The DB fills in confirmedAt
+ * (default now()), superseded (default false), createdAt, and updatedAt.
+ *
+ * The id is assigned client-side at draft creation time so batches can reference
+ * their parent via createdInPlanSessionId before the confirm sequence writes.
+ */
+export type DraftPlanSession = Omit<
+  PlanSession,
+  'confirmedAt' | 'superseded' | 'createdAt' | 'updatedAt'
+>;
+
+/**
+ * A first-class batch — one recipe, 2-3 servings, 2-3 consecutive eating days.
+ *
+ * Only persisted (confirmed) batches exist as instances of this type.
+ * In-memory drafts use ProposedBatch (solver/types.ts) until confirmation.
+ *
+ * Cook day = eatingDays[0] — derived at display time, never stored separately.
+ * By invariant D30, eatingDays[0] is always inside the creating session's horizon.
+ */
+export interface Batch {
+  id: string;
+  recipeSlug: string;
+  mealType: 'lunch' | 'dinner';
+  /** ISO dates this batch is eaten on (2-3 contiguous days). Cook day = eatingDays[0]. */
+  eatingDays: string[];
+  servings: number;
+  targetPerServing: Macros;
+  actualPerServing: MacrosWithFatCarbs;
+  scaledIngredients: ScaledIngredient[];
+  /**
+   * 'planned' = confirmed and scheduled to cook.
+   * 'cancelled' = tombstoned by D27's supersede flow.
+   * No 'proposed' — drafts are in-memory only (D33).
+   */
+  status: 'planned' | 'cancelled';
+  /** Immutable FK to the plan session that created this batch (D30). */
+  createdInPlanSessionId: string;
 }
 
 // ─── Shopping List (derived, not stored) ─────────────────────────────────────

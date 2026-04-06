@@ -23,7 +23,7 @@
  * behavioral assertions against known seed data.
  */
 
-import type { WeeklyPlan } from '../models/types.js';
+import type { WeeklyPlan, PlanSession, DraftPlanSession, Batch } from '../models/types.js';
 import type { SessionState } from '../state/machine.js';
 import type { StateStoreLike } from '../state/store.js';
 
@@ -32,6 +32,10 @@ export interface TestStateStoreSeed {
   plans?: WeeklyPlan[];
   /** Pre-existing session slot. v0.0.1 has one session per single user. */
   session?: SessionState | null;
+  /** Plan 007: seed plan sessions for rolling-horizon scenarios. */
+  planSessions?: PlanSession[];
+  /** Plan 007: seed batches for rolling-horizon scenarios. */
+  batches?: Batch[];
 }
 
 export interface TestStateStoreSnapshot {
@@ -41,6 +45,10 @@ export interface TestStateStoreSnapshot {
   currentPlan: WeeklyPlan | null;
   /** Current session slot, or null if never written. */
   session: SessionState | null;
+  /** Plan 007: all plan sessions in insertion order. */
+  planSessions: PlanSession[];
+  /** Plan 007: all batches in insertion order. */
+  batches: Batch[];
 }
 
 /**
@@ -51,16 +59,42 @@ export class TestStateStore implements StateStoreLike {
   /** Keyed by plan.id so `savePlan` can upsert; iteration order = insertion order. */
   private readonly plansById: Map<string, WeeklyPlan>;
   private session: SessionState | null;
+  /** Plan 007: keyed by session.id */
+  private readonly planSessionsById: Map<string, PlanSession>;
+  /** Plan 007: keyed by batch.id */
+  private readonly batchesById: Map<string, Batch>;
+  /** Injected "today" for temporal queries. Defaults to real today if not set. */
+  private todayOverride: string | null = null;
 
   constructor(seed: TestStateStoreSeed = {}) {
     this.plansById = new Map();
     if (seed.plans) {
       for (const plan of seed.plans) {
-        // Deep clone to isolate scenario seed data from harness mutations.
         this.plansById.set(plan.id, cloneDeep(plan));
       }
     }
     this.session = seed.session ? cloneDeep(seed.session) : null;
+    this.planSessionsById = new Map();
+    if (seed.planSessions) {
+      for (const ps of seed.planSessions) {
+        this.planSessionsById.set(ps.id, cloneDeep(ps));
+      }
+    }
+    this.batchesById = new Map();
+    if (seed.batches) {
+      for (const b of seed.batches) {
+        this.batchesById.set(b.id, cloneDeep(b));
+      }
+    }
+  }
+
+  /** Override "today" for temporal queries in tests. */
+  setToday(isoDate: string): void {
+    this.todayOverride = isoDate;
+  }
+
+  private getToday(): string {
+    return this.todayOverride ?? new Date().toISOString().slice(0, 10);
   }
 
   // ─── Mutations ─────────────────────────────────────────────────────────
@@ -134,6 +168,162 @@ export class TestStateStore implements StateStoreLike {
     return candidates.slice(0, limit).map(cloneDeep);
   }
 
+  // ─── Plan 007: Rolling-horizon methods ──────────────────────────────────
+
+  /**
+   * Confirm a fresh draft. Two-step in-memory sequence matching
+   * StateStore.confirmPlanSession at src/state/store.ts.
+   */
+  async confirmPlanSession(
+    session: DraftPlanSession,
+    batches: Array<Omit<Batch, 'createdAt' | 'updatedAt'>>,
+  ): Promise<PlanSession> {
+    const now = new Date().toISOString();
+    // Step 1: insert session
+    const persisted: PlanSession = {
+      ...cloneDeep(session),
+      confirmedAt: now,
+      superseded: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.planSessionsById.set(persisted.id, cloneDeep(persisted));
+
+    // Step 2: insert batches
+    for (const b of batches) {
+      const full: Batch = { ...cloneDeep(b) as Batch };
+      this.batchesById.set(full.id, full);
+    }
+
+    return cloneDeep(persisted);
+  }
+
+  /**
+   * Save-before-destroy replan. Four-step in-memory sequence matching
+   * StateStore.confirmPlanSessionReplacing at src/state/store.ts.
+   */
+  async confirmPlanSessionReplacing(
+    session: DraftPlanSession,
+    batches: Array<Omit<Batch, 'createdAt' | 'updatedAt'>>,
+    replacingSessionId: string,
+  ): Promise<PlanSession> {
+    const now = new Date().toISOString();
+
+    // Step 1: insert NEW session
+    const persisted: PlanSession = {
+      ...cloneDeep(session),
+      confirmedAt: now,
+      superseded: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.planSessionsById.set(persisted.id, cloneDeep(persisted));
+
+    // Step 2: insert NEW batches
+    for (const b of batches) {
+      const full: Batch = { ...cloneDeep(b) as Batch };
+      this.batchesById.set(full.id, full);
+    }
+
+    // Step 3: cancel OLD session's batches
+    for (const b of this.batchesById.values()) {
+      if (b.createdInPlanSessionId === replacingSessionId && b.status === 'planned') {
+        b.status = 'cancelled';
+      }
+    }
+
+    // Step 4: mark OLD session superseded
+    const oldSession = this.planSessionsById.get(replacingSessionId);
+    if (oldSession) {
+      oldSession.superseded = true;
+      oldSession.updatedAt = now;
+    }
+
+    return cloneDeep(persisted);
+  }
+
+  async getPlanSession(id: string): Promise<PlanSession | null> {
+    const ps = this.planSessionsById.get(id);
+    return ps ? cloneDeep(ps) : null;
+  }
+
+  /**
+   * Session whose horizon contains today. At most one by D15 invariant.
+   * Mirrors StateStore.getRunningPlanSession.
+   */
+  async getRunningPlanSession(): Promise<PlanSession | null> {
+    const today = this.getToday();
+    const candidates = [...this.planSessionsById.values()].filter(
+      (ps) => !ps.superseded && ps.horizonStart <= today && ps.horizonEnd >= today,
+    );
+    return candidates.length > 0 ? cloneDeep(candidates[0]!) : null;
+  }
+
+  /**
+   * Sessions with horizon_start > today, earliest first. NOT superseded.
+   * Mirrors StateStore.getFuturePlanSessions.
+   */
+  async getFuturePlanSessions(): Promise<PlanSession[]> {
+    const today = this.getToday();
+    const candidates = [...this.planSessionsById.values()].filter(
+      (ps) => !ps.superseded && ps.horizonStart > today,
+    );
+    candidates.sort((a, b) => (a.horizonStart < b.horizonStart ? -1 : a.horizonStart > b.horizonStart ? 1 : 0));
+    return candidates.map(cloneDeep);
+  }
+
+  /**
+   * Most recent session whose horizon has fully ended. NOT superseded.
+   * Mirrors StateStore.getLatestHistoricalPlanSession.
+   */
+  async getLatestHistoricalPlanSession(): Promise<PlanSession | null> {
+    const today = this.getToday();
+    const candidates = [...this.planSessionsById.values()].filter(
+      (ps) => !ps.superseded && ps.horizonEnd < today,
+    );
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => (a.horizonEnd < b.horizonEnd ? 1 : a.horizonEnd > b.horizonEnd ? -1 : 0));
+    return cloneDeep(candidates[0]!);
+  }
+
+  /**
+   * Up to `limit` recent sessions ordered by horizon_end DESC. NOT superseded.
+   * No temporal filter. Mirrors StateStore.getRecentPlanSessions.
+   */
+  async getRecentPlanSessions(limit: number = 2): Promise<PlanSession[]> {
+    const candidates = [...this.planSessionsById.values()].filter((ps) => !ps.superseded);
+    candidates.sort((a, b) => (a.horizonEnd < b.horizonEnd ? 1 : a.horizonEnd > b.horizonEnd ? -1 : 0));
+    return candidates.slice(0, limit).map(cloneDeep);
+  }
+
+  /**
+   * Batches whose eating_days overlap [horizonStart, horizonEnd] with given statuses.
+   * Mirrors StateStore.getBatchesOverlapping using array overlap semantics.
+   */
+  async getBatchesOverlapping(opts: {
+    horizonStart: string;
+    horizonEnd: string;
+    statuses: Array<'planned' | 'cancelled'>;
+  }): Promise<Batch[]> {
+    const horizonDays = buildDateRange(opts.horizonStart, opts.horizonEnd);
+    const result: Batch[] = [];
+    for (const b of this.batchesById.values()) {
+      if (!opts.statuses.includes(b.status)) continue;
+      // Array overlap: any eating day in the horizon range
+      const overlaps = b.eatingDays.some((d) => horizonDays.includes(d));
+      if (overlaps) result.push(cloneDeep(b));
+    }
+    return result;
+  }
+
+  async getBatchesByPlanSessionId(id: string): Promise<Batch[]> {
+    const result: Batch[] = [];
+    for (const b of this.batchesById.values()) {
+      if (b.createdInPlanSessionId === id) result.push(cloneDeep(b));
+    }
+    return result;
+  }
+
   // ─── Harness introspection ─────────────────────────────────────────────
 
   /**
@@ -157,8 +347,22 @@ export class TestStateStore implements StateStoreLike {
       plans: allPlans,
       currentPlan: currentCandidates[0] ? cloneDeep(currentCandidates[0]) : null,
       session: this.session ? cloneDeep(this.session) : null,
+      planSessions: [...this.planSessionsById.values()].map(cloneDeep),
+      batches: [...this.batchesById.values()].map(cloneDeep),
     };
   }
+}
+
+/** Build an array of ISO date strings from start to end inclusive. */
+function buildDateRange(start: string, end: string): string[] {
+  const days: string[] = [];
+  const d = new Date(start + 'T00:00:00Z');
+  const endD = new Date(end + 'T00:00:00Z');
+  while (d <= endD) {
+    days.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return days;
 }
 
 /**

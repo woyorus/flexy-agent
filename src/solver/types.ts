@@ -32,6 +32,19 @@ export interface SolverInput {
     caloriesPerDay: number;
     proteinPerDay: number;
   };
+  /**
+   * Plan 007: explicit 7 ISO dates covering the horizon. Required going forward.
+   * Closes a latent bug where days covered only by events were missing from
+   * dailyBreakdown (D32). During the strangler-fig window, the old code path
+   * populates this from weekStart.
+   */
+  horizonDays?: string[];
+  /**
+   * Plan 007: pre-committed meal slots carried over from prior plan sessions.
+   * The solver subtracts their calories/protein from the weekly budget before
+   * distributing to new batches. Defaults to [] if undefined.
+   */
+  carriedOverSlots?: PreCommittedSlot[];
 }
 
 /**
@@ -101,6 +114,27 @@ export interface CookingScheduleDay {
   batchIds: string[];
 }
 
+// ─── Pre-committed slots (Plan 007: rolling horizon carry-over) ─────────────
+
+/**
+ * A materialized projection of a prior session's batch into the current horizon.
+ *
+ * Carries slug + day + mealType + frozen macros (copied from the source batch's
+ * actualPerServing). Simplifies the solver's budget-subtraction math — it sees a
+ * flat list of slots with known macros, not batches it would have to unpack.
+ *
+ * Intentionally a different type from Batch/ProposedBatch (D29 — load-bearing
+ * separation for solver simplicity and cross-session ownership clarity).
+ */
+export interface PreCommittedSlot {
+  day: string;
+  mealTime: 'lunch' | 'dinner';
+  recipeSlug: string;
+  calories: number;
+  protein: number;
+  sourceBatchId: string;
+}
+
 // ─── Plan proposal types (plan-proposer sub-agent output) ─────────────────────
 
 /**
@@ -127,9 +161,16 @@ export interface ProposedBatch {
   recipeSlug: string;
   recipeName: string;
   mealType: 'lunch' | 'dinner';
-  /** ISO dates this batch covers */
+  /** ISO dates this batch covers (in-horizon only — the solver sees these) */
   days: string[];
   servings: number;
+  /**
+   * Days past the horizon end that this batch extends into (Plan 007 cross-horizon).
+   * Used by the proposer to express cross-horizon extension intent.
+   * NOT visible to the solver — only stored on the persisted Batch.eatingDays.
+   * Defaults to [] so existing code constructing ProposedBatch without it keeps working.
+   */
+  overflowDays?: string[];
 }
 
 /**
