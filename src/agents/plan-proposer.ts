@@ -26,6 +26,7 @@ import type { Recipe, MealEvent, Macros, FlexSlot, PlanSession, Batch } from '..
 import type { PlanProposal, ProposedBatch, RecipeGap, PreCommittedSlot } from '../solver/types.js';
 import { config } from '../config.js';
 import { log } from '../debug/logger.js';
+import { restoreMealSlot, computeUnexplainedOrphans } from './plan-utils.js';
 
 // ─── Input/Output types ────────────────────────────────────────────────────────
 
@@ -154,6 +155,9 @@ export async function proposePlan(
       log.error('PLAN', `retry also returned wrong flex count (${proposal.flexSlots.length}). QA validator will surface orphan slots.`);
     }
   }
+
+  // Deterministic orphan fill (Plan 011): cover any slots the LLM missed.
+  fillOrphanSlots(proposal, input);
 
   return {
     proposal,
@@ -654,4 +658,51 @@ function mapToProposal(raw: Record<string, unknown>): PlanProposal {
   })) satisfies RecipeGap[];
 
   return { batches, flexSlots, recipesToGenerate };
+}
+
+// ─── Orphan fill (Plan 011) ───────────────────────────────────────────────────
+
+/**
+ * Deterministic post-processing: fill any meal slots the LLM forgot to cover.
+ *
+ * Computes the set of (day, mealType) pairs not covered by batches, flex slots,
+ * events, pre-committed slots, or pending recipe gaps. For each orphan:
+ * 1. Try restoreMealSlot — extends an adjacent batch if one exists with < 3 servings.
+ * 2. If that fails, emit a RecipeGap — routes through the gap-resolution flow.
+ *
+ * Mutates `proposal` in place (same pattern as the flex-count retry above).
+ */
+function fillOrphanSlots(
+  proposal: PlanProposal,
+  input: PlanProposerInput,
+): void {
+  const horizonDays = input.horizonDays ?? input.weekDays;
+  const orphans = computeUnexplainedOrphans(
+    proposal,
+    horizonDays,
+    input.events,
+    input.preCommittedSlots ?? [],
+  );
+
+  if (orphans.length === 0) return;
+
+  for (const { day, mealType } of orphans) {
+    const absorbed = restoreMealSlot(proposal, day, mealType);
+    if (absorbed) {
+      log.warn('PLAN', `orphan fill: ${day} ${mealType} → extended adjacent batch`);
+    } else {
+      // No adjacent batch can absorb — emit a RecipeGap for the gap-resolution flow.
+      const gap: RecipeGap = {
+        mealType,
+        days: [day],
+        servings: 1,
+        suggestion: `Fill uncovered ${mealType} slot.`,
+        reason: `Proposer left ${day} ${mealType} uncovered — no adjacent batch available to extend.`,
+      };
+      proposal.recipesToGenerate.push(gap);
+      log.warn('PLAN', `orphan fill: ${day} ${mealType} → recipe gap`);
+    }
+  }
+
+  log.debug('PLAN', `orphan fill complete: ${orphans.length} orphan(s) processed`);
 }

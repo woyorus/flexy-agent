@@ -142,6 +142,7 @@ Replace `<NAME>` with the scenario directory name. This catches the mechanical i
 ```
 test/
 ├── scenarios/
+│   ├── index.md              ← table of contents — read this first to understand existing coverage
 │   ├── 001-plan-week-happy-path/
 │   │   ├── spec.ts           ← agent-authored: events, initial state, clock
 │   │   └── recorded.json     ← generated: expected outputs + LLM fixtures
@@ -169,6 +170,8 @@ src/harness/
 ```
 
 ## Authoring a scenario
+
+**Before you start:** read `test/scenarios/index.md` to understand what each existing scenario tests. This prevents duplicate coverage and helps you pick the right scenario number.
 
 1. Create `test/scenarios/<NNN-short-name>/spec.ts`.
 2. Import `defineScenario` and event helpers from `../../../src/harness/define.js`.
@@ -200,7 +203,8 @@ export default defineScenario({
 4. Generate fixtures: `npm run test:generate -- 004-my-new-scenario`.
 5. Inspect `recorded.json` via `git diff` — confirm captured outputs look right.
 6. Run `npm test` — the new scenario should now pass.
-7. Commit `spec.ts` and `recorded.json` together.
+7. Update `test/scenarios/index.md` — add a row for the new scenario with a one-sentence description of what it tests.
+8. Commit `spec.ts`, `recorded.json`, and `index.md` together.
 
 ### Reply keyboards vs inline keyboards
 
@@ -227,6 +231,21 @@ Run the suggested command, review the diff, commit.
 If the spec is unchanged but the BEHAVIOR of `BotCore.dispatch` changed (new reply, different wording, modified solver output), the scenario fails with an assertion diff. Decide whether the new behavior is intentional:
 - Intentional → regenerate and commit the new recording.
 - Unintentional → fix the code.
+
+## Scenarios with manually edited fixtures
+
+Some scenarios require manual edits to `recorded.json` after generation to simulate LLM misbehavior (e.g., underfilling the week) that the real LLM won't reliably produce. These scenarios test defensive code paths that only fire on malformed LLM output.
+
+Convention: place a `fixture-edits.md` file in the scenario directory describing what to edit and why. The generator detects this file and prints a prominent warning after writing — the operator cannot miss it. The edit instructions are written so that an agent can re-apply them mechanically after any regeneration.
+
+Current scenarios with manual fixture edits:
+- **014-proposer-orphan-fill** — removes days from batches to create orphan slots that `fillOrphanSlots` must fix.
+
+Workflow for regenerating these scenarios:
+1. `npm run test:generate -- <name> --regenerate` (captures fresh LLM responses)
+2. Apply the edits described in `fixture-edits.md`
+3. `npm run test:generate -- <name> --regenerate` again (re-records expected outputs with the edited fixture)
+4. `npm test` to confirm
 
 ## Adding a new recipe fixture set
 

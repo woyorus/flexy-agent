@@ -39,7 +39,7 @@
  * LLM failure, etc.) so CI can eventually gate on this once it lands.
  */
 
-import { writeFile, stat, mkdir } from 'node:fs/promises';
+import { writeFile, readFile, stat, mkdir } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createBotCore, type BotCoreDeps, type HarnessUpdate } from '../telegram/core.js';
@@ -305,9 +305,25 @@ async function generateScenario(args: CliArgs): Promise<void> {
     console.log(`  input tokens:  ${inputTokens.toLocaleString()}`);
     console.log(`  output tokens: ${outputTokens.toLocaleString()}`);
     console.log(`  specHash:      ${recorded.specHash.slice(0, 12)}…`);
-    console.log(
-      '\nNext: review recorded.json via `git diff`, then commit if the transcript looks right.',
-    );
+    // Check for fixture-edits.md — scenarios with manually edited fixtures
+    // need the edits re-applied after every regeneration.
+    const fixtureEditsPath = join(dir, 'fixture-edits.md');
+    const hasFixtureEdits = await stat(fixtureEditsPath).catch(() => null);
+    if (hasFixtureEdits) {
+      const editsContent = await readFile(fixtureEditsPath, 'utf-8');
+      console.log('\n' + '='.repeat(70));
+      console.log('⚠⚠⚠  THIS SCENARIO HAS MANUAL FIXTURE EDITS  ⚠⚠⚠');
+      console.log('='.repeat(70));
+      console.log(`\nYou MUST apply the edits described in:\n  ${fixtureEditsPath}\n`);
+      console.log('Then re-run with --regenerate to capture the corrected outputs.');
+      console.log('Without these edits, the scenario will pass but NOT test what it should.\n');
+      console.log(editsContent);
+      console.log('='.repeat(70));
+    } else {
+      console.log(
+        '\nNext: review recorded.json via `git diff`, then commit if the transcript looks right.',
+      );
+    }
   } finally {
     clock.restore();
   }

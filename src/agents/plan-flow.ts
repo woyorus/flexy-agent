@@ -45,6 +45,7 @@ import { validateRecipe } from '../qa/validators/recipe.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import type { StateStoreLike } from '../state/store.js';
 import { v4 as uuid } from 'uuid';
+import { restoreMealSlot, computeUnexplainedOrphans } from './plan-utils.js';
 
 // ─── Flow state ─────────────────────────────────────────────────────────────────
 
@@ -490,6 +491,49 @@ export async function handleGenerateProposal(
   const validation = validatePlan(solverOutput, config.targets.weekly, preCommittedSlots);
   if (!validation.valid) {
     log.warn('QA', `plan validation warnings: ${validation.errors.join('; ')}`);
+  }
+
+  // Plan 011 — flow gate: never show a plan with unexplained orphan slots.
+  // The deterministic fill in the proposer should make this impossible, but
+  // as defense-in-depth we check and retry once if orphans survive.
+  const effectiveHorizon = state.horizonDays ?? state.weekDays;
+  let unexplained = computeUnexplainedOrphans(proposal, effectiveHorizon, state.events, preCommittedSlots);
+  if (unexplained.length > 0) {
+    log.warn('PLAN', `flow gate: ${unexplained.length} unexplained orphan(s) after proposer — retrying`);
+
+    // Silent retry: re-propose + re-solve
+    const { proposal: retryProposal } = await proposePlan(proposerInput, llm);
+    const retrySolverInput = buildSolverInput(state, retryProposal, recipes, preCommittedSlots);
+    const retrySolverOutput = solve(retrySolverInput);
+    retryProposal.solverOutput = retrySolverOutput;
+
+    unexplained = computeUnexplainedOrphans(retryProposal, effectiveHorizon, state.events, preCommittedSlots);
+    if (unexplained.length > 0) {
+      log.error('PLAN', `flow gate: ${unexplained.length} orphan(s) remain after retry — aborting`);
+      state.phase = 'context';
+      return {
+        text: "I couldn't build a complete plan for this week. Try again or adjust your recipe set.",
+        state,
+      };
+    }
+
+    // Retry succeeded — use the retried proposal
+    state.proposal = retryProposal;
+    if (preCommittedSlots.length > 0) {
+      state.preCommittedSlots = preCommittedSlots;
+    }
+
+    if (retryProposal.recipesToGenerate.length > 0) {
+      state.pendingGaps = [...retryProposal.recipesToGenerate];
+      state.activeGapIndex = 0;
+      return presentRecipeGap(state);
+    }
+
+    state.phase = 'proposal';
+    return {
+      text: formatPlanProposal(state),
+      state,
+    };
   }
 
   state.proposal = proposal;
@@ -1323,62 +1367,7 @@ function absorbFreedDay(
   return true;
 }
 
-/**
- * Try to restore a meal-prep slot by extending an adjacent batch.
- * Returns true if successful, false if a recipe gap is needed instead.
- *
- * Plan 007: if the day is past the horizon end, it goes into overflowDays
- * instead of days. The total serving count (days + overflowDays) must not
- * exceed 3. Forward extension past horizonEnd is allowed; backward extension
- * into a prior horizon is not (D27).
- */
-function restoreMealSlot(
-  proposal: PlanProposal,
-  day: string,
-  mealTime: 'lunch' | 'dinner',
-  horizonEnd?: string,
-): boolean {
-  const dayDate = new Date(day + 'T00:00:00');
-  const prevDay = new Date(dayDate);
-  prevDay.setDate(dayDate.getDate() - 1);
-  const nextDay = new Date(dayDate);
-  nextDay.setDate(dayDate.getDate() + 1);
-
-  const prevStr = toLocalISODate(prevDay);
-  const nextStr = toLocalISODate(nextDay);
-  const isOverflow = horizonEnd ? day > horizonEnd : false;
-
-  for (const batch of proposal.batches) {
-    if (batch.mealType !== mealTime) continue;
-    // Total servings = in-horizon days + overflow days
-    const totalServings = batch.days.length + (batch.overflowDays?.length ?? 0);
-    if (totalServings >= 3) continue; // don't exceed 3-serving max
-
-    // Check all days including overflow for adjacency
-    const allDays = [...batch.days, ...(batch.overflowDays ?? [])];
-    const lastDay = allDays[allDays.length - 1];
-    const firstDay = batch.days[0]; // backward extension uses in-horizon first day only
-
-    // Can extend forward: batch ends the day before
-    if (lastDay === prevStr) {
-      if (isOverflow) {
-        batch.overflowDays = [...(batch.overflowDays ?? []), day];
-      } else {
-        batch.days.push(day);
-      }
-      batch.servings = batch.days.length + (batch.overflowDays?.length ?? 0);
-      return true;
-    }
-    // Can extend backward: batch starts the day after (in-horizon only)
-    if (!isOverflow && firstDay === nextStr) {
-      batch.days.unshift(day);
-      batch.servings = batch.days.length + (batch.overflowDays?.length ?? 0);
-      return true;
-    }
-  }
-
-  return false;
-}
+// restoreMealSlot is now in plan-utils.ts (shared with plan-proposer)
 
 /**
  * Remove a day from a batch when a flex slot replaces it.
