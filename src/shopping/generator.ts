@@ -19,7 +19,7 @@
  */
 
 import type {
-  WeeklyPlan,
+  Batch,
   ShoppingList,
   ShoppingCategory,
   ShoppingItem,
@@ -37,31 +37,32 @@ const ROLE_TO_CATEGORY: Record<string, string> = {
 };
 
 /**
- * Generate a shopping list from a weekly plan.
+ * Generate a shopping list from batches and an optional breakfast recipe.
  *
- * @param plan - The confirmed weekly plan with populated batches
+ * Plan 007: accepts Batch[] directly instead of WeeklyPlan. The shopping list
+ * is derived from batches' scaledIngredients + breakfast recipe × 7.
+ *
+ * @param batches - Confirmed batches with populated scaledIngredients
  * @param breakfastRecipe - The locked breakfast recipe (if applicable).
  *                          Ingredients are multiplied by 7 for the week.
  * @returns A categorized shopping list
  */
 export function generateShoppingList(
-  plan: WeeklyPlan,
+  batches: Batch[],
   breakfastRecipe?: Recipe,
 ): ShoppingList {
   // Aggregate all ingredients
   const aggregated = new Map<string, { amount: number; unit: string; category: string }>();
 
   // Batch ingredients
-  for (const cookDay of plan.cookDays) {
-    for (const batch of cookDay.batches) {
-      for (const ing of batch.scaledIngredients) {
-        addIngredient(aggregated, ing.name, ing.totalForBatch, ing.unit, 'PANTRY');
-      }
+  for (const batch of batches) {
+    for (const ing of batch.scaledIngredients) {
+      addIngredient(aggregated, ing.name, ing.totalForBatch, ing.unit, 'PANTRY');
     }
   }
 
-  // Breakfast ingredients (×7 if locked)
-  if (plan.breakfast.locked && breakfastRecipe) {
+  // Breakfast ingredients (×7)
+  if (breakfastRecipe) {
     for (const ing of breakfastRecipe.ingredients) {
       const weeklyAmount = ing.amount * 7;
       const category = ROLE_TO_CATEGORY[ing.role] ?? 'PANTRY';
@@ -95,7 +96,7 @@ export function generateShoppingList(
 
   return {
     categories,
-    customItems: plan.customShoppingItems ?? [],
+    customItems: [],
   };
 }
 

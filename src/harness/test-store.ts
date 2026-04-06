@@ -23,31 +23,25 @@
  * behavioral assertions against known seed data.
  */
 
-import type { WeeklyPlan, PlanSession, DraftPlanSession, Batch } from '../models/types.js';
+import type { PlanSession, DraftPlanSession, Batch } from '../models/types.js';
 import type { SessionState } from '../state/machine.js';
 import type { StateStoreLike } from '../state/store.js';
 
 export interface TestStateStoreSeed {
-  /** Pre-existing plans. Order is irrelevant — queries sort. */
-  plans?: WeeklyPlan[];
   /** Pre-existing session slot. v0.0.1 has one session per single user. */
   session?: SessionState | null;
-  /** Plan 007: seed plan sessions for rolling-horizon scenarios. */
+  /** Plan sessions for rolling-horizon scenarios. */
   planSessions?: PlanSession[];
-  /** Plan 007: seed batches for rolling-horizon scenarios. */
+  /** Batches for rolling-horizon scenarios. */
   batches?: Batch[];
 }
 
 export interface TestStateStoreSnapshot {
-  /** Every plan the store currently holds, in insertion order (stable). */
-  plans: WeeklyPlan[];
-  /** Result of `getCurrentPlan()` at the moment of snapshot. */
-  currentPlan: WeeklyPlan | null;
   /** Current session slot, or null if never written. */
   session: SessionState | null;
-  /** Plan 007: all plan sessions in insertion order. */
+  /** All plan sessions in insertion order. */
   planSessions: PlanSession[];
-  /** Plan 007: all batches in insertion order. */
+  /** All batches in insertion order. */
   batches: Batch[];
 }
 
@@ -56,23 +50,13 @@ export interface TestStateStoreSnapshot {
  * makes TypeScript enforce signature parity with production.
  */
 export class TestStateStore implements StateStoreLike {
-  /** Keyed by plan.id so `savePlan` can upsert; iteration order = insertion order. */
-  private readonly plansById: Map<string, WeeklyPlan>;
   private session: SessionState | null;
-  /** Plan 007: keyed by session.id */
   private readonly planSessionsById: Map<string, PlanSession>;
-  /** Plan 007: keyed by batch.id */
   private readonly batchesById: Map<string, Batch>;
   /** Injected "today" for temporal queries. Defaults to real today if not set. */
   private todayOverride: string | null = null;
 
   constructor(seed: TestStateStoreSeed = {}) {
-    this.plansById = new Map();
-    if (seed.plans) {
-      for (const plan of seed.plans) {
-        this.plansById.set(plan.id, cloneDeep(plan));
-      }
-    }
     this.session = seed.session ? cloneDeep(seed.session) : null;
     this.planSessionsById = new Map();
     if (seed.planSessions) {
@@ -97,78 +81,7 @@ export class TestStateStore implements StateStoreLike {
     return this.todayOverride ?? new Date().toISOString().slice(0, 10);
   }
 
-  // ─── Mutations ─────────────────────────────────────────────────────────
-
-  /**
-   * Upsert a plan by id. Deep-clones the incoming object so the harness
-   * owns an isolated copy — the caller is free to keep mutating the
-   * original without affecting stored state, matching Supabase's
-   * copy-on-insert semantics.
-   *
-   * Mirrors `StateStore.savePlan` at `src/state/store.ts:38-51`.
-   */
-  async savePlan(plan: WeeklyPlan): Promise<void> {
-    this.plansById.set(plan.id, cloneDeep(plan));
-  }
-
-  /**
-   * Flip every plan with `status === 'active'` to `'completed'`.
-   * Mirrors `StateStore.completeActivePlans` at `src/state/store.ts:124-134`.
-   *
-   * Note: production only flips `'active'` (not `'planning'`); this class
-   * must match that exactly so scenarios with an in-progress plan during
-   * approval see the same semantics they'd see in prod.
-   */
-  async completeActivePlans(): Promise<void> {
-    for (const plan of this.plansById.values()) {
-      if (plan.status === 'active') {
-        plan.status = 'completed';
-        plan.updatedAt = new Date().toISOString();
-      }
-    }
-  }
-
-  // ─── Queries ───────────────────────────────────────────────────────────
-
-  /**
-   * Most recent plan with `status in ['active', 'planning']` by `weekStart`
-   * descending. Mirrors `StateStore.getCurrentPlan` at
-   * `src/state/store.ts:70-82` — note the dual-status filter, NOT just
-   * `'active'`. A test store that only tracked `'active'` would diverge on
-   * any scenario involving an in-progress plan.
-   */
-  async getCurrentPlan(): Promise<WeeklyPlan | null> {
-    const candidates = [...this.plansById.values()].filter(
-      (p) => p.status === 'active' || p.status === 'planning',
-    );
-    if (candidates.length === 0) return null;
-    candidates.sort((a, b) => (a.weekStart < b.weekStart ? 1 : a.weekStart > b.weekStart ? -1 : 0));
-    return cloneDeep(candidates[0]!);
-  }
-
-  /**
-   * Most recent `status === 'completed'` plan by `weekStart` descending.
-   * Mirrors `StateStore.getLastCompletedPlan` at `src/state/store.ts:87-99`.
-   */
-  async getLastCompletedPlan(): Promise<WeeklyPlan | null> {
-    const candidates = [...this.plansById.values()].filter((p) => p.status === 'completed');
-    if (candidates.length === 0) return null;
-    candidates.sort((a, b) => (a.weekStart < b.weekStart ? 1 : a.weekStart > b.weekStart ? -1 : 0));
-    return cloneDeep(candidates[0]!);
-  }
-
-  /**
-   * Up to `limit` most recent completed plans, `weekStart` descending.
-   * Mirrors `StateStore.getRecentCompletedPlans` at
-   * `src/state/store.ts:107-118`. Default limit matches production (2).
-   */
-  async getRecentCompletedPlans(limit: number = 2): Promise<WeeklyPlan[]> {
-    const candidates = [...this.plansById.values()].filter((p) => p.status === 'completed');
-    candidates.sort((a, b) => (a.weekStart < b.weekStart ? 1 : a.weekStart > b.weekStart ? -1 : 0));
-    return candidates.slice(0, limit).map(cloneDeep);
-  }
-
-  // ─── Plan 007: Rolling-horizon methods ──────────────────────────────────
+  // ─── Plan sessions and batches ──────────────────────────────────────────
 
   /**
    * Confirm a fresh draft. Two-step in-memory sequence matching
@@ -336,16 +249,7 @@ export class TestStateStore implements StateStoreLike {
    * the snapshot match production query behavior exactly.
    */
   snapshot(): TestStateStoreSnapshot {
-    const allPlans = [...this.plansById.values()].map(cloneDeep);
-    const currentCandidates = [...this.plansById.values()].filter(
-      (p) => p.status === 'active' || p.status === 'planning',
-    );
-    currentCandidates.sort((a, b) =>
-      a.weekStart < b.weekStart ? 1 : a.weekStart > b.weekStart ? -1 : 0,
-    );
     return {
-      plans: allPlans,
-      currentPlan: currentCandidates[0] ? cloneDeep(currentCandidates[0]) : null,
       session: this.session ? cloneDeep(this.session) : null,
       planSessions: [...this.planSessionsById.values()].map(cloneDeep),
       batches: [...this.batchesById.values()].map(cloneDeep),

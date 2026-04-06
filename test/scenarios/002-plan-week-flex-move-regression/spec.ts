@@ -49,7 +49,6 @@ export default defineScenario({
   clock: '2026-04-05T10:00:00Z',
   recipeSet: 'six-balanced',
   initialState: {
-    plans: [],
     session: null,
   },
   events: [

@@ -14,7 +14,7 @@
  *     `deepStrictEqual` can compare runs against recordings.
  */
 
-import type { WeeklyPlan, PlanSession, Batch } from '../models/types.js';
+import type { PlanSession, Batch } from '../models/types.js';
 import type { SessionState } from '../state/machine.js';
 import type { LLMFixture } from '../ai/fixture.js';
 
@@ -40,13 +40,11 @@ export type ScenarioEvent =
  * to import from `harness/test-store.ts` just to type their initial state.
  */
 export interface ScenarioInitialState {
-  /** Pre-existing plans. Empty or omitted = fresh user. */
-  plans?: WeeklyPlan[];
   /** Pre-existing session slot. Null = no active session. */
   session?: SessionState | null;
-  /** Plan 007: seed plan sessions for rolling-horizon scenarios. */
+  /** Seed plan sessions for rolling-horizon scenarios. */
   planSessions?: PlanSession[];
-  /** Plan 007: seed batches for rolling-horizon scenarios. */
+  /** Seed batches for rolling-horizon scenarios. */
   batches?: Batch[];
 }
 

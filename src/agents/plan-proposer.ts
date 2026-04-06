@@ -23,7 +23,6 @@
 
 import type { LLMProvider } from '../ai/provider.js';
 import type { Recipe, MealEvent, Macros, FlexSlot, PlanSession, Batch } from '../models/types.js';
-import type { WeeklyPlan } from '../models/types.js';
 import type { PlanProposal, ProposedBatch, RecipeGap, PreCommittedSlot } from '../solver/types.js';
 import { config } from '../config.js';
 import { log } from '../debug/logger.js';
@@ -550,38 +549,7 @@ function extractProteinSource(recipe: Recipe): string {
   return 'unknown';
 }
 
-/**
- * Build recent plan summaries from WeeklyPlan objects (legacy path).
- * Extracts recipe slugs, cuisines used, and protein sources for the variety engine.
- */
-export function buildRecentPlanSummaries(
-  plans: WeeklyPlan[],
-  recipeDb: { getBySlug: (slug: string) => Recipe | undefined },
-): RecentPlanSummary[] {
-  return plans.map((plan) => {
-    const slugs = plan.cookDays
-      .flatMap((cd) => cd.batches.map((b) => b.recipeSlug))
-      .filter(Boolean);
 
-    const cuisines = new Set<string>();
-    const proteinSources = new Set<string>();
-
-    for (const slug of slugs) {
-      const recipe = recipeDb.getBySlug(slug);
-      if (recipe) {
-        cuisines.add(recipe.cuisine.toLowerCase());
-        proteinSources.add(extractProteinSource(recipe));
-      }
-    }
-
-    return {
-      weekStart: plan.weekStart,
-      recipeSlugs: slugs,
-      cuisines: Array.from(cuisines),
-      proteinSources: Array.from(proteinSources),
-    };
-  });
-}
 
 /**
  * Build recent plan summaries from PlanSession[] + batches (Plan 007 rolling path).

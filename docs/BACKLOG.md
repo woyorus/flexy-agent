@@ -44,14 +44,19 @@
 
 ## Roadmap
 
-### v0.0.4 — Production-ready for personal use (target: 2026-04-05)
+### v0.0.4 — Production-ready for personal use (target: 2026-04-06)
 
-The minimum required to start using the product daily from Monday. Focus: reliability, not new intelligence.
+The minimum required to start using the product daily from Monday 2026-04-06. Focus: the one UI surface needed to actually cook from the plan. Everything else is deferred — we find out what's broken by using it.
 
-- **Daily plan view with scaled recipes**: A "what do I cook today" view — shows today's meals from the weekly plan with recipes already scaled to that day's targets. The recipe library stays as-is (original unscaled templates). The plan provides the context: when you open a recipe from your daily plan, you see the scaled version (adjusted quantities, macros, calories). Exact UX to be designed when we build it — needs to feel natural for the "I'm in the kitchen, what do I cook" moment.
-- **Shopping list overhaul**: Current implementation is bare-bones. Needs proper ingredient aggregation, unit handling, and a clean Telegram UI for use at the store.
-- **Daily measurements**: Body weight and waist circumference tracking via Telegram. Store daily entries, display rolling averages to track progress over time.
-- **Bug fixes / stability**: No major bugs on Monday. Polish rough edges found during weekend testing.
+- **Plan view with scaled recipes**: The backend is mostly done — the solver produces a valid weekly plan and scaling logic exists. What's missing is the UI to *see* it. Need an overall view of the current week's plan where every meal's recipe is already scaled to its day's targets (quantities, macros, calories). The recipe library stays as-is (original unscaled templates); scaling is applied when reading from the plan. Open question: daily-first vs week-first framing — is it "what do I cook today" (drill into one day) or "here's the whole week, tap any meal"? Don't lock the name "daily plan view" in yet. This is the only real UX work left in v0.0.4 — the rest of the sprint has been backend. Design the shape when we build it tonight.
+- **Known broken: shopping list button**: The current shopping list implementation is bare-bones and not usable at the store. For v0.0.4 we accept this as a known gap — the button is either disabled or clearly labeled as not yet working. With the plan view showing scaled recipes, the user can derive shopping from the week manually until the proper overhaul lands (v0.0.6).
+- **Recipe parser/database unit tests (landed)**: Round-trip (parse → serialize → parse across all fixture recipes), malformed-file resilience (bad file in the directory must not kill `load()`), save/load/remove/overwrite against a real temp directory. Targeted at the data-loss class of silent failure on Monday morning. See `test/unit/recipes-parser.test.ts` and `test/unit/recipes-database.test.ts`.
+
+**Explicitly not in v0.0.4 (found scope, cut on 2026-04-05 night):**
+
+- *Bug fixes / stability as a planned bucket* — we don't know what's broken yet. Real-life use starts Monday; bugs get triaged as they surface, not pre-allocated.
+- *Daily measurements (weight/waist tracking)* — important for progress tracking but not blocking daily cooking. No time tonight, and v0.0.5 is already packed with tracking/adjustment work. Moved to v0.0.6.
+- *Shopping list overhaul* — same reason: no time, and the plan view covers the "I need to know what to buy" job manually. Moved to v0.0.6.
 
 ### v0.0.5 — Tracking, adjustment, and natural conversation
 
@@ -94,10 +99,16 @@ The system becomes dynamic and conversational. User reports what happened, agent
   - Should simple intents ALSO delegate to the proposer (for invariant consolidation), or keep mutating directly (for speed)?
   - What does a "constraint delta" look like as a prompt input to the proposer? (e.g., `currentPlan + "the flex slot must be on Saturday dinner"`)
   - How do we handle retry/rejection when the slow-path proposer returns an invalid plan?
-- **Test coverage for critical paths**: Unit tests for budget solver, recipe scaling, and shopping list aggregation. The deterministic core must not break silently.
+- **Test coverage expansion**: The v0.0.4 weekend sprint landed recipe parser/database tests. v0.0.5 fills the remaining scenario and unit gaps surfaced by the QA audit on 2026-04-05 — scheduled here because tracking, running-budget, and the fast/slow path refactor all exercise this code fresh, so tests written now cover old + new behavior in one pass:
+  - **Solver + plan validator unit tests**: Direct coverage for `src/solver/solver.ts` (boundary cases: low-budget clamping, flex/event precedence, protein protection, cook-day ordering) and `src/qa/validators/plan.ts` (hard checks: orphan slots, calorie-cap breaches, missing batch references). Today they're only exercised indirectly through recorded scenarios, which is weak for boundary cases.
+  - **Recipe scaling + shopping list unit tests**: The remaining deterministic cores mentioned in the v0.0.3 backlog carry-over — must not break silently when the scaler or list aggregator is touched.
+  - **Recipe flow scenarios**: Scenario coverage for create / refine / ask-a-question / save / discard / edit-existing. This is the largest user-facing scenario gap but was deliberately deferred from v0.0.4 — batch it with the fast/slow path refactor in this version since both touch recipe-adjacent code paths.
+  - **Voice smoke-test scenario**: One scenario exercising voice → transcription → routing into a flow (the harness supports `voice()` events but no scenario uses it). Covers the main voice path without needing to fake the adapter-level audio download.
 
 ### v0.0.6 — Polish and proactivity
 
+- **Shopping list overhaul**: Proper ingredient aggregation, unit handling, and a clean Telegram UI for use at the store. Deferred from v0.0.4 — the plan view lets the user derive shopping manually until this lands, so it's a quality-of-life upgrade rather than a blocker.
+- **Daily measurements**: Body weight and waist circumference tracking via Telegram. Store daily entries, display rolling averages to track progress over time. Deferred from v0.0.4 (no time in the weekend sprint) and skipped in v0.0.5 (already packed with tracking/adjustment work). Fits naturally alongside week-end review since both are about reflecting on what actually happened.
 - **Messaging overhaul**: Rework the product's communication style and voice across all flows.
   - Clear stance on treats: hyper-palatable and ultra-processed foods trigger addictive behavior and compulsiveness. The product should be opinionated about this, not neutral.
   - Product usage guide: in-bot instructions on how to use the system (planning rhythm, what to expect, how measurements work).
@@ -120,4 +131,5 @@ The system becomes dynamic and conversational. User reports what happened, agent
 - **User preferences**: Stored dietary/cuisine/ingredient preferences.
 - **Multi-user state**: Supabase schema supports multiple users.
 - **Persistent session state**: Flow state (`planFlow`, `recipeFlow` in `src/telegram/bot.ts`) currently lives in-memory — a bot restart silently drops any in-progress conversation, so pressing a button on a pre-restart message does nothing. For multi-user we need state to survive restarts. MVP approach: serialize per-chat flow state to a flat file on disk (JSON per chat), rehydrate on startup. No Redis, no schema migrations — just enough to not lose in-flight sessions.
+- **Supabase persistence parity tests**: Direct coverage for `src/state/store.ts` query shape, upsert semantics, and `completeActivePlans()` error handling. Deferred until multi-user because a single-user tool pointed at one Supabase project doesn't earn the cost of a test DB or heavy mock infrastructure — but as soon as multiple users share the schema, adapter-level bugs become silent cross-user corruption and this becomes load-bearing. `test/unit/test-store.test.ts` explicitly tests the in-memory double, not parity against the real class.
 - **Alternative UI**: Web UI or app if needed.

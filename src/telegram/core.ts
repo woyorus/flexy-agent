@@ -604,11 +604,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           if (fallbackSession) {
             breakfastSource = fallbackSession.breakfast;
           } else {
-            // Also try legacy plans during strangler-fig window
-            const lastPlan = (await store.getCurrentPlan()) ?? (await store.getLastCompletedPlan());
-            if (lastPlan?.breakfast) {
-              breakfastSource = lastPlan.breakfast;
-            }
+            // No session found — breakfast comes from DB default below
           }
         }
 

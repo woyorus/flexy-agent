@@ -101,53 +101,9 @@ export interface RecipeStorage {
   reheat: string;
 }
 
-// ─── Weekly Plan (Supabase) ──────────────────────────────────────────────────
-
-/**
- * The central data structure for a week of meals.
- * Created during the planning session, persisted in Supabase.
- */
-export interface WeeklyPlan {
-  id: string;
-  /** ISO date string, user chooses start day */
-  weekStart: string;
-  status: 'planning' | 'active' | 'completed';
-
-  targets: Macros;
-
-  /**
-   * The flex budget has two independent allocations:
-   * - Treat budget: protected 5% of weekly calories, spent freely on snacks/desserts
-   * - Flex slots: planned meals with a calorie bonus (eat something fun)
-   * Treats are NOT a remainder — they're reserved upfront before sizing meals.
-   */
-  flexBudget: {
-    /** Protected treat budget — 5% of weekly calories (config.targets.treatBudgetPercent) */
-    treatBudget: number;
-    /** Sum of flex slot bonuses */
-    flexSlotCalories: number;
-    /** The flex slots themselves */
-    flexSlots: FlexSlot[];
-  };
-
-  breakfast: {
-    /** true = same recipe every day (v0.0.1 default) */
-    locked: boolean;
-    recipeSlug: string;
-    caloriesPerDay: number;
-    proteinPerDay: number;
-  };
-
-  events: MealEvent[];
-  cookDays: CookDay[];
-  mealSlots: MealSlot[];
-
-  /** User-added non-food items for the shopping list */
-  customShoppingItems: string[];
-
-  createdAt: string;
-  updatedAt: string;
-}
+// ─── Legacy types (deleted in Plan 007 Phase 7b) ────────────────────────────
+// WeeklyPlan, CookDay, LegacyBatch, MealSlot — all removed.
+// FunFoodItem retained for machine.ts PlanningData.
 
 export interface FunFoodItem {
   name: string;
@@ -187,49 +143,12 @@ export interface MealEvent {
   notes?: string;
 }
 
-export interface CookDay {
-  /** ISO date */
-  day: string;
-  batches: LegacyBatch[];
-}
-
-/**
- * LEGACY — renamed from Batch during Plan 007 strangler-fig (Phase 1).
- * Used by WeeklyPlan.cookDays[].batches. Will be deleted in Phase 7b
- * once all call sites migrate to the new first-class Batch type.
- */
-export interface LegacyBatch {
-  id: string;
-  recipeSlug: string;
-  mealType: 'lunch' | 'dinner';
-  servings: number;
-  targetPerServing: Macros;
-  actualPerServing: MacrosWithFatCarbs;
-  scaledIngredients: ScaledIngredient[];
-}
-
 export interface ScaledIngredient {
   name: string;
   amount: number;
   unit: string;
   /** amount × servings — for the shopping list */
   totalForBatch: number;
-}
-
-export interface MealSlot {
-  id: string;
-  /** ISO date */
-  day: string;
-  mealTime: 'breakfast' | 'lunch' | 'dinner';
-  source: 'fresh' | 'meal-prep' | 'restaurant' | 'flex' | 'skipped';
-  /** Set when source is 'meal-prep' */
-  batchId?: string;
-  /** Set when source is 'restaurant' */
-  eventId?: string;
-  /** If this is a flex slot, the bonus calories from the fun food pool */
-  flexBonus?: number;
-  plannedCalories: number;
-  plannedProtein: number;
 }
 
 // ─── Plan Session + First-class Batch (Plan 007: rolling horizon model) ─────

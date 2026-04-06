@@ -101,8 +101,9 @@ export async function runScenario(
 
     // In-memory store seeded from the spec's initial state.
     const store = new TestStateStore({
-      plans: spec.initialState.plans,
       session: spec.initialState.session ?? null,
+      planSessions: spec.initialState.planSessions,
+      batches: spec.initialState.batches,
     });
 
     const deps: BotCoreDeps = { llm, recipes, store };

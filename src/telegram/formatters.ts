@@ -8,7 +8,7 @@
  * messages — that's the bot handler's job.
  */
 
-import type { WeeklyPlan, ShoppingList, Recipe } from '../models/types.js';
+import type { ShoppingList, Recipe } from '../models/types.js';
 import type { SolverOutput, DailyBreakdown } from '../solver/types.js';
 
 /**

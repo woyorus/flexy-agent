@@ -14,7 +14,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../config.js';
-import type { WeeklyPlan, PlanSession, DraftPlanSession, Batch } from '../models/types.js';
+import type { PlanSession, DraftPlanSession, Batch } from '../models/types.js';
 import type { SessionState } from './machine.js';
 import { log } from '../debug/logger.js';
 
@@ -42,33 +42,7 @@ const SINGLE_USER_ID = 'default';
  * `getPlan`) are intentionally omitted to keep the contract minimal.
  */
 export interface StateStoreLike {
-  /** Upsert a weekly plan, keyed by plan id. */
-  savePlan(plan: WeeklyPlan): Promise<void>;
-  /**
-   * Return the most recent plan with `status in ['active', 'planning']`,
-   * ordered by `weekStart` descending. A user currently editing a plan and a
-   * prior active plan are both included so an in-progress plan is never
-   * shadowed by the previous one.
-   */
-  getCurrentPlan(): Promise<WeeklyPlan | null>;
-  /**
-   * Return the most recent plan with `status = 'completed'`, used for
-   * "last week's breakfast" fallback on the plan-week entry.
-   */
-  getLastCompletedPlan(): Promise<WeeklyPlan | null>;
-  /**
-   * Return up to `limit` completed plans ordered by `weekStart` descending.
-   * Used by the plan-proposer for variety context.
-   */
-  getRecentCompletedPlans(limit?: number): Promise<WeeklyPlan[]>;
-  /**
-   * Flip every plan currently at `status = 'active'` to `'completed'`.
-   * Called immediately before persisting a newly-approved plan so the week
-   * transition is atomic from the user's point of view.
-   */
-  completeActivePlans(): Promise<void>;
-
-  // ─── Plan 007: rolling-horizon surface (strangler-fig — coexists with legacy) ───
+  // ─── Plan 007: rolling-horizon surface ───
 
   /**
    * Confirm a fresh draft. Two sequential writes:
@@ -132,110 +106,7 @@ export class StateStore implements StateStoreLike {
     this.client = createClient(config.supabase.url, config.supabase.anonKey);
   }
 
-  // ─── Weekly Plans ────────────────────────────────────────────────────────
-
-  /**
-   * Save a weekly plan. Upserts by plan ID.
-   */
-  async savePlan(plan: WeeklyPlan): Promise<void> {
-    const { error } = await this.client
-      .from('weekly_plans')
-      .upsert({
-        id: plan.id,
-        user_id: SINGLE_USER_ID,
-        week_start: plan.weekStart,
-        status: plan.status,
-        data: plan,
-        updated_at: new Date().toISOString(),
-      });
-
-    if (error) throw new Error(`Failed to save plan: ${error.message}`);
-  }
-
-  /**
-   * Get a weekly plan by ID.
-   */
-  async getPlan(planId: string): Promise<WeeklyPlan | null> {
-    const { data, error } = await this.client
-      .from('weekly_plans')
-      .select('data')
-      .eq('id', planId)
-      .single();
-
-    if (error) return null;
-    return data?.data as WeeklyPlan;
-  }
-
-  /**
-   * Get the most recent active or planning-status plan.
-   */
-  async getCurrentPlan(): Promise<WeeklyPlan | null> {
-    const { data, error } = await this.client
-      .from('weekly_plans')
-      .select('data')
-      .eq('user_id', SINGLE_USER_ID)
-      .in('status', ['active', 'planning'])
-      .order('week_start', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error) return null;
-    return data?.data as WeeklyPlan;
-  }
-
-  /**
-   * Get the most recently completed plan (for "last week" references).
-   */
-  async getLastCompletedPlan(): Promise<WeeklyPlan | null> {
-    const { data, error } = await this.client
-      .from('weekly_plans')
-      .select('data')
-      .eq('user_id', SINGLE_USER_ID)
-      .eq('status', 'completed')
-      .order('week_start', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error) return null;
-    return data?.data as WeeklyPlan;
-  }
-
-  /**
-   * Get the last N completed plans for variety context.
-   * Used by the plan-proposer to avoid recipe repeats and rotate cuisines/protein sources.
-   *
-   * @param limit - How many recent plans to return (default 2)
-   */
-  async getRecentCompletedPlans(limit: number = 2): Promise<WeeklyPlan[]> {
-    const { data, error } = await this.client
-      .from('weekly_plans')
-      .select('data')
-      .eq('user_id', SINGLE_USER_ID)
-      .eq('status', 'completed')
-      .order('week_start', { ascending: false })
-      .limit(limit);
-
-    if (error || !data) return [];
-    return data.map((row: Record<string, unknown>) => row.data as WeeklyPlan);
-  }
-
-  /**
-   * Transition all active plans to completed.
-   * Called when a new plan is approved — the previous week's plan is done.
-   */
-  async completeActivePlans(): Promise<void> {
-    const { error } = await this.client
-      .from('weekly_plans')
-      .update({ status: 'completed', updated_at: new Date().toISOString() })
-      .eq('user_id', SINGLE_USER_ID)
-      .eq('status', 'active');
-
-    if (error) {
-      // Non-fatal — log but don't block the new plan
-    }
-  }
-
-  // ─── Plan 007: Rolling-horizon persistence ──────────────────────────────
+  // ─── Plan sessions and batches ───────────────────────────────────────────
 
   async confirmPlanSession(
     session: DraftPlanSession,

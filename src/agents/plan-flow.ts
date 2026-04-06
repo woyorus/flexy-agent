@@ -19,7 +19,7 @@
  */
 
 import type { LLMProvider, ChatMessage } from '../ai/provider.js';
-import type { Recipe, MealEvent, FlexSlot, WeeklyPlan, LegacyBatch, MealSlot, CookDay, ScaledIngredient, DraftPlanSession } from '../models/types.js';
+import type { Recipe, MealEvent, FlexSlot, ScaledIngredient, DraftPlanSession } from '../models/types.js';
 import { scaleRecipe } from './recipe-scaler.js';
 import type { PlanProposal, ProposedBatch, RecipeGap, SolverInput, PreCommittedSlot } from '../solver/types.js';
 import { config } from '../config.js';
@@ -29,7 +29,6 @@ import { validatePlan } from '../qa/validators/plan.js';
 import {
   proposePlan,
   buildRecipeSummaries,
-  buildRecentPlanSummaries,
   buildRecentPlanSummariesFromSessions,
   getWeekDays,
   toLocalISODate,
@@ -454,19 +453,13 @@ export async function handleGenerateProposal(
   // Build context for the proposer
   const availableRecipes = buildRecipeSummaries(recipes.getAll());
 
-  // Variety engine: use rolling-path sessions if available, else legacy plans
-  let recentSummaries;
-  if (state.horizonDays) {
-    const recentSessions = await store.getRecentPlanSessions(2);
-    const batchesBySession = new Map<string, NewBatch[]>();
-    for (const s of recentSessions) {
-      batchesBySession.set(s.id, await store.getBatchesByPlanSessionId(s.id));
-    }
-    recentSummaries = buildRecentPlanSummariesFromSessions(recentSessions, batchesBySession, recipes);
-  } else {
-    const recentPlans = await store.getRecentCompletedPlans(2);
-    recentSummaries = buildRecentPlanSummaries(recentPlans, recipes);
+  // Variety engine: load recent sessions for recipe history
+  const recentSessions = await store.getRecentPlanSessions(2);
+  const batchesBySession = new Map<string, NewBatch[]>();
+  for (const s of recentSessions) {
+    batchesBySession.set(s.id, await store.getBatchesByPlanSessionId(s.id));
   }
+  const recentSummaries = buildRecentPlanSummariesFromSessions(recentSessions, batchesBySession, recipes);
 
   const proposerInput: PlanProposerInput = {
     weekStart: state.weekStart,
@@ -664,13 +657,17 @@ export async function handleApprove(
     return { text: 'No plan to approve. Something went wrong.', state };
   }
 
-  // Persistence: legacy WeeklyPlan path (will be replaced in Phase 7)
-  await store.completeActivePlans();
-  const plan = await buildWeeklyPlan(state, recipes, llm);
-  await store.savePlan(plan);
+  // Plan 007: persist as PlanSession + Batch[] (rolling model)
+  const { session, batches } = await buildNewPlanSession(state, recipes, llm);
+  if (state.replacingSessionId) {
+    await store.confirmPlanSessionReplacing(session, batches, state.replacingSessionId);
+    log.info('PLAN-FLOW', `plan confirmed (replacing ${state.replacingSessionId}): session ${session.id} for ${session.horizonStart}`);
+  } else {
+    await store.confirmPlanSession(session, batches);
+    log.info('PLAN-FLOW', `plan confirmed: session ${session.id} for ${session.horizonStart}`);
+  }
 
   state.phase = 'confirmed';
-  log.info('PLAN-FLOW', `plan confirmed and saved: ${plan.id} for week ${plan.weekStart}`);
 
   return {
     text: `Plan locked for ${formatDayShort(state.weekStart)} – ${formatDayShort(state.weekDays[6]!)}. Shopping list ready.`,
@@ -1254,133 +1251,6 @@ async function buildNewPlanSession(
   }
 
   return { session, batches };
-}
-
-/**
- * Build a WeeklyPlan from the confirmed proposal for persistence.
- * Scales each recipe to its solver-assigned calorie target via the recipe scaler.
- */
-async function buildWeeklyPlan(
-  state: PlanFlowState,
-  recipeDb: RecipeDatabase,
-  llm: LLMProvider,
-): Promise<WeeklyPlan> {
-  const proposal = state.proposal!;
-  const solver = proposal.solverOutput!;
-
-  const planId = uuid();
-
-  // Build cook days from solver's cooking schedule, scaling each recipe
-  const cookDays: CookDay[] = [];
-  for (const cs of solver.cookingSchedule) {
-    const batches: LegacyBatch[] = [];
-    for (const batchId of cs.batchIds) {
-      const target = solver.batchTargets.find((b) => b.id === batchId)!;
-      const recipe = target.recipeSlug ? recipeDb.getBySlug(target.recipeSlug) : undefined;
-
-      let actualPerServing = { calories: 0, protein: 0, fat: 0, carbs: 0 };
-      let scaledIngredients: ScaledIngredient[] = [];
-
-      if (recipe) {
-        try {
-          const scaled = await scaleRecipe({
-            recipe,
-            targetCalories: target.targetPerServing.calories,
-            calorieTolerance: config.planning.scalerCalorieTolerance,
-            targetProtein: target.targetPerServing.protein,
-            servings: target.servings,
-          }, llm);
-          actualPerServing = scaled.actualPerServing;
-          scaledIngredients = scaled.scaledIngredients;
-          log.debug('PLAN-FLOW', `scaled ${recipe.slug}: ${recipe.perServing.calories} → ${scaled.actualPerServing.calories} cal`);
-        } catch (err) {
-          log.warn('PLAN-FLOW', `scaler failed for ${recipe.slug}, using unscaled ingredients: ${err}`);
-          actualPerServing = recipe.perServing;
-          scaledIngredients = recipe.ingredients.map((ing) => ({
-            name: ing.name,
-            amount: ing.amount,
-            unit: ing.unit,
-            totalForBatch: ing.amount * target.servings,
-          }));
-        }
-      }
-
-      batches.push({
-        id: batchId,
-        recipeSlug: target.recipeSlug ?? '',
-        mealType: target.mealType,
-        servings: target.servings,
-        targetPerServing: target.targetPerServing,
-        actualPerServing,
-        scaledIngredients,
-      });
-    }
-    cookDays.push({ day: cs.day, batches });
-  }
-
-  // Build meal slots from daily breakdown
-  const mealSlots: MealSlot[] = [];
-  for (const day of solver.dailyBreakdown) {
-    // Breakfast
-    mealSlots.push({
-      id: uuid(),
-      day: day.day,
-      mealTime: 'breakfast',
-      source: 'fresh',
-      plannedCalories: day.breakfast.calories,
-      plannedProtein: day.breakfast.protein,
-    });
-
-    // Lunch
-    const lunchEvent = day.events.find((e) => e.mealTime === 'lunch');
-    mealSlots.push({
-      id: uuid(),
-      day: day.day,
-      mealTime: 'lunch',
-      source: lunchEvent ? 'restaurant' : day.lunch.flexBonus ? 'flex' : day.lunch.batchId ? 'meal-prep' : 'skipped',
-      batchId: day.lunch.batchId,
-      flexBonus: day.lunch.flexBonus,
-      plannedCalories: day.lunch.calories,
-      plannedProtein: day.lunch.protein,
-    });
-
-    // Dinner
-    const dinnerEvent = day.events.find((e) => e.mealTime === 'dinner');
-    mealSlots.push({
-      id: uuid(),
-      day: day.day,
-      mealTime: 'dinner',
-      source: dinnerEvent ? 'restaurant' : day.dinner.flexBonus ? 'flex' : day.dinner.batchId ? 'meal-prep' : 'skipped',
-      batchId: day.dinner.batchId,
-      flexBonus: day.dinner.flexBonus,
-      plannedCalories: day.dinner.calories,
-      plannedProtein: day.dinner.protein,
-    });
-  }
-
-  return {
-    id: planId,
-    weekStart: state.weekStart,
-    status: 'active',
-    targets: config.targets.weekly,
-    flexBudget: {
-      treatBudget: solver.weeklyTotals.treatBudget,
-      flexSlotCalories: solver.weeklyTotals.flexSlotCalories,
-      flexSlots: proposal.flexSlots,
-    },
-    breakfast: {
-      locked: true,
-      recipeSlug: state.breakfast.recipeSlug,
-      caloriesPerDay: state.breakfast.caloriesPerDay,
-      proteinPerDay: state.breakfast.proteinPerDay,
-    },
-    events: state.events,
-    cookDays,
-    mealSlots,
-    customShoppingItems: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
 }
 
 // ─── Swap classification ────────────────────────────────────────────────────────
