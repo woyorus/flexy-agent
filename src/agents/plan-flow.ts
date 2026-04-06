@@ -84,6 +84,19 @@ export interface PlanFlowState {
   recipeGenMessages?: ChatMessage[];
   /** Recipe being reviewed within the flow (for gap resolution) */
   currentRecipe?: Recipe;
+
+  // ─── Plan 007: rolling-horizon fields (strangler-fig — coexist with weekStart/weekDays) ───
+
+  /** ISO date — first day of the 7-day horizon. */
+  horizonStart?: string;
+  /** 7 ISO date strings covering [horizonStart, horizonStart+6]. */
+  horizonDays?: string[];
+  /**
+   * When replanning a future-only session (D27), this holds the session ID
+   * being replaced. The old session stays live until confirmPlanSessionReplacing
+   * runs at approve time (save-before-destroy).
+   */
+  replacingSessionId?: string;
 }
 
 export interface FlowResponse {
@@ -110,6 +123,69 @@ export function createPlanFlowState(
     breakfast,
     events: [],
   };
+}
+
+/**
+ * Create a plan flow state for a rolling horizon (Plan 007).
+ *
+ * Populates both the legacy weekStart/weekDays (for backward-compat during
+ * strangler-fig) and the new horizonStart/horizonDays.
+ */
+export function createPlanFlowStateFromHorizon(
+  horizonStart: string,
+  breakfast: PlanFlowState['breakfast'],
+  replacingSessionId?: string,
+): PlanFlowState {
+  const days = getWeekDays(horizonStart);
+  return {
+    phase: 'context',
+    weekStart: horizonStart,
+    weekDays: days,
+    horizonStart,
+    horizonDays: days,
+    breakfast,
+    events: [],
+    replacingSessionId,
+  };
+}
+
+/**
+ * Compute the start date for the next planning horizon (Plan 007 D27).
+ *
+ * Uses three explicit store queries in fallback order:
+ * 1. Future sessions → replan the earliest one
+ * 2. Running session → continuous rolling (day after horizonEnd)
+ * 3. Historical/none → tomorrow
+ */
+export async function computeNextHorizonStart(
+  store: StateStoreLike,
+): Promise<{
+  start: string;
+  replacingSession?: import('../models/types.js').PlanSession;
+  runningSession?: import('../models/types.js').PlanSession;
+}> {
+  const future = await store.getFuturePlanSessions();
+  if (future.length > 0) {
+    return { start: future[0]!.horizonStart, replacingSession: future[0]! };
+  }
+
+  const running = await store.getRunningPlanSession();
+  if (running) {
+    const nextDay = addDays(running.horizonEnd, 1);
+    return { start: nextDay, runningSession: running };
+  }
+
+  const last = await store.getLatestHistoricalPlanSession();
+  // Fallback: tomorrow
+  const tomorrow = addDays(toLocalISODate(new Date()), 1);
+  return { start: tomorrow };
+}
+
+/** Add N days to an ISO date string and return the result as ISO date. */
+function addDays(isoDate: string, n: number): string {
+  const d = new Date(isoDate + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return toLocalISODate(d);
 }
 
 // ─── Phase handlers ─────────────────────────────────────────────────────────────

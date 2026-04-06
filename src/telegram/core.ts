@@ -99,6 +99,8 @@ import {
 import {
   type PlanFlowState,
   createPlanFlowState,
+  createPlanFlowStateFromHorizon,
+  computeNextHorizonStart,
   handleNoEvents,
   handleAddEvent,
   handleEventText,
@@ -585,18 +587,37 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           return;
         }
 
-        // Calculate week start (this Monday if today is Mon, otherwise next Monday)
-        const weekStart = getNextWeekStart();
+        // Plan 007: compute horizon start using rolling-horizon logic
+        const horizon = await computeNextHorizonStart(store);
 
-        // Load breakfast from last plan or find a breakfast recipe in DB
-        const lastPlan = (await store.getCurrentPlan()) ?? (await store.getLastCompletedPlan());
+        // Resolve breakfast: replan → inherit from replacing session; normal → running/historical
         const breakfastRecipes = recipes.getByMealType('breakfast');
-        const breakfast = lastPlan?.breakfast
+        let breakfastSource: { recipeSlug: string; caloriesPerDay: number; proteinPerDay: number } | undefined;
+
+        if (horizon.replacingSession) {
+          // Replan-future-only: inherit breakfast from the session being replaced (Finding 3)
+          breakfastSource = horizon.replacingSession.breakfast;
+        } else {
+          // Normal path: running → historical → DB fallback
+          const running = await store.getRunningPlanSession();
+          const fallbackSession = running ?? (await store.getLatestHistoricalPlanSession());
+          if (fallbackSession) {
+            breakfastSource = fallbackSession.breakfast;
+          } else {
+            // Also try legacy plans during strangler-fig window
+            const lastPlan = (await store.getCurrentPlan()) ?? (await store.getLastCompletedPlan());
+            if (lastPlan?.breakfast) {
+              breakfastSource = lastPlan.breakfast;
+            }
+          }
+        }
+
+        const breakfast = breakfastSource
           ? {
-              recipeSlug: lastPlan.breakfast.recipeSlug,
-              name: recipes.getBySlug(lastPlan.breakfast.recipeSlug)?.name ?? 'Your breakfast',
-              caloriesPerDay: lastPlan.breakfast.caloriesPerDay,
-              proteinPerDay: lastPlan.breakfast.proteinPerDay,
+              recipeSlug: breakfastSource.recipeSlug,
+              name: recipes.getBySlug(breakfastSource.recipeSlug)?.name ?? 'Your breakfast',
+              caloriesPerDay: breakfastSource.caloriesPerDay,
+              proteinPerDay: breakfastSource.proteinPerDay,
             }
           : breakfastRecipes.length > 0
           ? {
@@ -612,11 +633,15 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
               proteinPerDay: Math.round(config.targets.daily.protein * 0.27),
             };
 
-        session.planFlow = createPlanFlowState(weekStart, breakfast);
-        log.debug('FLOW', `plan week started: ${weekStart}, breakfast: ${breakfast.name}`);
+        session.planFlow = createPlanFlowStateFromHorizon(
+          horizon.start,
+          breakfast,
+          horizon.replacingSession?.id,
+        );
+        log.debug('FLOW', `plan week started: ${horizon.start}, breakfast: ${breakfast.name}${horizon.replacingSession ? `, replacing session ${horizon.replacingSession.id}` : ''}`);
 
         const weekEnd = session.planFlow.weekDays[6]!;
-        const startStr = formatDateForMessage(weekStart);
+        const startStr = formatDateForMessage(horizon.start);
         const endStr = formatDateForMessage(weekEnd);
 
         await sink.reply(
