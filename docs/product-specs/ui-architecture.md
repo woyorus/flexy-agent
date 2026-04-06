@@ -36,101 +36,53 @@ Telegram is a chat interface, not an app with tabs and screens. This creates con
 
 ## Product states
 
-The product is always in exactly one of these states. The state determines what the user sees when they open the chat, what the main menu does, and which jobs are active.
+The product state has two dimensions: a **plan lifecycle** (where the user is in their weekly rhythm) and a **surface context** (what screen they're currently looking at). The lifecycle is durable across screen changes — it advances on planning events and calendar boundaries (not on every tap). The surface context is transient — it changes with every tap.
 
-### State 1: No plan
+### Plan lifecycle
 
-The user has never planned, or their last plan has expired and no new one exists.
+The lifecycle determines the main menu labels, the default screen when opening the chat, and which jobs are primary.
 
-**When:** First launch, or week ended without replanning, or vacation return.
+**no_plan** — No plan exists (first launch, expired plan, vacation return).
+- Primary job: B1 (Plan my week).
+- What the user sees on open: "No plan for this week. Ready to plan?"
+- Emotional tone: Inviting, not scolding. "Welcome back" energy, not "you missed your plan."
 
-**Primary job:** B1 (Plan my week).
+**planning** — User is mid-flow in the planning session.
+- Primary job: B1 (Plan my week).
+- The planning conversation dominates. Inline keyboards guide each step.
+- Main menu buttons still work (user might tap [My Recipes] to check something mid-planning), but the planning flow resumes when they return.
 
-**What the user sees:**
-- Opening the chat: a welcome/prompt message encouraging planning. Not aggressive — the product doesn't guilt. Something like: "No plan for this week. Ready to plan?"
-- Main menu: [Plan Week] is the primary action. Other buttons (Shopping List, My Plan) show contextual "no plan" states.
+**active_early** — Plan confirmed within the last 1-2 days. First cook sessions, first grocery runs.
+- Primary jobs: A1 (next action), A2 (shopping list), A3 (cook from plan), A4 (browse week).
+- Emotional tone: Energized, prepared. "Here's your week. First up: shop for Monday's lunch."
 
-**Emotional tone:** Inviting, not scolding. The user might be returning from vacation. "Welcome back" energy, not "you missed your plan" energy.
+**active_mid** — Day 3-5 of the plan. Rhythm established.
+- Primary jobs: A1 (next action — still #1), A3 (cook from plan), A5 (flex meal approaching?).
+- Past days fade — the user doesn't need Monday's meals on Thursday.
+- Emotional tone: Steady, calm. "You're on track. Tomorrow: cook dinner."
 
-### State 2: Planning in progress
+**active_ending** — 1-2 days left. Most meals consumed.
+- Primary jobs: A1 (next action for remaining days), B1/B2 (plan next week).
+- The "what's next" view shows remaining meals + contextual prompt: "Your plan ends Sunday. Ready to plan next week?"
+- Emotional tone: Wrapping up, forward-looking.
 
-The user is mid-flow in the weekly planning session.
+### Surface context
 
-**When:** User tapped [Plan Week] and is going through the phases (breakfast confirmation → events → proposal → approval).
+The surface context is what the user is currently looking at. It's a temporary layer on top of the lifecycle — the user enters a context, does something, and returns. Multiple contexts can be visited within any lifecycle state.
 
-**Primary job:** B1 (Plan my week).
+**plan** — Next Action screen or Week Overview. The default surface when the lifecycle is active.
 
-**What the user sees:**
-- The planning conversation dominates the chat. Inline keyboards guide each step.
-- Main menu buttons should still work (user might tap [My Recipes] to check something mid-planning), but the planning flow resumes when they return.
-- This state already works well in the current product — the suggestive-first flow is solid.
+**cooking** — User is viewing a recipe to cook from. Entered from the plan surface. [← Back to plan] returns.
 
-### State 3: Active plan — early week
+**shopping** — User is viewing the needs list. Entered from plan or main menu. [← Back to plan] returns.
 
-The plan was just confirmed (today or yesterday). The user is in execution mode — first cook sessions, first grocery runs.
+**recipes** — User is browsing the recipe library. Entered from main menu. 🔪 plan recipes open cook view directly; non-plan recipes open library view.
 
-**When:** Plan confirmed within the last 1-2 days. Most meals are still ahead.
+**progress** — User is logging measurements or viewing weekly report. Entered from main menu.
 
-**Primary jobs:** A1 (next action), A2 (shopping list), A3 (cook from plan), A4 (browse week).
+**side_conversation** — User asked a free-text question during any flow. The underlying lifecycle and previous surface context are preserved. [← Back to ...] returns to where they were.
 
-**What the user sees:**
-- Opening the chat after confirmation: the "next action" summary — what to cook next, what to shop for.
-- Main menu: [My Plan] (renamed from [Plan Week]) shows the plan surface. [Shopping List] generates/shows the list.
-
-**Emotional tone:** Energized, prepared. "Here's your week. First up: shop for Monday's lunch."
-
-### State 4: Active plan — mid-week
-
-Several days into the plan. Some meals consumed, some ahead. The rhythm is established.
-
-**When:** Day 3-5 of the plan.
-
-**Primary jobs:** A1 (next action — still #1), A3 (cook from plan), A5 (flex meal approaching?).
-
-**What the user sees:**
-- Opening the chat: the "what's next" view — focused on today and the next 2 days.
-- Past days fade — the user doesn't need to see Monday's meals on Thursday.
-
-**Emotional tone:** Steady, calm. "You're on track. Tomorrow: cook dinner."
-
-### State 5: Active plan — week ending
-
-1-2 days left in the plan. Most meals consumed.
-
-**When:** Day 6-7 of the plan.
-
-**Primary jobs:** A1 (next action for remaining days), B1/B2 (plan next week).
-
-**What the user sees:**
-- The "what's next" view shows remaining meals + a natural prompt: "Your plan ends Sunday. Want to plan next week?"
-- Not a separate notification (yet — that's v0.0.6). Just contextual awareness in the existing view.
-
-**Emotional tone:** Wrapping up, forward-looking. "One day left. Saturday dinner is flex night. Ready to plan next week?"
-
-### State 6: Mid-cook
-
-The user has opened a specific recipe to cook from.
-
-**When:** User drilled into a meal from the plan view and is now looking at the cook-time recipe.
-
-**Primary job:** A3 (cook from plan).
-
-**What the user sees:**
-- The cook-time recipe view (batch totals, inline ingredients in steps, servings count).
-- A way to get back to the plan view.
-- Future: ability to say "I don't have salmon" (C1) — but for MVP, just the recipe.
-
-### State 7: Shopping
-
-The user has opened the shopping list and is (or will be) at the store.
-
-**When:** User tapped [Shopping List] or navigated there from the plan view.
-
-**Primary job:** A2 (build shopping list).
-
-**What the user sees:**
-- Grouped ingredient list, copy-friendly.
-- Future: interactive checkboxes. For MVP: a clean text list they copy to Apple Notes.
+This two-dimensional model makes navigation cleaner: the lifecycle never changes because you opened a recipe or checked the shopping list. Back buttons always return to the previous surface context. The freeform layer becomes just another surface context, not a special case.
 
 ---
 
@@ -145,36 +97,52 @@ The reply keyboard is the only persistent navigation. It must serve every produc
 ```
 
 ### Proposed menu
+
+The reply keyboard label for the top-left button changes based on plan lifecycle — Telegram supports updating reply keyboards dynamically:
+
+No plan / expired:
+```
+[ Plan Week ]     [ Shopping List ]
+[ My Recipes ]    [ Progress ]
+```
+
+Planning in progress:
+```
+[ Resume Plan ]   [ Shopping List ]
+[ My Recipes ]    [ Progress ]
+```
+
+Active plan:
 ```
 [ My Plan ]       [ Shopping List ]
-[ My Recipes ]    [ Track ]
+[ My Recipes ]    [ Progress ]
 ```
 
 **Changes and rationale:**
 
 | Button | Old | New | Why |
 |---|---|---|---|
-| Top-left | Plan Week | **My Plan** | This button serves double duty: starts planning when no plan exists, shows the plan when one does. "My Plan" works in both states. "Plan Week" only makes sense for the planning action. |
+| Top-left | Plan Week | **Plan Week / Resume Plan / My Plan** | State-sensitive label. "Plan Week" when there's nothing (clear call to action). "Resume Plan" during planning (reminds user they have an in-progress session). "My Plan" once a plan exists (it's their plan, they're living it). |
 | Top-right | Shopping List | **Shopping List** | Unchanged. This is the #2 daily job. |
 | Bottom-left | My Recipes | **My Recipes** | Unchanged. Recipe library access. |
-| Bottom-right | Weekly Budget | **Track** | "Weekly Budget" is a static view that's only interesting after deviations. "Track" becomes the entry point for measurements (D2: weight/waist) and eventually treat logging (A6) and budget checking (D1). It's where the user goes to record and reflect. |
+| Bottom-right | Weekly Budget | **Progress** | "Weekly Budget" is a static view only interesting after deviations. "Track" was considered but implies a tracker, which violates PRODUCT_SENSE ("this is not a tracker"). "Progress" is about outcomes — weight trend, waist trend, weekly report. It's where the user goes to see that the effort is paying off. Treat logging and budget checking are NOT here — treat logging should be free-text from anywhere (freeform layer), budget checking belongs in the plan view after deviations. |
 
 ### State-driven button behavior
 
-**[My Plan]** adapts to product state:
-- **No plan / expired plan:** Shows "No plan for this week" message + inline [Plan new week] button to start planning.
-- **Planning in progress:** Resumes the planning flow where they left off.
-- **Active plan (early/mid-week):** Shows the plan view (next action + week overview).
-- **Active plan (ending, 1-2 days left):** Shows the plan view with a contextual [Plan next week] button embedded in the Next Action screen. The transition from "living the plan" to "planning the next one" happens naturally inside the plan view — not as a separate navigation action. The user sees "Your plan ends Sunday. Saturday dinner is your last cook. Ready to plan next week?" right where they're already looking.
+**[Plan Week / Resume Plan / My Plan]** (label changes with lifecycle):
+- **no_plan:** Label is [Plan Week]. Shows "No plan for this week" message + inline [Plan Week] button to start.
+- **planning:** Label is [Resume Plan]. Resumes the planning flow where they left off.
+- **active_early / active_mid:** Label is [My Plan]. Shows the plan view (Next Action screen).
+- **active_ending:** Label is [My Plan]. Shows the plan view with a contextual [Plan next week] button embedded in the Next Action screen. The user sees "Your plan ends Sunday. Ready to plan next week?" right where they're already looking.
 
 **[Shopping List]** adapts to product state:
-- **No plan:** "No plan yet — plan your week first to see what you'll need."
-- **Active plan:** Shows the needs list for upcoming cook sessions — everything the recipes call for, grouped and sorted. The user cross-references against their kitchen and copies what they actually need to buy. If no cook sessions are imminent (all meals are prepped), says so.
+- **no_plan:** "No plan yet — plan your week first to see what you'll need."
+- **Active plan:** Defaults to the **next shopping need** — ingredients for the next cook day + breakfast. This matches the real job: "I'm about to go to the store, what do I need for my next cook?" Not the full remaining week. The user cross-references against their kitchen and copies what they actually need to buy. If no upcoming cook days remain (all meals are prepped), says so.
 
-**[Track]** adapts to product state:
-- **Always available** regardless of plan state. Weight/waist tracking is independent of the meal plan.
-- Default action: prompt for measurements if none today, show weekly summary if already logged.
-- Future: also handles treat logging and budget checking. Note: weight tracking and food tracking are different moments — weight is a once-daily morning ritual, food tracking is reactive (just ate something, any time of day). [Track] serves both through contextual copy (leads with the right prompt based on time of day and what's already done), not by asking "what do you want to track?" Food logging will also work via free-text from any screen once the freeform conversation layer lands — the user shouldn't need to navigate to [Track] to say "had a Snickers."
+**[Progress]** adapts to product state:
+- **Always available** regardless of plan lifecycle. Weight/waist tracking is independent of the meal plan.
+- Default action: prompt for measurements if none today. If already logged: "Already logged today ✓."
+- Narrowly scoped to weight/waist measurements and the weekly progress report. This is NOT a general tracking destination. Treat logging happens via free-text from any screen (freeform layer, v0.0.5). Budget checking belongs in the plan view after deviations, not here. "Progress" = "is the effort paying off?", not "log everything."
 
 **[My Recipes]** is state-independent — always shows the recipe library.
 
@@ -220,7 +188,7 @@ If no cook session imminent (all reheat):
 - Each meal is one line: recipe name + status (reheat / cook / flex / event).
 - Cook days are visually distinct (🔪 marker) — they require action.
 - The 🔪 recipe button appears when there's an upcoming cook session — this is the #1 action on cook days and must be one tap away, not buried behind View full week → Day → Recipe.
-- [Get shopping list] generates the needs list for upcoming cook sessions. Only shown when a cook session is upcoming (no point showing it if everything is prepped).
+- [Get shopping list] generates the needs list for the next cook day. Only shown when a cook day is upcoming (no point showing it if everything is prepped).
 - [View full week] opens the Week Overview.
 - Breakfast is NOT shown — it's fixed, memorized, invisible by design. Breakfast ingredients are covered by the shopping list (always included there), so the Next Action screen doesn't need to mention breakfast at all.
 - No back button needed — the main menu reply keyboard is always visible at the bottom of Telegram, so the user can always navigate to any top-level section.
@@ -258,8 +226,7 @@ L: Salmon Pasta · D: **Flex**
 **Sun** 🔪
 L: Spiced Lamb Bowl · D: Veggie Stir-fry
 
-~800 cal/serving · Treats ~850 cal
-**Weekly: 17,050 cal | 1,050g P ✓**
+**Weekly target: on track ✓**
 
 _Tap a day for details:_
 ```
@@ -277,8 +244,7 @@ Each day button shows that day's detail view (Day Detail screen). [← Back] ret
 - Compact: day header with 🔪 if any cook that day, then lunch · dinner on the next line. Uses `·` separator instead of column alignment — renders consistently across all phone widths and font sizes.
 - 🔪 = cook day (needs action), no marker = reheat (no action), 🍽️ = event, **Flex** (bold text, no emoji — flex meals are a normal part of the system, not a special reward).
 - Breakfast shown once at top as a constant.
-- Per-meal calories shown once as a uniform header ("each ~800 cal"), not per line. Aligns with "per-meal calories are informational."
-- Weekly totals at the bottom — this is the number that matters.
+- No per-meal calorie numbers in the overview. The user wants the vibe of the week (A4), not a calorie dashboard. A simple "Weekly target: on track ✓" is enough. No warnings or ⚠️ in this view — it's a curiosity screen whose job is excitement, not anxiety. Warning-style statuses belong in post-deviation contexts only. Exact calorie/protein breakdowns are shown only on request or after deviations — not in the curiosity view. This aligns with PRODUCT_SENSE ("not a tracker") and JTBD A4 ("feel excited about upcoming meals").
 - Day buttons are the only way to drill in — Telegram doesn't support tappable text in messages. Short labels (Mon/Tue/Wed) so they fit in one row of 4.
 - This view is intentionally read-only for MVP. Future: day detail could offer [Change this] inline.
 
@@ -393,14 +359,14 @@ _For: Salmon Pasta (3 servings) + Breakfast_
 - Cherry tomatoes — 450g
 - Fresh basil — 1 bunch
 - Garlic — 1 head
-- Avocados — 7 (breakfast)
-- Lemons — 4 (breakfast)
+- Avocados — 4 (breakfast, remaining days)
+- Lemons — 2 (breakfast, remaining days)
 
 **FISH**
 - Salmon fillet — 600g
 
 **DAIRY & EGGS**
-- Eggs — 14 (breakfast)
+- Eggs — 8 (breakfast, remaining days)
 
 **PANTRY**
 - Penne pasta — 225g
@@ -408,7 +374,8 @@ _For: Salmon Pasta (3 servings) + Breakfast_
 _Check you have:
 Ground cumin, chili flakes, smoked paprika_
 
-Copy to Notes, remove what you already have
+_Long-press to copy. Paste into Notes,
+then remove what you already have._
 
 [← Back to plan]
 ```
@@ -423,19 +390,19 @@ Copy to Notes, remove what you already have
   3. **Main buy list:** Perishables and items consumed per batch — proteins, produce, dairy, grains/pasta. These are the actual shopping items with quantities and checkboxes.
   The ingredient `role` field in the recipe system (seasoning, base, protein, carb, fat, vegetable) provides the starting heuristic: `seasoning` → tier 2, everything else → tier 3 by default. A small hardcoded exclusion list handles tier 1 (salt, pepper, water). No smart pantry tracking needed.
 - **Aggregated across meals** — if two recipes use garlic, show one combined amount.
-- **Copy button** — Telegram supports a copy-to-clipboard action. This is the critical UX affordance for the "take it to Apple Notes" job.
-- **Context-aware:** when accessed from [My Plan], shows the next upcoming cook session. When accessed from a specific day's [Shopping list for this], scoped to that cook session. When accessed from main menu [Shopping List], shows the full remaining week.
-- **Breakfast ingredients included** — the user told us this is essential and easy to forget.
+- **Copy action** — Telegram bots cannot copy to clipboard programmatically. The user long-presses the message and selects "Copy" manually — the list is plain text so this works cleanly. Flow: long-press → copy → paste in Apple Notes → remove what you have → add extras → shop. The "Long-press to copy, paste into Notes, remove what you already have" line in the message is the only affordance needed.
+- **Context-aware, defaults to next shopping need:** From any entry point, defaults to the next upcoming cook day + breakfast. **Batching rule:** include the next cook day only (at most two cook sessions if both lunch and dinner are cooked that day). Cap: never more than one day's cooking. This keeps the list tight and matches JTBD A2's job: "my next cook session" and "one efficient grocery run" — not a multi-day wholesale trip. When accessed from a specific day's [Get shopping list], scoped to that day's cook session. If the user wants more, they can check individual days via the Week Overview.
+- **Breakfast ingredients prorated to remaining days** — included in every shopping list, but only for the remaining plan days (not the full week). If it's Thursday with 4 days left, show 4 avocados, not 7. This is stateless — no tracking of prior shopping lists needed. Breakfast is suggested, not pantry-aware; the user removes what they already have during manual reconciliation, same as any other ingredient. Don't overengineer this — the manual reconciliation model handles it.
 
 ---
 
-### Screen: Track (serves D2, future: A6, D1)
+### Screen: Progress (serves D2)
 
-**Entry:** User taps [Track] from main menu.
+**Entry:** User taps [Progress] from main menu.
 
 **v0.0.4 content (measurements only):**
 ```
-Good morning! Drop your weight (and waist if you track it):
+Drop your weight (and waist if you track it):
 
 Examples: "82.3 / 91" or just "82.3"
 ```
@@ -452,6 +419,18 @@ Logged ✓ 82.3 kg
 
 That's it — no averages, no stats, no mid-week numbers. Just a clean confirmation. The user logs and moves on with their day.
 
+Already logged today (user taps [Progress] again):
+```
+Already logged today ✓
+```
+
+**Inline keyboard (if a completed weekly report exists):**
+```
+[Last weekly report]
+```
+
+This lets the user replay the most recent completed report without exposing mid-week partial data.
+
 **Weekly report (shown once per week, end of week):**
 ```
 **Week of Mar 30 – Apr 5**
@@ -460,13 +439,13 @@ Weight: **82.1 kg** avg (↓0.4 from last week)
 Waist: **90.5 cm** avg (↓0.3 from last week)
 
 Steady and sustainable. _0.2-0.5 kg/week
-means you're losing fat, not muscle._
+is a healthy, sustainable pace._
 ```
 
 The weekly report is the only place averages and comparisons appear. It's delivered once, at the end of the week — not available on demand mid-week. This prevents the "let me check how I'm doing" anxiety loop.
 
 **Tone by scenario:**
-- **Losing 0.2-0.5 kg/week:** "Steady and sustainable. This pace means you're losing fat, not muscle."
+- **Losing 0.2-0.5 kg/week:** "Steady and sustainable. This is a healthy pace."
 - **Losing >0.5 kg/week:** "Great progress. If this pace holds, we might ease up slightly — sustainability matters more than speed."
 - **Plateau (±0.1 kg):** Contextualize using waist data if available ("Weight is stable but your waist is down 0.5 cm — you're recomposing, the scale will catch up"). If no waist data: "Weight is stable — normal. Fluctuations mask fat loss. Keep going." Exact copy at implementation time.
 - **Up 0.3+ kg:** "Week-to-week fluctuations happen — water, food volume, stress. One week doesn't define the trend. Keep going."
@@ -474,13 +453,14 @@ The weekly report is the only place averages and comparisons appear. It's delive
 **Key design decisions:**
 - **Input is natural language: one or two numbers.** "82.3 / 91", "82.3 91", or just "82.3" for weight only. No forms, no buttons, no follow-ups. Under 5 seconds. Waist is optional — some users won't have a tape measure, and that's fine.
 - **Disambiguation:** Two numbers could be ambiguous (is 98/104 weight 98 waist 104, or the reverse?). The product uses previous measurements to resolve: if last weight was 97.5 and last waist was 103, then 98/104 is unambiguous. If genuinely unclear (first entry, or numbers are close), ask once: "Is that 98 kg weight and 104 cm waist?" Never guess wrong silently.
-- **Weight-only is first-class.** The product gently encourages waist tracking (better fat loss signal, less fluctuation) but never nags. The waist tip appears a few times early on, then stops.
+- **Weight-only is first-class.** The product gently encourages waist tracking (better fat loss signal, less fluctuation) but never nags.
+- **Time-aware prompt:** If local time is afternoon or later, add a qualifier: "If this is your morning weight, drop it here." Morning measurements (before eating) are the only consistent data point; afternoon weights include food, water, and activity noise.
 - **Daily logging response is just a confirmation** — no averages, no comparisons, no "so far this week." The user logs and moves on. Showing mid-week stats invites daily checking and anxiety about partial data.
-- **Weekly report is the only place averages appear** — delivered once at end of week, not available on demand mid-week. This is where the user sees their trend and gets contextual encouragement. The tone adapts to the scenario (steady loss, plateau, or temporary gain) — always non-judgmental, always contextualizing.
+- **Weekly report is the only place averages appear** — delivered once at end of week. The last completed weekly report can be replayed on request, but if the current week is incomplete the product says "Your next report is ready Sunday" — no mid-week partial averages. The tone adapts to the scenario (steady loss, plateau, or temporary gain) — always non-judgmental, always contextualizing.
 - **Weekly report is the primary output** — strict weekly average compared to last week's average. Simple trend: ↓ good, → plateau (contextualized as normal), ↑ contextualized gently.
 - **Tone is always encouraging and contextualizing.** Weight up? "Normal fluctuation." Plateau? "Your body is adjusting — waist is still trending down." No alarm, no judgment.
 - **First month strategy:** Product celebrates early (water-weight) progress enthusiastically. When progress slows, explains this is actually better — "now you're losing fat, not just water."
-- Future: this screen also handles treat logging ("had a small Snickers") and budget checking.
+- Treat logging and budget checking do NOT live here — treat logging is free-text from any screen (freeform layer), budget checking belongs in the plan view after deviations.
 
 ---
 
@@ -518,17 +498,16 @@ You'll need to shop for both + breakfast.
 Paginated recipe list, tap to view, edit, delete. When an active plan exists, the list becomes plan-aware:
 
 **Sort order:**
-1. **In your plan (by next cook date)** — recipes with upcoming cook sessions, sorted by how soon you'll cook them. The recipe you're cooking tomorrow appears first.
+1. **Cooking soon (by next cook date)** — recipes with upcoming cook days, sorted by how soon you'll cook them. The recipe you're cooking tomorrow appears first.
 2. **Everything else** — alphabetical. Simple, predictable, easy to scan.
 
 **List display:**
 ```
 Your recipes (12 total):
 
-IN YOUR PLAN
+COOKING SOON
 🔪 Moroccan Beef Tagine — cooking tomorrow
-   Chicken Pepperonata — cooking Thursday
-   Greek Lemon Chicken — reheat (cooked Tue)
+🔪 Chicken Pepperonata — cooking Thursday
 
 ALL RECIPES
    Chicken Pepperonata
@@ -539,20 +518,19 @@ ALL RECIPES
    ...
 ```
 
-The plan section shows only recipes with upcoming action (cook or active reheat batches). The full alphabetical list below includes everything, including the plan recipes — because the user might be browsing to edit or just looking around, not cooking.
+The "Cooking soon" section shows only recipes with upcoming cook sessions — not reheats. Reheat days are zero-interaction (JTBD), so promoting them in the recipe library adds noise. Reheats are visible in [My Plan], not here. The full alphabetical list below includes all recipes for browsing and editing.
 
 **Inline keyboard:**
 Each recipe is a tappable button (existing implementation). Paginated with prev/next if needed.
 ```
 [🔪 Moroccan Beef Tagine]
-[Chicken Pepperonata]
-[Greek Lemon Chicken]
+[🔪 Chicken Pepperonata]
 [Salmon Pasta]
 [Spiced Lamb Bowl]
 [← Prev]  [Next →]
 ```
 
-When the user taps a plan recipe, it opens the library view with the [🔪 Cook N servings] banner prominent at the top — the natural next step. When they tap a non-plan recipe, normal library view without the banner.
+When the user taps a 🔪 plan recipe, it opens the **cook view directly** — batch totals, inline amounts, ready to cook. The 🔪 on the button promises a cook action, so it should deliver one. A [View in my recipes] link at the bottom bridges to the library view if needed. When the user taps a non-plan recipe (no 🔪), it opens the normal library view.
 
 ### Recipe presentation: two contexts, one recipe
 
@@ -571,12 +549,11 @@ The user sees one recipe, not two versions. The product adjusts what it shows ba
 
 - **From [My Plan]:** The recipe opens ready to cook — batch totals, inline amounts in steps, servings count. This is the natural context: the user is looking at their plan, they tap a meal, they want to cook.
 
-- **From [My Recipes]:** The recipe opens in library mode — per-serving amounts, cuisine/tags, edit/delete options. But if this recipe is in the active plan, a banner appears at the top:
-  ```
-  You're cooking this Wed–Fri dinner
-  [🔪 Cook 3 servings]
-  ```
-  Tapping [🔪 Cook 3 servings] shows the recipe with batch totals and inline amounts — the same view they'd get from the plan. The language is about what the user is about to DO ("cook 3 servings"), not about the product's internals. No mention of "scaled," "template," or "cook-time."
+- **From [My Recipes]:** Depends on the button the user tapped:
+  - **🔪 plan recipe** → opens the cook view directly (batch totals, inline amounts, ready to cook). The 🔪 promises a cook action, so it delivers one. [View in my recipes] at the bottom bridges to the library view if the user wants to edit or browse.
+  - **Non-plan recipe (no 🔪)** → opens the normal library view (per-serving amounts, cuisine/tags, edit/delete options).
+  
+  One rule: 🔪 = cook view. No 🔪 = library view. No exceptions, no banners, no mixed signals.
 
 - **From the cook view → editing:** The cook view includes a subtle [Edit this recipe] link at the bottom. This opens the library view with edit/delete options — for when the user wants to permanently change an ingredient or fix a step. "Edit this recipe" is self-explanatory; it's the only reason to go from cooking to the library.
 
@@ -587,30 +564,33 @@ The user sees one recipe, not two versions. The product adjusts what it shows ba
 ## Navigation map
 
 ```
-Main Menu (reply keyboard - always visible)
+Main Menu (reply keyboard - always visible, top-left label adapts to lifecycle)
 │
-├─ [My Plan]
-│   ├─ No plan → "No plan" + [Plan Week] button
-│   ├─ Planning → resumes planning flow
-│   └─ Active plan → Next Action screen
-│       ├─ [Get shopping list] → Shopping List (scoped)
+├─ [Plan Week / Resume Plan / My Plan]
+│   ├─ no_plan → "No plan for this week" + [Plan Week] button
+│   ├─ planning → resumes planning flow
+│   └─ active → Next Action screen
+│       ├─ [🔪 Recipe — N servings] → Cook-Time Recipe
+│       ├─ [Get shopping list] → Shopping List (next cook session)
 │       └─ [View full week] → Week Overview
 │           ├─ [Day button] → Day Detail
-│           │   ├─ [Open recipe] → Cook-Time Recipe
-│           │   └─ [Shopping list] → Shopping List (scoped to this cook session)
-│           └─ (tap meal → Day Detail for that day)
+│           │   ├─ [🔪 Recipe — N servings] → Cook-Time Recipe
+│           │   └─ [Get shopping list] → Shopping List (scoped)
+│           └─ [← Back] → Next Action
 │
 ├─ [Shopping List]
-│   ├─ No plan → "No plan" message
-│   └─ Active plan → Shopping List (full remaining week)
+│   ├─ no_plan → "No plan" message
+│   └─ active → Shopping List (next cook session + breakfast)
 │
 ├─ [My Recipes]
-│   └─ Recipe Library → Recipe View → Edit/Delete
+│   └─ Recipe Library
+│       ├─ [🔪 plan recipe] → Cook-Time Recipe → [View in my recipes] → Library View
+│       └─ [non-plan recipe] → Library View → Edit/Delete
 │
-└─ [Track]
+└─ [Progress]
     ├─ No measurements today → prompt for numbers
     ├─ Already logged → "Already logged today ✓"
-    └─ [Weekly report] → weekly summary
+    └─ Weekly report → delivered end of week (last completed report viewable on request)
 ```
 
 ---
@@ -631,9 +611,9 @@ Today and tomorrow are always visible. The rest of the week is one tap away. Nex
 
 The user thinks in batches ("I'm cooking Moroccan Beef Tagine, 3 servings") not in individual meals ("Monday lunch is 803 cal, Tuesday lunch is 803 cal"). Show batch info: recipe name, servings count, day range, cook-or-reheat status.
 
-### 4. Weekly totals over daily totals
+### 4. Weekly target status over calorie numbers
 
-Calories and protein shown as weekly numbers. Per-meal calories shown once as a uniform header ("each ~800 cal"), never per-line in the overview. This aligns with "weekly control > daily perfection."
+Avoid daily calorie totals. Show recipe-level per-serving numbers only where they help cooking or flex-meal decisions (cook-time recipe header, day detail). Use weekly target status ("on track ✓") for plan-level surfaces like the Week Overview — no exact numbers, no warnings. This aligns with "weekly control > daily perfection" and "not a tracker."
 
 ### 5. Progressive disclosure
 
@@ -663,7 +643,7 @@ At any point in any flow — mid-planning, reviewing a recipe, looking at the pl
 
 2. **Contextual question** — the user is referencing something visible in the conversation and asking about it. "How many calories is that?" "Can I freeze this?" "What's the protein in the salmon pasta?" They expect the product to understand what "that" refers to from the messages above.
 
-3. **Unrelated question** — "What time does Mercadona close?" "How much protein is in 100g of chicken?" "What's a good substitute for tahini?" Not about the current flow, but the user expects an answer because they're talking to an AI.
+3. **Domain question** — "How much protein is in 100g of chicken?" "What's a good substitute for tahini?" Not about the current flow but within the product's domain (food, nutrition, cooking, meal planning). The product answers briefly and routes back to the active flow — it doesn't become a general nutrition-coaching thread. For questions outside the domain entirely ("What time does Mercadona close?", "What's the weather?"), the product is honest: "I can't help with that — I do meal planning, recipes, and nutrition. Try: 'change Thursday dinner' or tap a button." Never ignore, never pretend to have live data, never become a general assistant.
 
 ### Design rules
 
@@ -677,6 +657,8 @@ At any point in any flow — mid-planning, reviewing a recipe, looking at the pl
 
 **Rule 5: The transition must feel seamless.** Branching into a side conversation and returning should feel like asking a friend a quick question while cooking — natural interruption, natural return. No "entering conversation mode" / "exiting conversation mode" ceremony.
 
+**Rule 6: Domain answers are read-only.** Informational questions ("What's a substitute for tahini?", "How much protein in chicken?") get informational answers. They must never mutate plan state — no recipe swaps, no ingredient changes, no budget adjustments unless the user explicitly asks for a plan change. This prevents "What's a good substitute for salmon?" from accidentally becoming a recipe swap.
+
 ### How it works (target architecture)
 
 ```
@@ -688,14 +670,19 @@ Intent classifier (nano LLM, fast)
   │     LLM receives: question + flow state + recent message history
   │     Response includes: answer + [← Back to {flow name}] button
   │     Multi-turn follow-ups supported until user returns
-  └── unrelated_question → branch into side conversation
-        LLM receives: question + minimal context
-        Same UX as contextual_question
+  └── domain_question →
+        ├── food/nutrition/cooking related → answer briefly, route back to flow
+        └── outside product domain → "I can't help with that — I do meal planning, recipes, and nutrition."
+        Both include [← Back to {flow name}] button
 ```
 
 ### Implementation phasing
 
-- **v0.0.4:** Free-text that doesn't match the current flow phase gets a graceful fallback: "I'm not sure what you mean. You can {describe what buttons do} or ask me anything." Not great, but not silence.
+- **v0.0.4:** Free-text that doesn't match the current flow phase gets a graceful fallback. The fallback examples must be lifecycle-aware — don't suggest plan actions when no plan exists:
+  - **no_plan:** "I can help you plan your week, browse recipes, or log measurements. Tap Plan Week to get started."
+  - **active plan:** "I can help with your plan, recipes, shopping, or measurements. Try: 'change Thursday dinner' or tap a button."
+  - **recipe context:** "I can help with this recipe or your plan. Try: 'can I freeze this?' or tap a button."
+  Don't promise "ask me anything" when the full freeform layer isn't built yet — only invite capabilities the product can actually deliver.
 - **v0.0.5:** Full freeform conversation layer with intent classification, context injection, and seamless branching/return. This is when the product starts feeling truly conversational.
 
 ### Why this matters so much
@@ -728,7 +715,7 @@ The product should teach its method through the experience, not through instruct
 
 - First plan: "I'll suggest a complete week — you just approve or tweak."
 - First flex meal: "This is your flex meal — eat something fun, ~1,150 cal budget."
-- First treat budget mention: "You have ~850 cal for treats this week. Spend whenever."
+- First treat budget mention (v0.0.5, when treat tracking lands): "You have ~850 cal for treats this week. Spend whenever."
 - First measurement: "We track weekly averages, not daily — so don't worry about day-to-day swings."
 
 Each hint appears once, in context, at the moment it's relevant. Not a sequence of screens the user has to tap through before using the product.
