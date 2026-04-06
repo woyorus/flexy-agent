@@ -94,6 +94,9 @@ The system becomes dynamic and conversational. User reports what happened, agent
 
   **Do NOT restructure in v0.0.4.** The current handlers work for shipping. This is a v0.0.5 refactor tied to the freeform conversation layer — they share the classifier layer and should be designed together.
 
+  **Known classifier gaps (currently hit "unclear"):**
+  - `batch_swap`: User wants to swap the day assignments of two existing batches, keeping both recipes (e.g., "swap tue-thu dinner and fri-sat dinner"). No intent type exists for this — the slow path would handle it generically.
+
   **Open questions for v0.0.5 design:**
   - How does the classifier distinguish "unclear" (→ slow path) from "off-flow question" (→ side conversation)? Are they the same branch?
   - Should simple intents ALSO delegate to the proposer (for invariant consolidation), or keep mutating directly (for speed)?
