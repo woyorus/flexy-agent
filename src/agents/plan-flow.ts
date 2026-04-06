@@ -98,6 +98,8 @@ export interface PlanFlowState {
    * runs at approve time (save-before-destroy).
    */
   replacingSessionId?: string;
+  /** Pre-committed slots from prior sessions, loaded at proposal time (read-only display). */
+  preCommittedSlots?: PreCommittedSlot[];
 }
 
 export interface FlowResponse {
@@ -491,6 +493,9 @@ export async function handleGenerateProposal(
   }
 
   state.proposal = proposal;
+  if (preCommittedSlots.length > 0) {
+    state.preCommittedSlots = preCommittedSlots;
+  }
 
   // Check for recipe gaps
   if (proposal.recipesToGenerate.length > 0) {
@@ -645,7 +650,7 @@ export async function handleGapRecipeRefinement(
 }
 
 /**
- * User approved the plan proposal. Build the WeeklyPlan and save it.
+ * User approved the plan proposal. Build PlanSession + Batches and persist.
  */
 export async function handleApprove(
   state: PlanFlowState,
@@ -730,9 +735,20 @@ export async function handleSwapText(
       });
 
       // Remove the new flex day from any existing batch; handle any orphan days.
-      const { orphanDays } = removeBatchDay(state.proposal, intent.day, intent.mealTime);
-      for (const orphan of orphanDays) {
-        absorbFreedDay(state, orphan, intent.mealTime);
+      {
+        const horizonEnd = state.horizonDays?.[6];
+        const { orphanDays, overflowOrphanDays } = removeBatchDay(state.proposal, intent.day, intent.mealTime, horizonEnd);
+        for (const orphan of orphanDays) {
+          absorbFreedDay(state, orphan, intent.mealTime);
+        }
+        for (const orphan of overflowOrphanDays) {
+          if (!absorbFreedDay(state, orphan, intent.mealTime)) {
+            return {
+              text: "Can't place flex there — it would strand next week's meals with no home. Try a different day.",
+              state,
+            };
+          }
+        }
       }
       break;
     }
@@ -756,9 +772,20 @@ export async function handleSwapText(
         flexBonus: 350,
         note: 'flex meal',
       });
-      const { orphanDays } = removeBatchDay(state.proposal, intent.toDay, intent.toMealTime);
-      for (const orphan of orphanDays) {
-        absorbFreedDay(state, orphan, intent.toMealTime);
+      {
+        const horizonEnd = state.horizonDays?.[6];
+        const { orphanDays, overflowOrphanDays } = removeBatchDay(state.proposal, intent.toDay, intent.toMealTime, horizonEnd);
+        for (const orphan of orphanDays) {
+          absorbFreedDay(state, orphan, intent.toMealTime);
+        }
+        for (const orphan of overflowOrphanDays) {
+          if (!absorbFreedDay(state, orphan, intent.toMealTime)) {
+            return {
+              text: "Can't move flex there — it would strand next week's meals with no home. Try a different day.",
+              state,
+            };
+          }
+        }
       }
       break;
     }
@@ -960,18 +987,33 @@ function addBatchFromGap(
 /**
  * Absorb a freed day (orphan from a batch split, or a day where a flex was just
  * removed) back into the plan. First tries to extend an adjacent batch, then
- * falls back to creating a recipe gap. Unlike `restoreMealSlot`, this always
- * succeeds — orphans never silently disappear.
+ * falls back to creating a recipe gap for in-horizon days.
+ *
+ * Plan 007: overflow orphans (past horizonEnd) are absorb-only — if no adjacent
+ * batch can take them, the mutation should be rejected by the caller (D30).
+ * In-horizon orphans fall back to gap-surfacing as before.
+ *
+ * Returns true if absorbed, false if an overflow orphan couldn't be absorbed
+ * (caller should reject the mutation).
  */
 function absorbFreedDay(
   state: PlanFlowState,
   day: string,
   mealTime: 'lunch' | 'dinner',
-): void {
-  const restored = restoreMealSlot(state.proposal!, day, mealTime);
-  if (restored) return;
+): boolean {
+  const horizonEnd = state.horizonDays?.[6];
+  const isOverflow = horizonEnd ? day > horizonEnd : false;
 
-  // No adjacent batch can absorb it — create a recipe gap.
+  const restored = restoreMealSlot(state.proposal!, day, mealTime, horizonEnd);
+  if (restored) return true;
+
+  if (isOverflow) {
+    // Overflow orphan — can't create a gap for a day the user can't see.
+    // Caller must reject the mutation.
+    return false;
+  }
+
+  // In-horizon orphan — create a recipe gap.
   const gap: RecipeGap = {
     mealType: mealTime,
     days: [day],
@@ -982,14 +1024,24 @@ function absorbFreedDay(
   state.proposal!.recipesToGenerate.push(gap);
   if (!state.pendingGaps) state.pendingGaps = [];
   state.pendingGaps.push(gap);
+  return true;
 }
 
 /**
  * Try to restore a meal-prep slot by extending an adjacent batch.
  * Returns true if successful, false if a recipe gap is needed instead.
+ *
+ * Plan 007: if the day is past the horizon end, it goes into overflowDays
+ * instead of days. The total serving count (days + overflowDays) must not
+ * exceed 3. Forward extension past horizonEnd is allowed; backward extension
+ * into a prior horizon is not (D27).
  */
-function restoreMealSlot(proposal: PlanProposal, day: string, mealTime: 'lunch' | 'dinner'): boolean {
-  // Find a batch of the same meal type whose days are adjacent to this day
+function restoreMealSlot(
+  proposal: PlanProposal,
+  day: string,
+  mealTime: 'lunch' | 'dinner',
+  horizonEnd?: string,
+): boolean {
   const dayDate = new Date(day + 'T00:00:00');
   const prevDay = new Date(dayDate);
   prevDay.setDate(dayDate.getDate() - 1);
@@ -998,24 +1050,33 @@ function restoreMealSlot(proposal: PlanProposal, day: string, mealTime: 'lunch' 
 
   const prevStr = toLocalISODate(prevDay);
   const nextStr = toLocalISODate(nextDay);
+  const isOverflow = horizonEnd ? day > horizonEnd : false;
 
   for (const batch of proposal.batches) {
     if (batch.mealType !== mealTime) continue;
-    if (batch.servings >= 3) continue; // don't exceed 3-serving max
+    // Total servings = in-horizon days + overflow days
+    const totalServings = batch.days.length + (batch.overflowDays?.length ?? 0);
+    if (totalServings >= 3) continue; // don't exceed 3-serving max
 
-    const lastDay = batch.days[batch.days.length - 1];
-    const firstDay = batch.days[0];
+    // Check all days including overflow for adjacency
+    const allDays = [...batch.days, ...(batch.overflowDays ?? [])];
+    const lastDay = allDays[allDays.length - 1];
+    const firstDay = batch.days[0]; // backward extension uses in-horizon first day only
 
     // Can extend forward: batch ends the day before
     if (lastDay === prevStr) {
-      batch.days.push(day);
-      batch.servings = batch.days.length;
+      if (isOverflow) {
+        batch.overflowDays = [...(batch.overflowDays ?? []), day];
+      } else {
+        batch.days.push(day);
+      }
+      batch.servings = batch.days.length + (batch.overflowDays?.length ?? 0);
       return true;
     }
-    // Can extend backward: batch starts the day after
-    if (firstDay === nextStr) {
+    // Can extend backward: batch starts the day after (in-horizon only)
+    if (!isOverflow && firstDay === nextStr) {
       batch.days.unshift(day);
-      batch.servings = batch.days.length;
+      batch.servings = batch.days.length + (batch.overflowDays?.length ?? 0);
       return true;
     }
   }
@@ -1028,37 +1089,64 @@ function restoreMealSlot(proposal: PlanProposal, day: string, mealTime: 'lunch' 
  * If removing from the middle of a batch (e.g., Tue from Mon-Wed), splits it
  * into two contiguous batches (Mon and Wed) so the cooking schedule stays valid.
  *
- * Returns any "orphan" days — single leftover days that would become 1-serving
- * batches if kept. These violate the min-2-serving rule, so the caller must
- * re-absorb them (via `restoreMealSlot`) or convert them to recipe gaps.
+ * Returns orphan days split into two classes (Plan 007 D30):
+ * - orphanDays: in-horizon orphans (absorb-or-gap)
+ * - overflowOrphanDays: past-horizon orphans (absorb-only, reject mutation on failure)
+ *
+ * Also detects the D30 violation case: if removing a day would leave a batch
+ * with zero in-horizon days but non-empty overflow, the batch is dropped entirely
+ * and ALL its days become orphans.
  */
 function removeBatchDay(
   proposal: PlanProposal,
   day: string,
   mealTime: 'lunch' | 'dinner',
-): { orphanDays: string[] } {
+  horizonEnd?: string,
+): { orphanDays: string[]; overflowOrphanDays: string[] } {
   const newBatches: ProposedBatch[] = [];
   const orphanDays: string[] = [];
+  const overflowOrphanDays: string[] = [];
 
   for (const batch of proposal.batches) {
     if (batch.mealType === mealTime && batch.days.includes(day)) {
       const remaining = batch.days.filter((d) => d !== day);
-      if (remaining.length === 0) continue; // batch fully consumed
+      const overflow = batch.overflowDays ?? [];
 
-      // Split into contiguous runs. Runs shorter than 2 days would produce
-      // 1-serving batches, which violate the 2-3 serving rule. Extract those
-      // days as orphans for the caller to handle.
+      if (remaining.length === 0 && overflow.length === 0) continue; // batch fully consumed
+
+      // D30 violation: removing the last in-horizon day strands overflow days
+      // with no cook day inside the horizon. Drop the entire batch.
+      if (remaining.length === 0 && overflow.length > 0) {
+        overflowOrphanDays.push(...overflow);
+        continue;
+      }
+
+      // Split remaining in-horizon days into contiguous runs
       const runs = splitIntoContiguousRuns(remaining);
+      // The first run gets the overflow days (it's closest to the horizon end)
+      let overflowAssigned = false;
       for (const run of runs) {
-        if (run.length < 2) {
+        const totalWithOverflow = run.length + (!overflowAssigned ? overflow.length : 0);
+        if (run.length < 2 && totalWithOverflow < 2) {
           orphanDays.push(...run);
+          if (!overflowAssigned && overflow.length > 0) {
+            overflowOrphanDays.push(...overflow);
+            overflowAssigned = true;
+          }
         } else {
+          const batchOverflow = !overflowAssigned ? overflow : undefined;
+          overflowAssigned = true;
           newBatches.push({
             ...batch,
             days: run,
-            servings: run.length,
+            servings: run.length + (batchOverflow?.length ?? 0),
+            overflowDays: batchOverflow && batchOverflow.length > 0 ? batchOverflow : undefined,
           });
         }
+      }
+      // If overflow was never assigned (all runs were orphans), it becomes overflow orphans
+      if (!overflowAssigned && overflow.length > 0) {
+        overflowOrphanDays.push(...overflow);
       }
     } else {
       newBatches.push(batch);
@@ -1066,7 +1154,7 @@ function removeBatchDay(
   }
 
   proposal.batches = newBatches;
-  return { orphanDays };
+  return { orphanDays, overflowOrphanDays };
 }
 
 /**
@@ -1412,6 +1500,7 @@ async function handleRecipeSwap(
 function formatPlanProposal(state: PlanFlowState): string {
   const proposal = state.proposal!;
   const solver = proposal.solverOutput!;
+  const preCommitted = state.preCommittedSlots ?? [];
   const parts: string[] = [];
 
   // Header
@@ -1422,8 +1511,16 @@ function formatPlanProposal(state: PlanFlowState): string {
   parts.push(`Breakfast (daily): ${state.breakfast.name} — ${state.breakfast.caloriesPerDay} cal`);
   parts.push('');
 
-  // Meal prep batches — solver assigns uniform per-serving calories, so show it
-  // once as a header rather than repeating on every line.
+  // Pre-committed slots from prior plan sessions
+  if (preCommitted.length > 0) {
+    parts.push('From prior plan:');
+    for (const slot of preCommitted) {
+      parts.push(`  ${capitalize(slot.mealTime)} ${formatDayShort(slot.day)}: ${slot.recipeSlug} (${slot.calories} cal)`);
+    }
+    parts.push('');
+  }
+
+  // Meal prep batches — solver assigns uniform per-serving calories
   const batchCals = proposal.batches
     .map((b) => {
       const target = solver.batchTargets.find((bt) =>
@@ -1439,15 +1536,17 @@ function formatPlanProposal(state: PlanFlowState): string {
   parts.push(uniformCal !== undefined ? `Meal prep (each ~${uniformCal} cal/serving):` : 'Meal prep:');
   for (const batch of proposal.batches) {
     const dayRange = batch.days.map(formatDayShort).join(batch.days.length === 2 ? '+' : '-');
+    const overflowCount = batch.overflowDays?.length ?? 0;
+    const overflowNote = overflowCount > 0 ? `, +${overflowCount} into next week` : '';
     if (uniformCal !== undefined) {
-      parts.push(`  ${capitalize(batch.mealType)} ${dayRange}: ${batch.recipeName} (${batch.servings} servings)`);
+      parts.push(`  ${capitalize(batch.mealType)} ${dayRange}: ${batch.recipeName} (${batch.servings} servings${overflowNote})`);
     } else {
       const target = solver.batchTargets.find((bt) =>
         bt.mealType === batch.mealType && bt.days.length === batch.days.length &&
         bt.days[0] === batch.days[0],
       );
       const cal = target?.targetPerServing.calories ?? '?';
-      parts.push(`  ${capitalize(batch.mealType)} ${dayRange}: ${batch.recipeName} (${batch.servings} servings, ~${cal} cal)`);
+      parts.push(`  ${capitalize(batch.mealType)} ${dayRange}: ${batch.recipeName} (${batch.servings} servings, ~${cal} cal${overflowNote})`);
     }
   }
   parts.push('');
@@ -1461,7 +1560,7 @@ function formatPlanProposal(state: PlanFlowState): string {
     parts.push('');
   }
 
-  // Fun budget — framed as treat occasions, not daily allowance
+  // Fun budget
   if (proposal.flexSlots.length > 0) {
     for (const flex of proposal.flexSlots) {
       const dayBreakdown = solver.dailyBreakdown.find((d) => d.day === flex.day);
@@ -1483,15 +1582,19 @@ function formatPlanProposal(state: PlanFlowState): string {
   }
   parts.push('');
 
-  // Cooking schedule
+  // Cooking schedule — derived from batch.days[0] (cook day = first eating day)
+  const cookDayMap = new Map<string, string[]>();
+  for (const batch of proposal.batches) {
+    if (batch.days.length === 0) continue;
+    const cookDay = batch.days[0]!;
+    const existing = cookDayMap.get(cookDay) ?? [];
+    existing.push(batch.recipeName);
+    cookDayMap.set(cookDay, existing);
+  }
+  const sortedCookDays = [...cookDayMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   parts.push('Cook:');
-  for (const cs of solver.cookingSchedule) {
-    const batchNames = cs.batchIds.map((id) => {
-      const bt = solver.batchTargets.find((b) => b.id === id);
-      const pb = proposal.batches.find((b) => b.recipeSlug === bt?.recipeSlug && b.mealType === bt?.mealType);
-      return pb?.recipeName ?? 'recipe';
-    });
-    parts.push(`  ${formatDayShort(cs.day)}: ${batchNames.join(' + ')}`);
+  for (const [day, names] of sortedCookDays) {
+    parts.push(`  ${formatDayShort(day)}: ${names.join(' + ')}`);
   }
   parts.push('');
 
