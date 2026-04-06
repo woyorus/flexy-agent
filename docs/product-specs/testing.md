@@ -56,7 +56,7 @@ After every `npm run test:generate -- <name>` (new or `--regenerate`):
 - **Batch sizes**: Every batch should have 2-3 servings. A 1-serving batch is usually a bug (gap resolution producing an undersized batch).
 - **Cross-horizon annotation**: If a batch has overflow days, the proposal should show "+N into next week".
 - **Pre-committed section**: If carry-over exists, "From prior plan:" should list the correct day, meal type, recipe, and calories.
-- **Weekly totals**: Should be within ~3% of 17,052 cal and ~1,050g protein. If not, check if there's a legitimate reason (carry-over with frozen macros at different targets) or if slots are missing.
+- **Weekly totals**: MUST be within ±3% of 17,052 cal and ~1,050g protein. If the proposal shows ⚠️ warnings or deviation beyond 3%, **this is a bug — investigate and fix before committing.** Do not rationalize warnings as "pre-existing" or "a known limitation." If your change introduced them, your change broke something. If they existed before your change, file the bug anyway — warnings in a committed recording will be locked in as "expected" by `deepStrictEqual` and silently mask the problem for every future agent.
 
 **Step 3 — Verify the final store state.** Read `expected.finalStore` and check:
 
@@ -74,6 +74,8 @@ After every `npm run test:generate -- <name>` (new or `--regenerate`):
 | Stale recipe names | Proposal text shows recipe names not in the fixture recipe set | Scenario 003 gap display bug |
 | Missing keyboards | An interactive message with no `keyboard` field | Any scenario — always check |
 | Flex count wrong | More or fewer than `config.planning.flexSlotsPerWeek` flex slots | Proposer retry logic |
+| Calorie/protein warnings | ⚠️ in weekly totals line, or "deviate" / "below target" text in proposal | Plan 010 overflow budget bug |
+| Overflow budget mismatch | Batch with "+N into next week" AND weekly totals show ⚠️ — overflow servings not counted in solver budget | Plan 010 solver overflow fix |
 
 **Step 5 — If anything is wrong, fix the code first.** Do NOT commit a recording that captures wrong behavior. The correct sequence is:
 
