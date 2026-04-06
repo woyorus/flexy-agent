@@ -18,14 +18,14 @@
           "content": "## THIS WEEK: 2026-04-06 to 2026-04-12\nDays: Mon 2026-04-06, Tue 2026-04-07, Wed 2026-04-08, Thu 2026-04-09, Fri 2026-04-10, Sat 2026-04-11, Sun 2026-04-12\n\n## EVENTS: None this week\n\n## AVAILABLE RECIPES\n- chicken-black-bean-avocado-rice-bowl: \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" | lunch | Mexican-inspired | chicken | 893 cal, 56g P | tags: meal-prep, high-protein, microwave-friendly, gluten-free, rice-bowl, latin-inspired\n- ground-beef-rigatoni-bolognese: \"Ground Beef Rigatoni Bolognese\" | dinner | Italian-inspired | beef | 888 cal, 55g P | tags: meal-prep, high-protein, pasta, beef, macro-friendly\n\n## RECENT PLANS: None (first week — no repeat constraints)\n\n## SLOT MATH (do this arithmetic carefully)\n- Total non-breakfast slots: 14 (7 lunches + 7 dinners)\n- Event slots taken: 0\n- Flex slots to propose (required): 1\n- Meal prep slots to cover with batches: 13\n- Available recipes: 2\n- Max coverage if all batches are 3-serving: 6\n- ✗ Existing recipes cannot cover all slots even with 3-serving batches — you MUST generate 3 new recipe(s).\n\nCreate the best plan for this week. Use existing recipes with a mix of 2 and 3 serving batches to cover exactly 13 meal prep slots + 1 flex slot(s). Prefer 3-serving batches where possible."
         }
       ],
-      "response": "{\n  \"batches\": [\n    {\n      \"recipe_slug\": \"chicken-black-bean-avocado-rice-bowl\",\n      \"recipe_name\": \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-06\",\n        \"2026-04-07\",\n        \"2026-04-08\"\n      ],\n      \"servings\": 3\n    },\n    {\n      \"recipe_slug\": \"ground-beef-rigatoni-bolognese\",\n      \"recipe_name\": \"Ground Beef Rigatoni Bolognese\",\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-06\",\n        \"2026-04-07\",\n        \"2026-04-08\"\n      ],\n      \"servings\": 3\n    },\n    {\n      \"recipe_slug\": \"spanish-pork-tenderloin-paprika-potatoes-green-beans\",\n      \"recipe_name\": \"Spanish Pork Tenderloin Traybake with Paprika Potatoes and Green Beans\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-09\",\n        \"2026-04-10\"\n      ],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"chickpea-spinach-tomato-stew-couscous\",\n      \"recipe_name\": \"Chickpea, Spinach and Tomato Stew with Couscous\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-11\",\n        \"2026-04-12\"\n      ],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"soy-ginger-salmon-broccoli-rice\",\n      \"recipe_name\": \"Soy-Ginger Salmon with Broccoli and Rice\",\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-10\",\n        \"2026-04-11\",\n        \"2026-04-12\"\n      ],\n      \"servings\": 3\n    }\n  ],\n  \"flex_slots\": [\n    {\n      \"day\": \"2026-04-09\",\n      \"meal_time\": \"dinner\",\n      \"flex_bonus\": 350,\n      \"note\": \"fun dinner night\"\n    }\n  ],\n  \"recipes_to_generate\": [\n    {\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-09\",\n        \"2026-04-10\"\n      ],\n      \"servings\": 2,\n      \"suggestion\": \"Spanish pork tenderloin traybake with paprika potatoes and green beans\",\n      \"reason\": \"Needed to fill the Thu-Fri lunch block with a second protein source after the chicken bowl, using ingredients that are easy to find in Southern Spain.\"\n    },\n    {\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-11\",\n        \"2026-04-12\"\n      ],\n      \"servings\": 2,\n      \"suggestion\": \"Chickpea, spinach and tomato stew with couscous\",\n      \"reason\": \"Needed a weekend lunch block that adds legumes, fiber and vegetable variety while keeping prep simple and budget-friendly.\"\n    },\n    {\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-10\",\n        \"2026-04-11\",\n        \"2026-04-12\"\n      ],\n      \"servings\": 3,\n      \"suggestion\": \"Soy-ginger salmon with broccoli and rice\",\n      \"reason\": \"Needed a fish dinner to add omega-3s and provide a non-beef dinner block that reheats well after the Thursday flex meal.\"\n    }\n  ],\n  \"reasoning\": \"I used 5 prep batches to exactly cover the 13 meal-prep slots: lunch is 3+2+2 and dinner is 3+3. Thursday dinner is the flex slot because it is the only dinner flex that preserves clean 3-day dinner blocks with the current recipe count; Friday or Saturday dinner would create an uncookable gap. The week rotates chicken, beef, pork, legumes and salmon for protein variety, and the cuisines span Mexican-inspired, Italian, Spanish and Asian-inspired profiles with better vegetable coverage and one fish meal for omega-3s.\"\n}",
+      "response": "{\n  \"batches\": [\n    {\n      \"recipe_slug\": \"chicken-black-bean-avocado-rice-bowl\",\n      \"recipe_name\": \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-06\",\n        \"2026-04-07\",\n        \"2026-04-08\"\n      ],\n      \"servings\": 3\n    },\n    {\n      \"recipe_slug\": \"ground-beef-rigatoni-bolognese\",\n      \"recipe_name\": \"Ground Beef Rigatoni Bolognese\",\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-06\",\n        \"2026-04-07\",\n        \"2026-04-08\"\n      ],\n      \"servings\": 3\n    },\n    {\n      \"recipe_slug\": \"spanish-lentil-spinach-stew\",\n      \"recipe_name\": \"Spanish Lentil Stew with Spinach and Carrots\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-09\",\n        \"2026-04-10\"\n      ],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"baked-salmon-potatoes-green-beans\",\n      \"recipe_name\": \"Baked Salmon with Potatoes, Green Beans and Lemon\",\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-09\",\n        \"2026-04-10\",\n        \"2026-04-11\"\n      ],\n      \"servings\": 3\n    },\n    {\n      \"recipe_slug\": \"iberian-pork-roasted-zucchini-peppers-potatoes\",\n      \"recipe_name\": \"Iberian Pork Tenderloin with Roasted Zucchini, Peppers and Potatoes\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-11\",\n        \"2026-04-12\"\n      ],\n      \"servings\": 2\n    }\n  ],\n  \"flex_slots\": [\n    {\n      \"day\": \"2026-04-12\",\n      \"meal_time\": \"dinner\",\n      \"flex_bonus\": 350,\n      \"note\": \"reserved for a relaxed end-of-week dinner\"\n    }\n  ],\n  \"recipes_to_generate\": [\n    {\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-09\",\n        \"2026-04-10\"\n      ],\n      \"servings\": 2,\n      \"suggestion\": \"Spanish lentil stew with spinach and carrots\",\n      \"reason\": \"Need a second lunch batch after the chicken bowl; adds a legume-based option and more vegetable variety.\"\n    },\n    {\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-11\",\n        \"2026-04-12\"\n      ],\n      \"servings\": 2,\n      \"suggestion\": \"Iberian pork tenderloin with roasted zucchini, peppers and potatoes\",\n      \"reason\": \"Need a third lunch batch to cover the weekend and diversify protein sources beyond chicken and legumes.\"\n    },\n    {\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-09\",\n        \"2026-04-10\",\n        \"2026-04-11\"\n      ],\n      \"servings\": 3,\n      \"suggestion\": \"Baked salmon with potatoes, green beans and lemon\",\n      \"reason\": \"Need a dinner batch to cover Thu-Sat and add the required fish meal for omega-3s.\"\n    }\n  ],\n  \"reasoning\": \"I used the existing chicken lunch and beef dinner as the first batch pair, then added a lentil lunch, a pork lunch, and a salmon dinner to reach the 13 prep slots with a 3+2+2 lunch structure and 3+3 dinner structure. Sunday dinner is the single flex meal so the dinner batches stay contiguous, and the week gets better protein rotation plus broader vegetable coverage.\"\n}",
       "usage": {
         "inputTokens": 1592,
-        "outputTokens": 22702
+        "outputTokens": 13892
       }
     },
     {
-      "hash": "e5d2ad7888fa8ddafd2633080b83172786dc3b47b3c670d81b5ee76921005355",
+      "hash": "e03c57b389ffdd25e7206aef2f80661182312d7c6f3db0cbe67325dee9c23636",
       "callIndex": 2,
       "model": "mini",
       "reasoning": "low",
@@ -37,17 +37,17 @@
         },
         {
           "role": "user",
-          "content": "Scale this recipe:\n\n\"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" — currently 893 cal, 56g protein per serving.\n\nIngredients (per serving):\n- chicken breast, raw: 190g (role: protein)\n- black beans, canned, drained: 75g (role: carb)\n- sweetcorn kernels, frozen: 40g (role: carb)\n- small avocado: 1whole (role: fat)\n- olive oil: 22g (role: fat)\n- ground cumin: 2g (role: seasoning)\n- smoked paprika: 2g (role: seasoning)\n- salt: 2g (role: seasoning)\n- black pepper: 1g (role: seasoning)\n- basmati rice, dry: 38g (role: base)\n- large tomato: 1whole (role: vegetable)\n- small red onion: 0.5whole (role: vegetable)\n- lime, juiced: 1whole (role: seasoning)\n- fresh coriander (cilantro): 5g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 515–555 kcal (target 535, ±20)\n- Protein: 36g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
+          "content": "Scale this recipe:\n\n\"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" — currently 893 cal, 56g protein per serving.\n\nIngredients (per serving):\n- chicken breast, raw: 190g (role: protein)\n- black beans, canned, drained: 75g (role: carb)\n- sweetcorn kernels, frozen: 40g (role: carb)\n- small avocado: 1whole (role: fat)\n- olive oil: 22g (role: fat)\n- ground cumin: 2g (role: seasoning)\n- smoked paprika: 2g (role: seasoning)\n- salt: 2g (role: seasoning)\n- black pepper: 1g (role: seasoning)\n- basmati rice, dry: 38g (role: base)\n- large tomato: 1whole (role: vegetable)\n- small red onion: 0.5whole (role: vegetable)\n- lime, juiced: 1whole (role: seasoning)\n- fresh coriander (cilantro): 5g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"chicken breast, raw\", \"amount\": 120, \"unit\": \"g\", \"total_for_batch\": 360 },\n    { \"name\": \"black beans, canned, drained\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 150 },\n    { \"name\": \"sweetcorn kernels, frozen\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"small avocado\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1.5 },\n    { \"name\": \"olive oil\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"ground cumin\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"smoked paprika\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"black pepper\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 38, \"unit\": \"g\", \"total_for_batch\": 114 },\n    { \"name\": \"large tomato\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 3 },\n    { \"name\": \"small red onion\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1.5 },\n    { \"name\": \"lime, juiced\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 3 },\n    { \"name\": \"fresh coriander (cilantro)\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 }\n  ],\n  \"actual_per_serving\": {\n    \"calories\": 527,\n    \"protein\": 35.4,\n    \"fat\": 18.8,\n    \"carbs\": 54\n  }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"chicken breast, raw\", \"amount\": 190, \"unit\": \"g\", \"total_for_batch\": 570 },\n    { \"name\": \"black beans, canned, drained\", \"amount\": 75, \"unit\": \"g\", \"total_for_batch\": 225 },\n    { \"name\": \"sweetcorn kernels, frozen\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"small avocado\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1.5 },\n    { \"name\": \"olive oil\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"ground cumin\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"smoked paprika\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"black pepper\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"large tomato\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 3 },\n    { \"name\": \"small red onion\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1.5 },\n    { \"name\": \"lime, juiced\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 3 },\n    { \"name\": \"fresh coriander (cilantro)\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 }\n  ],\n  \"actual_per_serving\": { \"calories\": 803, \"protein\": 55, \"fat\": 37, \"carbs\": 62 }\n}",
       "usage": {
         "inputTokens": 786,
-        "outputTokens": 1405
+        "outputTokens": 2650
       }
     },
     {
-      "hash": "5b8cb6cdbeee885cc8b1bc1e0b2413c176259890c9c74108f2580638952b67b6",
+      "hash": "7285698eedc0efca076e860cfd17989bb436283727255ea1b1ea4f55ff2a6abc",
       "callIndex": 3,
       "model": "mini",
       "reasoning": "low",
@@ -59,17 +59,17 @@
         },
         {
           "role": "user",
-          "content": "Scale this recipe:\n\n\"Ground Beef Rigatoni Bolognese\" — currently 888 cal, 55g protein per serving.\n\nIngredients (per serving):\n- ground beef: 200g (role: protein)\n- olive oil: 18g (role: fat)\n- onion: 50g (role: vegetable)\n- carrot: 40g (role: vegetable)\n- garlic: 8g (role: seasoning)\n- ripe diced tomatoes: 180g (role: base)\n- dried oregano: 1g (role: seasoning)\n- parmesan: 5g (role: seasoning)\n- sea salt: 2g (role: seasoning)\n- black pepper: 0.5g (role: seasoning)\n- rigatoni or spaghetti: 65g (role: carb)\n\nNEW TARGET per serving:\n- Calories: 515–555 kcal (target 535, ±20)\n- Protein: 36g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
+          "content": "Scale this recipe:\n\n\"Ground Beef Rigatoni Bolognese\" — currently 888 cal, 55g protein per serving.\n\nIngredients (per serving):\n- ground beef: 200g (role: protein)\n- olive oil: 18g (role: fat)\n- onion: 50g (role: vegetable)\n- carrot: 40g (role: vegetable)\n- garlic: 8g (role: seasoning)\n- ripe diced tomatoes: 180g (role: base)\n- dried oregano: 1g (role: seasoning)\n- parmesan: 5g (role: seasoning)\n- sea salt: 2g (role: seasoning)\n- black pepper: 0.5g (role: seasoning)\n- rigatoni or spaghetti: 65g (role: carb)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"ground beef\", \"amount\": 135, \"unit\": \"g\", \"total_for_batch\": 405 },\n    { \"name\": \"olive oil\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 30 },\n    { \"name\": \"onion\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 150 },\n    { \"name\": \"carrot\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"garlic\", \"amount\": 8, \"unit\": \"g\", \"total_for_batch\": 24 },\n    { \"name\": \"ripe diced tomatoes\", \"amount\": 180, \"unit\": \"g\", \"total_for_batch\": 540 },\n    { \"name\": \"dried oregano\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 },\n    { \"name\": \"parmesan\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"sea salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"black pepper\", \"amount\": 0.5, \"unit\": \"g\", \"total_for_batch\": 1.5 },\n    { \"name\": \"rigatoni or spaghetti\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 120 }\n  ],\n  \"actual_per_serving\": { \"calories\": 532, \"protein\": 38, \"fat\": 20, \"carbs\": 50 }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"ground beef\", \"amount\": 200, \"unit\": \"g\", \"total_for_batch\": 600 },\n    { \"name\": \"olive oil\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 30 },\n    { \"name\": \"onion\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 150 },\n    { \"name\": \"carrot\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"garlic\", \"amount\": 8, \"unit\": \"g\", \"total_for_batch\": 24 },\n    { \"name\": \"ripe diced tomatoes\", \"amount\": 180, \"unit\": \"g\", \"total_for_batch\": 540 },\n    { \"name\": \"dried oregano\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 },\n    { \"name\": \"parmesan\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"sea salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"black pepper\", \"amount\": 0.5, \"unit\": \"g\", \"total_for_batch\": 1.5 },\n    { \"name\": \"rigatoni or spaghetti\", \"amount\": 55, \"unit\": \"g\", \"total_for_batch\": 165 }\n  ],\n  \"actual_per_serving\": { \"calories\": 803, \"protein\": 55, \"fat\": 43, \"carbs\": 49 }\n}",
       "usage": {
         "inputTokens": 726,
-        "outputTokens": 1573
+        "outputTokens": 1229
       }
     },
     {
-      "hash": "40295eb75d8b03252304e273b0ff671f06ba8f9345ecdb3ed795b12efae48cde",
+      "hash": "f4efc17a2ae1350a0df4145b6c274c29247e8ac6491d5ba15d9e64581d19ece7",
       "callIndex": 4,
       "model": "mini",
       "reasoning": "low",
@@ -81,17 +81,17 @@
         },
         {
           "role": "user",
-          "content": "Scale this recipe:\n\n\"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" — currently 893 cal, 56g protein per serving.\n\nIngredients (per serving):\n- chicken breast, raw: 190g (role: protein)\n- black beans, canned, drained: 75g (role: carb)\n- sweetcorn kernels, frozen: 40g (role: carb)\n- small avocado: 1whole (role: fat)\n- olive oil: 22g (role: fat)\n- ground cumin: 2g (role: seasoning)\n- smoked paprika: 2g (role: seasoning)\n- salt: 2g (role: seasoning)\n- black pepper: 1g (role: seasoning)\n- basmati rice, dry: 38g (role: base)\n- large tomato: 1whole (role: vegetable)\n- small red onion: 0.5whole (role: vegetable)\n- lime, juiced: 1whole (role: seasoning)\n- fresh coriander (cilantro): 5g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 515–555 kcal (target 535, ±20)\n- Protein: 36g (precise, ±2g)\n\nNumber of servings: 2\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
+          "content": "Scale this recipe:\n\n\"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" — currently 893 cal, 56g protein per serving.\n\nIngredients (per serving):\n- chicken breast, raw: 190g (role: protein)\n- black beans, canned, drained: 75g (role: carb)\n- sweetcorn kernels, frozen: 40g (role: carb)\n- small avocado: 1whole (role: fat)\n- olive oil: 22g (role: fat)\n- ground cumin: 2g (role: seasoning)\n- smoked paprika: 2g (role: seasoning)\n- salt: 2g (role: seasoning)\n- black pepper: 1g (role: seasoning)\n- basmati rice, dry: 38g (role: base)\n- large tomato: 1whole (role: vegetable)\n- small red onion: 0.5whole (role: vegetable)\n- lime, juiced: 1whole (role: seasoning)\n- fresh coriander (cilantro): 5g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 2\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"chicken breast, raw\", \"amount\": 90, \"unit\": \"g\", \"total_for_batch\": 180 },\n    { \"name\": \"black beans, canned, drained\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 100 },\n    { \"name\": \"sweetcorn kernels, frozen\", \"amount\": 30, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"small avocado\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"olive oil\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 10 },\n    { \"name\": \"ground cumin\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"smoked paprika\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"black pepper\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 38, \"unit\": \"g\", \"total_for_batch\": 76 },\n    { \"name\": \"large tomato\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 2 },\n    { \"name\": \"small red onion\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"lime, juiced\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 2 },\n    { \"name\": \"fresh coriander (cilantro)\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 10 }\n  ],\n  \"actual_per_serving\": { \"calories\": 532, \"protein\": 38, \"fat\": 19, \"carbs\": 52 }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"chicken breast, raw\", \"amount\": 190, \"unit\": \"g\", \"total_for_batch\": 380 },\n    { \"name\": \"black beans, canned, drained\", \"amount\": 60, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"sweetcorn kernels, frozen\", \"amount\": 30, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"small avocado\", \"amount\": 0.75, \"unit\": \"whole\", \"total_for_batch\": 1.5 },\n    { \"name\": \"olive oil\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 20 },\n    { \"name\": \"ground cumin\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"smoked paprika\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"black pepper\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 38, \"unit\": \"g\", \"total_for_batch\": 76 },\n    { \"name\": \"large tomato\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 2 },\n    { \"name\": \"small red onion\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"lime, juiced\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 2 },\n    { \"name\": \"fresh coriander (cilantro)\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 10 }\n  ],\n  \"actual_per_serving\": { \"calories\": 799, \"protein\": 56, \"fat\": 39, \"carbs\": 56 }\n}",
       "usage": {
         "inputTokens": 786,
-        "outputTokens": 1471
+        "outputTokens": 2359
       }
     },
     {
-      "hash": "40295eb75d8b03252304e273b0ff671f06ba8f9345ecdb3ed795b12efae48cde",
+      "hash": "f4efc17a2ae1350a0df4145b6c274c29247e8ac6491d5ba15d9e64581d19ece7",
       "callIndex": 5,
       "model": "mini",
       "reasoning": "low",
@@ -103,17 +103,17 @@
         },
         {
           "role": "user",
-          "content": "Scale this recipe:\n\n\"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" — currently 893 cal, 56g protein per serving.\n\nIngredients (per serving):\n- chicken breast, raw: 190g (role: protein)\n- black beans, canned, drained: 75g (role: carb)\n- sweetcorn kernels, frozen: 40g (role: carb)\n- small avocado: 1whole (role: fat)\n- olive oil: 22g (role: fat)\n- ground cumin: 2g (role: seasoning)\n- smoked paprika: 2g (role: seasoning)\n- salt: 2g (role: seasoning)\n- black pepper: 1g (role: seasoning)\n- basmati rice, dry: 38g (role: base)\n- large tomato: 1whole (role: vegetable)\n- small red onion: 0.5whole (role: vegetable)\n- lime, juiced: 1whole (role: seasoning)\n- fresh coriander (cilantro): 5g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 515–555 kcal (target 535, ±20)\n- Protein: 36g (precise, ±2g)\n\nNumber of servings: 2\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
+          "content": "Scale this recipe:\n\n\"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" — currently 893 cal, 56g protein per serving.\n\nIngredients (per serving):\n- chicken breast, raw: 190g (role: protein)\n- black beans, canned, drained: 75g (role: carb)\n- sweetcorn kernels, frozen: 40g (role: carb)\n- small avocado: 1whole (role: fat)\n- olive oil: 22g (role: fat)\n- ground cumin: 2g (role: seasoning)\n- smoked paprika: 2g (role: seasoning)\n- salt: 2g (role: seasoning)\n- black pepper: 1g (role: seasoning)\n- basmati rice, dry: 38g (role: base)\n- large tomato: 1whole (role: vegetable)\n- small red onion: 0.5whole (role: vegetable)\n- lime, juiced: 1whole (role: seasoning)\n- fresh coriander (cilantro): 5g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 2\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"chicken breast, raw\", \"amount\": 115, \"unit\": \"g\", \"total_for_batch\": 230 },\n    { \"name\": \"black beans, canned, drained\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 100 },\n    { \"name\": \"sweetcorn kernels, frozen\", \"amount\": 25, \"unit\": \"g\", \"total_for_batch\": 50 },\n    { \"name\": \"small avocado\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"olive oil\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 20 },\n    { \"name\": \"ground cumin\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"smoked paprika\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"black pepper\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 30, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"large tomato\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 2 },\n    { \"name\": \"small red onion\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"lime, juiced\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 2 },\n    { \"name\": \"fresh coriander (cilantro)\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 10 }\n  ],\n  \"actual_per_serving\": { \"calories\": 535, \"protein\": 36, \"fat\": 21, \"carbs\": 50.5 }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"chicken breast, raw\", \"amount\": 195, \"unit\": \"g\", \"total_for_batch\": 390 },\n    { \"name\": \"black beans, canned, drained\", \"amount\": 75, \"unit\": \"g\", \"total_for_batch\": 150 },\n    { \"name\": \"sweetcorn kernels, frozen\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 80 },\n    { \"name\": \"small avocado\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 2 },\n    { \"name\": \"olive oil\", \"amount\": 15, \"unit\": \"g\", \"total_for_batch\": 30 },\n    { \"name\": \"ground cumin\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"smoked paprika\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"black pepper\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 30, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"large tomato\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 2 },\n    { \"name\": \"small red onion\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"lime, juiced\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 2 },\n    { \"name\": \"fresh coriander (cilantro)\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 10 }\n  ],\n  \"actual_per_serving\": { \"calories\": 819, \"protein\": 55, \"fat\": 39, \"carbs\": 62 }\n}",
       "usage": {
         "inputTokens": 786,
-        "outputTokens": 1555
+        "outputTokens": 1336
       }
     },
     {
-      "hash": "5b8cb6cdbeee885cc8b1bc1e0b2413c176259890c9c74108f2580638952b67b6",
+      "hash": "7285698eedc0efca076e860cfd17989bb436283727255ea1b1ea4f55ff2a6abc",
       "callIndex": 6,
       "model": "mini",
       "reasoning": "low",
@@ -125,13 +125,13 @@
         },
         {
           "role": "user",
-          "content": "Scale this recipe:\n\n\"Ground Beef Rigatoni Bolognese\" — currently 888 cal, 55g protein per serving.\n\nIngredients (per serving):\n- ground beef: 200g (role: protein)\n- olive oil: 18g (role: fat)\n- onion: 50g (role: vegetable)\n- carrot: 40g (role: vegetable)\n- garlic: 8g (role: seasoning)\n- ripe diced tomatoes: 180g (role: base)\n- dried oregano: 1g (role: seasoning)\n- parmesan: 5g (role: seasoning)\n- sea salt: 2g (role: seasoning)\n- black pepper: 0.5g (role: seasoning)\n- rigatoni or spaghetti: 65g (role: carb)\n\nNEW TARGET per serving:\n- Calories: 515–555 kcal (target 535, ±20)\n- Protein: 36g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
+          "content": "Scale this recipe:\n\n\"Ground Beef Rigatoni Bolognese\" — currently 888 cal, 55g protein per serving.\n\nIngredients (per serving):\n- ground beef: 200g (role: protein)\n- olive oil: 18g (role: fat)\n- onion: 50g (role: vegetable)\n- carrot: 40g (role: vegetable)\n- garlic: 8g (role: seasoning)\n- ripe diced tomatoes: 180g (role: base)\n- dried oregano: 1g (role: seasoning)\n- parmesan: 5g (role: seasoning)\n- sea salt: 2g (role: seasoning)\n- black pepper: 0.5g (role: seasoning)\n- rigatoni or spaghetti: 65g (role: carb)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"ground beef\", \"amount\": 125, \"unit\": \"g\", \"total_for_batch\": 375 },\n    { \"name\": \"olive oil\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 30 },\n    { \"name\": \"onion\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 150 },\n    { \"name\": \"carrot\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"garlic\", \"amount\": 8, \"unit\": \"g\", \"total_for_batch\": 24 },\n    { \"name\": \"ripe diced tomatoes\", \"amount\": 180, \"unit\": \"g\", \"total_for_batch\": 540 },\n    { \"name\": \"dried oregano\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 },\n    { \"name\": \"parmesan\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"sea salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"black pepper\", \"amount\": 0.5, \"unit\": \"g\", \"total_for_batch\": 1.5 },\n    { \"name\": \"rigatoni or spaghetti\", \"amount\": 45, \"unit\": \"g\", \"total_for_batch\": 135 }\n  ],\n  \"actual_per_serving\": { \"calories\": 549, \"protein\": 35, \"fat\": 25, \"carbs\": 46 }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"ground beef\", \"amount\": 200, \"unit\": \"g\", \"total_for_batch\": 600 },\n    { \"name\": \"olive oil\", \"amount\": 15, \"unit\": \"g\", \"total_for_batch\": 45 },\n    { \"name\": \"onion\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 150 },\n    { \"name\": \"carrot\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"garlic\", \"amount\": 8, \"unit\": \"g\", \"total_for_batch\": 24 },\n    { \"name\": \"ripe diced tomatoes\", \"amount\": 180, \"unit\": \"g\", \"total_for_batch\": 540 },\n    { \"name\": \"dried oregano\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 },\n    { \"name\": \"parmesan\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"sea salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"black pepper\", \"amount\": 0.5, \"unit\": \"g\", \"total_for_batch\": 1.5 },\n    { \"name\": \"rigatoni or spaghetti\", \"amount\": 55, \"unit\": \"g\", \"total_for_batch\": 165 }\n  ],\n  \"actual_per_serving\": { \"calories\": 803, \"protein\": 55, \"fat\": 48, \"carbs\": 38 }\n}",
       "usage": {
         "inputTokens": 726,
-        "outputTokens": 1504
+        "outputTokens": 1276
       }
     }
   ],
@@ -195,7 +195,7 @@
         "text": "No events this week. Generating your plan..."
       },
       {
-        "text": "Needed to fill the Thu-Fri lunch block with a second protein source after the chicken bowl, using ingredients that are easy to find in Southern Spain.\n\nI'd suggest: Spanish pork tenderloin traybake with paprika potatoes and green beans for lunch Thu-Fri (2 servings).\n\nWant me to generate one, or do you have something specific in mind?",
+        "text": "Need a second lunch batch after the chicken bowl; adds a legume-based option and more vegetable variety.\n\nI'd suggest: Spanish lentil stew with spinach and carrots for lunch Thu-Fri (2 servings).\n\nWant me to generate one, or do you have something specific in mind?",
         "keyboard": {
           "kind": "inline",
           "buttons": [
@@ -217,7 +217,7 @@
         }
       },
       {
-        "text": "Needed a weekend lunch block that adds legumes, fiber and vegetable variety while keeping prep simple and budget-friendly.\n\nI'd suggest: Chickpea, spinach and tomato stew with couscous for lunch Sat-Sun (2 servings).\n\nWant me to generate one, or do you have something specific in mind?",
+        "text": "Need a third lunch batch to cover the weekend and diversify protein sources beyond chicken and legumes.\n\nI'd suggest: Iberian pork tenderloin with roasted zucchini, peppers and potatoes for lunch Sat-Sun (2 servings).\n\nWant me to generate one, or do you have something specific in mind?",
         "keyboard": {
           "kind": "inline",
           "buttons": [
@@ -239,7 +239,7 @@
         }
       },
       {
-        "text": "Needed a fish dinner to add omega-3s and provide a non-beef dinner block that reheats well after the Thursday flex meal.\n\nI'd suggest: Soy-ginger salmon with broccoli and rice for dinner Fri-Sat-Sun (3 servings).\n\nWant me to generate one, or do you have something specific in mind?",
+        "text": "Need a dinner batch to cover Thu-Sat and add the required fish meal for omega-3s.\n\nI'd suggest: Baked salmon with potatoes, green beans and lemon for dinner Thu-Fri-Sat (3 servings).\n\nWant me to generate one, or do you have something specific in mind?",
         "keyboard": {
           "kind": "inline",
           "buttons": [
@@ -261,7 +261,7 @@
         }
       },
       {
-        "text": "Your week: Mon Apr 6 – Sun Apr 12\n\nBreakfast (daily): Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt — 658 cal\n\nMeal prep (each ~540 cal/serving):\n  Lunch Mon-Tue-Wed: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (3 servings)\n  Dinner Mon-Tue-Wed: Ground Beef Rigatoni Bolognese (3 servings)\n  Lunch Thu+Fri: Spanish Pork Tenderloin Traybake with Paprika Potatoes and Green Beans (2 servings)\n  Lunch Sat+Sun: Chickpea, Spinach and Tomato Stew with Couscous (2 servings)\n  Dinner Fri-Sat-Sun: Soy-Ginger Salmon with Broccoli and Rice (3 servings)\n  Lunch Thu+Fri: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (2 servings)\n  Lunch Sat+Sun: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (2 servings)\n  Dinner Fri-Sat-Sun: Ground Beef Rigatoni Bolognese (3 servings)\n\nFlex meal: Thu dinner (~885 cal — fun dinner night)\nTreats: 2 this week (~427 cal each)\n  Spend whenever cravings hit — not assigned to specific days\n\nCook:\n  Mon: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa + Ground Beef Rigatoni Bolognese\n  Thu: Spanish Pork Tenderloin Traybake with Paprika Potatoes and Green Beans + Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\n  Fri: Soy-Ginger Salmon with Broccoli and Rice + Ground Beef Rigatoni Bolognese\n  Sat: Chickpea, Spinach and Tomato Stew with Couscous + Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\n\nWeekly: 13,299 cal | 791g protein ⚠️\n\n⚠️ Per-meal target 535 cal is very low. Consider fewer events or a lower treat budget.\n⚠️ Weekly calories 13299 deviate 22.0% from target 17052.\n⚠️ Weekly protein 791g is below target 1050g.",
+        "text": "Your week: Mon Apr 6 – Sun Apr 12\n\nBreakfast (daily): Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt — 658 cal\n\nMeal prep (each ~800 cal/serving):\n  Lunch Mon-Tue-Wed: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (3 servings)\n  Dinner Mon-Tue-Wed: Ground Beef Rigatoni Bolognese (3 servings)\n  Lunch Thu+Fri: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (2 servings)\n  Lunch Sat+Sun: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa (2 servings)\n  Dinner Thu-Fri-Sat: Ground Beef Rigatoni Bolognese (3 servings)\n\nFlex meal: Sun dinner (~1153 cal — reserved for a relaxed end-of-week dinner)\nTreats: 2 this week (~427 cal each)\n  Spend whenever cravings hit — not assigned to specific days\n\nCook:\n  Mon: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa + Ground Beef Rigatoni Bolognese\n  Thu: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa + Ground Beef Rigatoni Bolognese\n  Sat: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\n\nWeekly: 17,051 cal | 1057g protein ✓",
         "keyboard": {
           "kind": "inline",
           "buttons": [
@@ -353,37 +353,6 @@
               "servings": 3
             },
             {
-              "recipeSlug": "spanish-pork-tenderloin-paprika-potatoes-green-beans",
-              "recipeName": "Spanish Pork Tenderloin Traybake with Paprika Potatoes and Green Beans",
-              "mealType": "lunch",
-              "days": [
-                "2026-04-09",
-                "2026-04-10"
-              ],
-              "servings": 2
-            },
-            {
-              "recipeSlug": "chickpea-spinach-tomato-stew-couscous",
-              "recipeName": "Chickpea, Spinach and Tomato Stew with Couscous",
-              "mealType": "lunch",
-              "days": [
-                "2026-04-11",
-                "2026-04-12"
-              ],
-              "servings": 2
-            },
-            {
-              "recipeSlug": "soy-ginger-salmon-broccoli-rice",
-              "recipeName": "Soy-Ginger Salmon with Broccoli and Rice",
-              "mealType": "dinner",
-              "days": [
-                "2026-04-10",
-                "2026-04-11",
-                "2026-04-12"
-              ],
-              "servings": 3
-            },
-            {
               "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
               "recipeName": "Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa",
               "mealType": "lunch",
@@ -408,47 +377,47 @@
               "recipeName": "Ground Beef Rigatoni Bolognese",
               "mealType": "dinner",
               "days": [
+                "2026-04-09",
                 "2026-04-10",
-                "2026-04-11",
-                "2026-04-12"
+                "2026-04-11"
               ],
               "servings": 3
             }
           ],
           "flexSlots": [
             {
-              "day": "2026-04-09",
+              "day": "2026-04-12",
               "mealTime": "dinner",
               "flexBonus": 350,
-              "note": "fun dinner night"
+              "note": "reserved for a relaxed end-of-week dinner"
             }
           ],
           "recipesToGenerate": [],
           "solverOutput": {
-            "isValid": false,
+            "isValid": true,
             "weeklyTotals": {
-              "calories": 13299,
-              "protein": 791,
+              "calories": 17051,
+              "protein": 1057,
               "treatBudget": 853,
               "flexSlotCalories": 350
             },
             "dailyBreakdown": [
               {
                 "day": "2026-04-06",
-                "totalCalories": 1728,
-                "totalProtein": 113,
+                "totalCalories": 2264,
+                "totalProtein": 151,
                 "breakfast": {
                   "calories": 658,
                   "protein": 41
                 },
                 "lunch": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:0}}"
                 },
                 "dinner": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:1}}"
                 },
                 "flexSlots": [],
@@ -456,20 +425,20 @@
               },
               {
                 "day": "2026-04-07",
-                "totalCalories": 1728,
-                "totalProtein": 113,
+                "totalCalories": 2264,
+                "totalProtein": 151,
                 "breakfast": {
                   "calories": 658,
                   "protein": 41
                 },
                 "lunch": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:0}}"
                 },
                 "dinner": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:1}}"
                 },
                 "flexSlots": [],
@@ -477,20 +446,20 @@
               },
               {
                 "day": "2026-04-08",
-                "totalCalories": 1728,
-                "totalProtein": 113,
+                "totalCalories": 2264,
+                "totalProtein": 151,
                 "breakfast": {
                   "calories": 658,
                   "protein": 41
                 },
                 "lunch": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:0}}"
                 },
                 "dinner": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:1}}"
                 },
                 "flexSlots": [],
@@ -498,48 +467,41 @@
               },
               {
                 "day": "2026-04-09",
-                "totalCalories": 2078,
-                "totalProtein": 113,
+                "totalCalories": 2264,
+                "totalProtein": 151,
                 "breakfast": {
                   "calories": 658,
                   "protein": 41
                 },
                 "lunch": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:2}}"
                 },
                 "dinner": {
-                  "calories": 885,
-                  "protein": 36,
-                  "flexBonus": 350
+                  "calories": 803,
+                  "protein": 55,
+                  "batchId": "{{uuid:3}}"
                 },
-                "flexSlots": [
-                  {
-                    "day": "2026-04-09",
-                    "mealTime": "dinner",
-                    "flexBonus": 350,
-                    "note": "fun dinner night"
-                  }
-                ],
+                "flexSlots": [],
                 "events": []
               },
               {
                 "day": "2026-04-10",
-                "totalCalories": 1728,
-                "totalProtein": 113,
+                "totalCalories": 2264,
+                "totalProtein": 151,
                 "breakfast": {
                   "calories": 658,
                   "protein": 41
                 },
                 "lunch": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:2}}"
                 },
                 "dinner": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:3}}"
                 },
                 "flexSlots": [],
@@ -547,20 +509,20 @@
               },
               {
                 "day": "2026-04-11",
-                "totalCalories": 1728,
-                "totalProtein": 113,
+                "totalCalories": 2264,
+                "totalProtein": 151,
                 "breakfast": {
                   "calories": 658,
                   "protein": 41
                 },
                 "lunch": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:4}}"
                 },
                 "dinner": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:3}}"
                 },
                 "flexSlots": [],
@@ -568,23 +530,30 @@
               },
               {
                 "day": "2026-04-12",
-                "totalCalories": 1728,
-                "totalProtein": 113,
+                "totalCalories": 2614,
+                "totalProtein": 151,
                 "breakfast": {
                   "calories": 658,
                   "protein": 41
                 },
                 "lunch": {
-                  "calories": 535,
-                  "protein": 36,
+                  "calories": 803,
+                  "protein": 55,
                   "batchId": "{{uuid:4}}"
                 },
                 "dinner": {
-                  "calories": 535,
-                  "protein": 36,
-                  "batchId": "{{uuid:3}}"
+                  "calories": 1153,
+                  "protein": 55,
+                  "flexBonus": 350
                 },
-                "flexSlots": [],
+                "flexSlots": [
+                  {
+                    "day": "2026-04-12",
+                    "mealTime": "dinner",
+                    "flexBonus": 350,
+                    "note": "reserved for a relaxed end-of-week dinner"
+                  }
+                ],
                 "events": []
               }
             ],
@@ -600,8 +569,8 @@
                 ],
                 "servings": 3,
                 "targetPerServing": {
-                  "calories": 535,
-                  "protein": 36
+                  "calories": 803,
+                  "protein": 55
                 }
               },
               {
@@ -615,13 +584,13 @@
                 ],
                 "servings": 3,
                 "targetPerServing": {
-                  "calories": 535,
-                  "protein": 36
+                  "calories": 803,
+                  "protein": 55
                 }
               },
               {
                 "id": "{{uuid:2}}",
-                "recipeSlug": "spanish-pork-tenderloin-paprika-potatoes-green-beans",
+                "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
                 "mealType": "lunch",
                 "days": [
                   "2026-04-09",
@@ -629,13 +598,13 @@
                 ],
                 "servings": 2,
                 "targetPerServing": {
-                  "calories": 535,
-                  "protein": 36
+                  "calories": 803,
+                  "protein": 55
                 }
               },
               {
                 "id": "{{uuid:4}}",
-                "recipeSlug": "chickpea-spinach-tomato-stew-couscous",
+                "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
                 "mealType": "lunch",
                 "days": [
                   "2026-04-11",
@@ -643,66 +612,23 @@
                 ],
                 "servings": 2,
                 "targetPerServing": {
-                  "calories": 535,
-                  "protein": 36
+                  "calories": 803,
+                  "protein": 55
                 }
               },
               {
                 "id": "{{uuid:3}}",
-                "recipeSlug": "soy-ginger-salmon-broccoli-rice",
-                "mealType": "dinner",
-                "days": [
-                  "2026-04-10",
-                  "2026-04-11",
-                  "2026-04-12"
-                ],
-                "servings": 3,
-                "targetPerServing": {
-                  "calories": 535,
-                  "protein": 36
-                }
-              },
-              {
-                "id": "{{uuid:5}}",
-                "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
-                "mealType": "lunch",
-                "days": [
-                  "2026-04-09",
-                  "2026-04-10"
-                ],
-                "servings": 2,
-                "targetPerServing": {
-                  "calories": 535,
-                  "protein": 36
-                }
-              },
-              {
-                "id": "{{uuid:6}}",
-                "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
-                "mealType": "lunch",
-                "days": [
-                  "2026-04-11",
-                  "2026-04-12"
-                ],
-                "servings": 2,
-                "targetPerServing": {
-                  "calories": 535,
-                  "protein": 36
-                }
-              },
-              {
-                "id": "{{uuid:7}}",
                 "recipeSlug": "ground-beef-rigatoni-bolognese",
                 "mealType": "dinner",
                 "days": [
+                  "2026-04-09",
                   "2026-04-10",
-                  "2026-04-11",
-                  "2026-04-12"
+                  "2026-04-11"
                 ],
                 "servings": 3,
                 "targetPerServing": {
-                  "calories": 535,
-                  "protein": 36
+                  "calories": 803,
+                  "protein": 55
                 }
               }
             ],
@@ -718,29 +644,17 @@
                 "day": "2026-04-09",
                 "batchIds": [
                   "{{uuid:2}}",
-                  "{{uuid:5}}"
-                ]
-              },
-              {
-                "day": "2026-04-10",
-                "batchIds": [
-                  "{{uuid:3}}",
-                  "{{uuid:7}}"
+                  "{{uuid:3}}"
                 ]
               },
               {
                 "day": "2026-04-11",
                 "batchIds": [
-                  "{{uuid:4}}",
-                  "{{uuid:6}}"
+                  "{{uuid:4}}"
                 ]
               }
             ],
-            "warnings": [
-              "Per-meal target 535 cal is very low. Consider fewer events or a lower treat budget.",
-              "Weekly calories 13299 deviate 22.0% from target 17052.",
-              "Weekly protein 791g is below target 1050g."
-            ]
+            "warnings": []
           }
         }
       },
@@ -762,10 +676,10 @@
           "treatBudgetCalories": 853,
           "flexSlots": [
             {
-              "day": "2026-04-09",
+              "day": "2026-04-12",
               "mealTime": "dinner",
               "flexBonus": 350,
-              "note": "fun dinner night"
+              "note": "reserved for a relaxed end-of-week dinner"
             }
           ],
           "events": [],
@@ -787,33 +701,33 @@
           ],
           "servings": 3,
           "targetPerServing": {
-            "calories": 535,
-            "protein": 36
+            "calories": 803,
+            "protein": 55
           },
           "actualPerServing": {
-            "calories": 527,
-            "protein": 35.4,
-            "fat": 18.8,
-            "carbs": 54
+            "calories": 803,
+            "protein": 55,
+            "fat": 37,
+            "carbs": 62
           },
           "scaledIngredients": [
             {
               "name": "chicken breast, raw",
-              "amount": 120,
+              "amount": 190,
               "unit": "g",
-              "totalForBatch": 360
+              "totalForBatch": 570
             },
             {
               "name": "black beans, canned, drained",
-              "amount": 50,
+              "amount": 75,
               "unit": "g",
-              "totalForBatch": 150
+              "totalForBatch": 225
             },
             {
               "name": "sweetcorn kernels, frozen",
-              "amount": 20,
+              "amount": 40,
               "unit": "g",
-              "totalForBatch": 60
+              "totalForBatch": 120
             },
             {
               "name": "small avocado",
@@ -823,9 +737,9 @@
             },
             {
               "name": "olive oil",
-              "amount": 5,
+              "amount": 20,
               "unit": "g",
-              "totalForBatch": 15
+              "totalForBatch": 60
             },
             {
               "name": "ground cumin",
@@ -853,9 +767,9 @@
             },
             {
               "name": "basmati rice, dry",
-              "amount": 38,
+              "amount": 40,
               "unit": "g",
-              "totalForBatch": 114
+              "totalForBatch": 120
             },
             {
               "name": "large tomato",
@@ -896,21 +810,21 @@
           ],
           "servings": 3,
           "targetPerServing": {
-            "calories": 535,
-            "protein": 36
+            "calories": 803,
+            "protein": 55
           },
           "actualPerServing": {
-            "calories": 532,
-            "protein": 38,
-            "fat": 20,
-            "carbs": 50
+            "calories": 803,
+            "protein": 55,
+            "fat": 43,
+            "carbs": 49
           },
           "scaledIngredients": [
             {
               "name": "ground beef",
-              "amount": 135,
+              "amount": 200,
               "unit": "g",
-              "totalForBatch": 405
+              "totalForBatch": 600
             },
             {
               "name": "olive oil",
@@ -968,9 +882,9 @@
             },
             {
               "name": "rigatoni or spaghetti",
-              "amount": 40,
+              "amount": 55,
               "unit": "g",
-              "totalForBatch": 120
+              "totalForBatch": 165
             }
           ],
           "status": "planned",
@@ -978,76 +892,6 @@
         },
         {
           "id": "{{uuid:3}}",
-          "recipeSlug": "spanish-pork-tenderloin-paprika-potatoes-green-beans",
-          "mealType": "lunch",
-          "eatingDays": [
-            "2026-04-09",
-            "2026-04-10"
-          ],
-          "servings": 2,
-          "targetPerServing": {
-            "calories": 535,
-            "protein": 36
-          },
-          "actualPerServing": {
-            "calories": 0,
-            "protein": 0,
-            "fat": 0,
-            "carbs": 0
-          },
-          "scaledIngredients": [],
-          "status": "planned",
-          "createdInPlanSessionId": "{{uuid:0}}"
-        },
-        {
-          "id": "{{uuid:4}}",
-          "recipeSlug": "chickpea-spinach-tomato-stew-couscous",
-          "mealType": "lunch",
-          "eatingDays": [
-            "2026-04-11",
-            "2026-04-12"
-          ],
-          "servings": 2,
-          "targetPerServing": {
-            "calories": 535,
-            "protein": 36
-          },
-          "actualPerServing": {
-            "calories": 0,
-            "protein": 0,
-            "fat": 0,
-            "carbs": 0
-          },
-          "scaledIngredients": [],
-          "status": "planned",
-          "createdInPlanSessionId": "{{uuid:0}}"
-        },
-        {
-          "id": "{{uuid:5}}",
-          "recipeSlug": "soy-ginger-salmon-broccoli-rice",
-          "mealType": "dinner",
-          "eatingDays": [
-            "2026-04-10",
-            "2026-04-11",
-            "2026-04-12"
-          ],
-          "servings": 3,
-          "targetPerServing": {
-            "calories": 535,
-            "protein": 36
-          },
-          "actualPerServing": {
-            "calories": 0,
-            "protein": 0,
-            "fat": 0,
-            "carbs": 0
-          },
-          "scaledIngredients": [],
-          "status": "planned",
-          "createdInPlanSessionId": "{{uuid:0}}"
-        },
-        {
-          "id": "{{uuid:6}}",
           "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
           "mealType": "lunch",
           "eatingDays": [
@@ -1056,27 +900,27 @@
           ],
           "servings": 2,
           "targetPerServing": {
-            "calories": 535,
-            "protein": 36
+            "calories": 803,
+            "protein": 55
           },
           "actualPerServing": {
-            "calories": 532,
-            "protein": 38,
-            "fat": 19,
-            "carbs": 52
+            "calories": 799,
+            "protein": 56,
+            "fat": 39,
+            "carbs": 56
           },
           "scaledIngredients": [
             {
               "name": "chicken breast, raw",
-              "amount": 90,
+              "amount": 190,
               "unit": "g",
-              "totalForBatch": 180
+              "totalForBatch": 380
             },
             {
               "name": "black beans, canned, drained",
-              "amount": 50,
+              "amount": 60,
               "unit": "g",
-              "totalForBatch": 100
+              "totalForBatch": 120
             },
             {
               "name": "sweetcorn kernels, frozen",
@@ -1086,15 +930,15 @@
             },
             {
               "name": "small avocado",
-              "amount": 0.5,
+              "amount": 0.75,
               "unit": "whole",
-              "totalForBatch": 1
+              "totalForBatch": 1.5
             },
             {
               "name": "olive oil",
-              "amount": 5,
+              "amount": 10,
               "unit": "g",
-              "totalForBatch": 10
+              "totalForBatch": 20
             },
             {
               "name": "ground cumin",
@@ -1155,7 +999,7 @@
           "createdInPlanSessionId": "{{uuid:0}}"
         },
         {
-          "id": "{{uuid:7}}",
+          "id": "{{uuid:4}}",
           "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
           "mealType": "lunch",
           "eatingDays": [
@@ -1164,45 +1008,45 @@
           ],
           "servings": 2,
           "targetPerServing": {
-            "calories": 535,
-            "protein": 36
+            "calories": 803,
+            "protein": 55
           },
           "actualPerServing": {
-            "calories": 535,
-            "protein": 36,
-            "fat": 21,
-            "carbs": 50.5
+            "calories": 819,
+            "protein": 55,
+            "fat": 39,
+            "carbs": 62
           },
           "scaledIngredients": [
             {
               "name": "chicken breast, raw",
-              "amount": 115,
+              "amount": 195,
               "unit": "g",
-              "totalForBatch": 230
+              "totalForBatch": 390
             },
             {
               "name": "black beans, canned, drained",
-              "amount": 50,
+              "amount": 75,
               "unit": "g",
-              "totalForBatch": 100
+              "totalForBatch": 150
             },
             {
               "name": "sweetcorn kernels, frozen",
-              "amount": 25,
+              "amount": 40,
               "unit": "g",
-              "totalForBatch": 50
+              "totalForBatch": 80
             },
             {
               "name": "small avocado",
-              "amount": 0.5,
+              "amount": 1,
               "unit": "whole",
-              "totalForBatch": 1
+              "totalForBatch": 2
             },
             {
               "name": "olive oil",
-              "amount": 10,
+              "amount": 15,
               "unit": "g",
-              "totalForBatch": 20
+              "totalForBatch": 30
             },
             {
               "name": "ground cumin",
@@ -1263,37 +1107,37 @@
           "createdInPlanSessionId": "{{uuid:0}}"
         },
         {
-          "id": "{{uuid:8}}",
+          "id": "{{uuid:5}}",
           "recipeSlug": "ground-beef-rigatoni-bolognese",
           "mealType": "dinner",
           "eatingDays": [
+            "2026-04-09",
             "2026-04-10",
-            "2026-04-11",
-            "2026-04-12"
+            "2026-04-11"
           ],
           "servings": 3,
           "targetPerServing": {
-            "calories": 535,
-            "protein": 36
+            "calories": 803,
+            "protein": 55
           },
           "actualPerServing": {
-            "calories": 549,
-            "protein": 35,
-            "fat": 25,
-            "carbs": 46
+            "calories": 803,
+            "protein": 55,
+            "fat": 48,
+            "carbs": 38
           },
           "scaledIngredients": [
             {
               "name": "ground beef",
-              "amount": 125,
+              "amount": 200,
               "unit": "g",
-              "totalForBatch": 375
+              "totalForBatch": 600
             },
             {
               "name": "olive oil",
-              "amount": 10,
+              "amount": 15,
               "unit": "g",
-              "totalForBatch": 30
+              "totalForBatch": 45
             },
             {
               "name": "onion",
@@ -1345,9 +1189,9 @@
             },
             {
               "name": "rigatoni or spaghetti",
-              "amount": 45,
+              "amount": 55,
               "unit": "g",
-              "totalForBatch": 135
+              "totalForBatch": 165
             }
           ],
           "status": "planned",

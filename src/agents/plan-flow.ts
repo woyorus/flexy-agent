@@ -964,14 +964,27 @@ function advanceGapOrPresent(state: PlanFlowState, recipeDb?: RecipeDatabase): F
   return { text: formatPlanProposal(state), state };
 }
 
-/** Add a batch to the proposal from a resolved recipe gap. */
+/** Add a batch to the proposal from a resolved recipe gap.
+ * Removes any existing batch that covers the same (days, mealType) to prevent
+ * ghost duplicates when the gap was also included as a placeholder batch.
+ */
 function addBatchFromGap(
   state: PlanFlowState,
   gap: RecipeGap,
   recipeSlug: string,
   recipeName: string,
 ): void {
-  state.proposal?.batches.push({
+  if (!state.proposal) return;
+
+  // Remove any existing batch that covers the same days and mealType (prevents duplicates)
+  const gapDaySet = new Set(gap.days);
+  state.proposal.batches = state.proposal.batches.filter((b) => {
+    if (b.mealType !== gap.mealType) return true;
+    const overlap = b.days.some((d) => gapDaySet.has(d));
+    return !overlap;
+  });
+
+  state.proposal.batches.push({
     recipeSlug,
     recipeName,
     mealType: gap.mealType,
@@ -979,9 +992,7 @@ function addBatchFromGap(
     servings: gap.servings,
   });
   // Remove the gap from recipesToGenerate
-  if (state.proposal) {
-    state.proposal.recipesToGenerate = state.proposal.recipesToGenerate.filter((g) => g !== gap);
-  }
+  state.proposal.recipesToGenerate = state.proposal.recipesToGenerate.filter((g) => g !== gap);
 }
 
 /**
