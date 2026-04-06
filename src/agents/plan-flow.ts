@@ -1479,7 +1479,8 @@ function splitIntoContiguousRuns(days: string[]): string[][] {
 }
 
 /** Build solver input from the plan flow state and proposal, using real recipe macros. */
-function buildSolverInput(
+/** @internal Exported for regression testing (Plan 010). */
+export function buildSolverInput(
   state: PlanFlowState,
   proposal: PlanProposal,
   recipeDb?: RecipeDatabase,
@@ -1496,7 +1497,7 @@ function buildSolverInput(
           recipeSlug: b.recipeSlug,
           mealType: b.mealType,
           days: b.days,
-          servings: b.servings,
+          servings: b.days.length,       // in-horizon eating occasions only (Plan 010)
         };
       }),
     },
@@ -1587,6 +1588,11 @@ async function buildNewPlanSession(
     );
     const recipe = batchTarget.recipeSlug ? recipeDb.getBySlug(batchTarget.recipeSlug) : undefined;
 
+    // Plan 010: compute total eating days BEFORE scaling — the scaler needs the
+    // total portion count (in-horizon + overflow) to produce enough food.
+    const overflowDays = proposedBatch?.overflowDays ?? [];
+    const eatingDays = [...batchTarget.days, ...overflowDays];
+
     let actualPerServing = { calories: 0, protein: 0, fat: 0, carbs: 0 };
     let scaledIngredients: ScaledIngredient[] = [];
 
@@ -1597,7 +1603,7 @@ async function buildNewPlanSession(
           targetCalories: batchTarget.targetPerServing.calories,
           calorieTolerance: config.planning.scalerCalorieTolerance,
           targetProtein: batchTarget.targetPerServing.protein,
-          servings: batchTarget.servings,
+          servings: eatingDays.length,           // Plan 010: total portions, not solver servings
         }, llm);
         actualPerServing = scaled.actualPerServing;
         scaledIngredients = scaled.scaledIngredients;
@@ -1608,14 +1614,10 @@ async function buildNewPlanSession(
           name: ing.name,
           amount: ing.amount,
           unit: ing.unit,
-          totalForBatch: ing.amount * batchTarget.servings,
+          totalForBatch: ing.amount * eatingDays.length,  // Plan 010: total portions
         }));
       }
     }
-
-    // Full eating days = in-horizon days + overflow days
-    const overflowDays = proposedBatch?.overflowDays ?? [];
-    const eatingDays = [...batchTarget.days, ...overflowDays];
 
     // D30 invariant: cook day (eatingDays[0]) must be inside the session's horizon
     if (eatingDays.length > 0) {

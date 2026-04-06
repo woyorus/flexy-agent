@@ -14,7 +14,7 @@ The solver reserves a protected treat budget upfront, subtracts any pre-committe
 4. **Protect treat budget** — `treatBudget = weeklyTargets.calories × config.planning.treatBudgetPercent` (5%, ~853 cal/week). Reserved upfront, never squeezed by events.
 5. **Subtract pre-committed slots** — `preCommittedCal = sum of carriedOverSlots[].calories`. These are frozen macros from prior sessions' batches whose eating days overlap the current horizon.
 6. **Compute meal prep budget** — `mealPrepBudget = weekly − breakfast − events − flexBonuses − treatBudget − preCommittedCal`.
-7. **Count slots** — `totalSlots = sum of new recipe servings + flex slot count`. Pre-committed slots are NOT counted (already subtracted).
+7. **Count slots** — `totalSlots = sum of new recipe servings + flex slot count`. Servings here means in-horizon eating occasions only — overflow days are invisible to the solver (Plan 010). Pre-committed slots are NOT counted (already subtracted).
 8. **Distribute uniformly** — `perSlotCal = mealPrepBudget / totalSlots`. Every new batch gets the same target. Protein follows the same pattern.
 9. **Clamp** — Any batch target below `MIN_MEAL_CAL` (400) or above `MAX_MEAL_CAL` (1000) is clamped with a warning.
 10. **Build daily breakdown** — For each day in `horizonDays`, sources are: event > flex slot > pre-committed slot (frozen macros) > new batch.
@@ -30,7 +30,7 @@ The **recipe scaler** runs at plan approval time (in `buildNewPlanSession`), not
   events: MealEvent[],            // meal-replacement events only
   flexSlots: FlexSlot[],
   mealPrepPreferences: {
-    recipes: RecipeRequest[],     // solver only needs meal type + days + servings
+    recipes: RecipeRequest[],     // solver sees in-horizon eating occasions only (Plan 010)
   },
   breakfast: { locked, recipeSlug?, caloriesPerDay, proteinPerDay },
   horizonDays?: string[],         // explicit 7 ISO dates (D32 — closes latent getWeekDays bug)

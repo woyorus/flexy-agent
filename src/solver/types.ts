@@ -58,7 +58,7 @@ export interface RecipeRequest {
   mealType: 'lunch' | 'dinner';
   /** ISO dates this batch covers */
   days: string[];
-  /** 2 or 3 servings per batch */
+  /** In-horizon eating occasions only — overflow days are invisible to the solver (Plan 010) */
   servings: number;
   cuisineHint?: string;
 }
