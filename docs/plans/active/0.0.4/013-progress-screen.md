@@ -142,12 +142,18 @@ Add `import type { Measurement } from '../models/types.js'` to the import at lin
 
 **2a. Add `progressFlow` to `BotCoreSession` in `src/telegram/core.ts` (line 167-173):**
 
+This is an **additive change only** — Plan 012 (Phase 0) already extended `BotCoreSession` with `surfaceContext` and `lastRecipeSlug`. Do NOT rewrite the interface from scratch; add `progressFlow` alongside those fields. The full interface after both plans have landed:
+
 ```typescript
 export interface BotCoreSession {
   recipeFlow: RecipeFlowState | null;
   planFlow: PlanFlowState | null;
   recipeListPage: number;
   pendingReplan?: { replacingSession: import('../models/types.js').PlanSession };
+  // Added by Plan 012 (Phase 0):
+  surfaceContext: 'plan' | 'cooking' | 'shopping' | 'recipes' | 'progress' | null;
+  lastRecipeSlug?: string;
+  // Added by Plan 013 (this plan):
   /** Progress measurement flow — explicit phase prevents input hijacking after logging. */
   progressFlow: {
     phase: 'awaiting_measurement' | 'confirming_disambiguation';
@@ -201,7 +207,7 @@ This follows the pattern of `recipe-flow.ts` and `plan-flow.ts`: pure functions 
 
 ### Step 4: Progress menu handler + text routing
 
-**4a. Add `'progress'` case in `handleMenu()` at `src/telegram/core.ts` (after line 696, before the closing brace of the switch):**
+**4a. Replace the Phase 0 `'progress'` stub case in `handleMenu()` at `src/telegram/core.ts` with the full Progress handler (Plan 012 Step 4 adds a stub `'Progress is coming soon.'` — replace it, do not add a second `case 'progress'` branch):**
 
 Note: the handler uses `new Date()` for both the current date and the hour. This is correct in the harness because the test harness globally freezes `Date` to the scenario's pinned clock — no injected date parameter is needed.
 

@@ -361,7 +361,7 @@ Add a comment block at the top of `src/telegram/keyboards.ts` (after the file do
  * New (v0.0.4):
  *   na_  — next action (payload: action type)
  *   wo_  — week overview (payload: varies)
- *   dd_  — day detail (payload: day abbreviation, e.g. dd_mon)
+ *   dd_  — day detail (payload: ISO date, e.g. dd_2026-04-06)
  *   cv_  — cook view (payload: batch ID)
  *   sl_  — shopping list (payload: varies)
  *   pg_  — progress (payload: varies)
