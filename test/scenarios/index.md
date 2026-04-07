@@ -15,3 +15,5 @@
 | 012 | rolling-replan-abandon | Replanning a future session then cancelling: the original session must remain fully intact after abandonment (save-before-destroy guarantee). |
 | 013 | flex-move-rebatch-carryover | flex_move re-batching: contiguous orphans after batch dissolution merge into a multi-serving batch instead of individual 1-serving gaps. |
 | 014 | proposer-orphan-fill | Deterministic orphan fill: LLM underfills the week (fixture edited), fillOrphanSlots extends adjacent batches to cover gaps. |
+| 015 | progress-logging | Progress: first log with disambiguation, first-measurement hint, already-logged same day, defensive pg_last_report with no completed week. |
+| 016 | progress-weekly-report | Progress: tap [Last weekly report] with a full completed week seeded — verifies tone, averages, and delta computation. |

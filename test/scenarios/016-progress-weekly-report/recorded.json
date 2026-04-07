@@ -1,0 +1,123 @@
+{
+  "generatedAt": "2026-04-13T10:00:00.000Z",
+  "specHash": "5067e0762cb1794e8199ef467d261e9ca21bf3d7073b48608a876b94e448ed5f",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "Drop your weight (and waist if you track it):\n\nExamples: \"82.3 / 91\" or just \"82.3\""
+      },
+      {
+        "text": "Logged ✓ 82 kg",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Last weekly report",
+                "callback": "pg_last_report"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Week of Apr 6 – Apr 12*\n\nWeight: *82.2 kg* avg (↓0.8 from last week)\nWaist: *91.0 cm* avg (↓0.9 from last week)\n\nGreat progress. If this pace holds, we might ease up slightly -- sustainability matters more than speed.\n\n_Next report ready Sunday._"
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "progress",
+      "progressFlow": null
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [],
+      "batches": [],
+      "measurements": [
+        {
+          "id": "meas-1",
+          "userId": "default",
+          "date": "2026-04-06",
+          "weightKg": 82.5,
+          "waistCm": 91.5,
+          "createdAt": "2026-04-06T08:00:00Z"
+        },
+        {
+          "id": "meas-2",
+          "userId": "default",
+          "date": "2026-04-07",
+          "weightKg": 82.3,
+          "waistCm": 91.2,
+          "createdAt": "2026-04-07T08:00:00Z"
+        },
+        {
+          "id": "meas-3",
+          "userId": "default",
+          "date": "2026-04-08",
+          "weightKg": 82.1,
+          "waistCm": 91,
+          "createdAt": "2026-04-08T08:00:00Z"
+        },
+        {
+          "id": "meas-4",
+          "userId": "default",
+          "date": "2026-04-09",
+          "weightKg": 82.4,
+          "waistCm": 91.1,
+          "createdAt": "2026-04-09T08:00:00Z"
+        },
+        {
+          "id": "meas-5",
+          "userId": "default",
+          "date": "2026-04-10",
+          "weightKg": 82.2,
+          "waistCm": 90.9,
+          "createdAt": "2026-04-10T08:00:00Z"
+        },
+        {
+          "id": "meas-6",
+          "userId": "default",
+          "date": "2026-04-11",
+          "weightKg": 82,
+          "waistCm": 90.8,
+          "createdAt": "2026-04-11T08:00:00Z"
+        },
+        {
+          "id": "meas-7",
+          "userId": "default",
+          "date": "2026-04-12",
+          "weightKg": 81.9,
+          "waistCm": 90.7,
+          "createdAt": "2026-04-12T08:00:00Z"
+        },
+        {
+          "id": "meas-8",
+          "userId": "default",
+          "date": "2026-03-30",
+          "weightKg": 83.1,
+          "waistCm": 92,
+          "createdAt": "2026-03-30T08:00:00Z"
+        },
+        {
+          "id": "meas-9",
+          "userId": "default",
+          "date": "2026-03-31",
+          "weightKg": 82.9,
+          "waistCm": 91.8,
+          "createdAt": "2026-03-31T08:00:00Z"
+        },
+        {
+          "id": "{{uuid:0}}",
+          "userId": "default",
+          "date": "2026-04-13",
+          "weightKg": 82,
+          "waistCm": null,
+          "createdAt": "2026-04-13T10:00:00.000Z"
+        }
+      ]
+    }
+  }
+}

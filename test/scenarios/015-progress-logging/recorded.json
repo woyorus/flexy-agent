@@ -1,0 +1,79 @@
+{
+  "generatedAt": "2026-04-09T10:00:00.000Z",
+  "specHash": "24f21173a456bf4c81388f6d6d07f9723792a33104dc91ca3f41e091e5e0beb6",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "Welcome to Flexie! Use the menu below to get started.",
+        "keyboard": {
+          "kind": "reply",
+          "buttons": [
+            [
+              "📋 Plan Week",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Progress"
+            ]
+          ],
+          "persistent": true,
+          "resized": true
+        }
+      },
+      {
+        "text": "Drop your weight (and waist if you track it):\n\nExamples: \"82.3 / 91\" or just \"82.3\""
+      },
+      {
+        "text": "Is that 82.3 kg weight and 91 cm waist?",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Yes",
+                "callback": "pg_disambig_yes"
+              },
+              {
+                "label": "No, swap them",
+                "callback": "pg_disambig_no"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "Logged ✓ 82.3 kg / 91 cm\n\nWe track weekly averages, not daily -- so don't worry about day-to-day swings. Come back tomorrow -- we'll start tracking your trend."
+      },
+      {
+        "text": "Already logged today ✓"
+      },
+      {
+        "text": "Not enough data for a report yet -- keep logging and your first report will be ready Sunday."
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "progress",
+      "progressFlow": null
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [],
+      "batches": [],
+      "measurements": [
+        {
+          "id": "{{uuid:0}}",
+          "userId": "default",
+          "date": "2026-04-09",
+          "weightKg": 82.3,
+          "waistCm": 91,
+          "createdAt": "2026-04-09T10:00:00.000Z"
+        }
+      ]
+    }
+  }
+}

@@ -481,15 +481,15 @@ These call the real LLM only if new LLM calls are needed — progress scenarios 
 
 ## Progress
 
-- [ ] Step 1: Measurement data model + persistence (schema, migration, types, store, test-store)
-- [ ] Step 2: Progress flow state on BotCoreSession
-- [ ] Step 3: Measurement input parsing (progress-flow.ts)
-- [ ] Step 4: Progress menu handler + text routing + disambiguation callbacks
-- [ ] Step 5: Formatters (confirmation, weekly report, tone, date boundaries)
-- [ ] Step 6: Weekly report callback handler
-- [ ] Step 7: First measurement education hint
-- [ ] Step 8: Test (015-progress-logging scenario, 016-progress-weekly-report scenario, progress.test.ts unit tests, update index.md)
-- [ ] Final: `npm test` passes, all acceptance criteria met
+- [x] Step 1: Measurement data model + persistence (schema, migration, types, store, test-store)
+- [x] Step 2: Progress flow state on BotCoreSession
+- [x] Step 3: Measurement input parsing (progress-flow.ts)
+- [x] Step 4: Progress menu handler + text routing + disambiguation callbacks
+- [x] Step 5: Formatters (confirmation, weekly report, tone, date boundaries)
+- [x] Step 6: Weekly report callback handler
+- [x] Step 7: First measurement education hint
+- [x] Step 8: Test (015-progress-logging scenario, 016-progress-weekly-report scenario, progress.test.ts unit tests, update index.md)
+- [x] Final: `npm test` passes, all acceptance criteria met
 
 ## Decision log
 

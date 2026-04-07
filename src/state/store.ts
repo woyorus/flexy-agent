@@ -14,7 +14,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../config.js';
-import type { PlanSession, DraftPlanSession, Batch } from '../models/types.js';
+import type { PlanSession, DraftPlanSession, Batch, Measurement } from '../models/types.js';
 import type { SessionState } from './machine.js';
 import { log } from '../debug/logger.js';
 
@@ -96,6 +96,20 @@ export interface StateStoreLike {
 
   /** Retrieve a single plan session by ID. */
   getPlanSession(id: string): Promise<PlanSession | null>;
+
+  // ─── Measurements ───
+
+  /** Upsert a measurement for the given date. */
+  logMeasurement(userId: string, date: string, weightKg: number, waistCm: number | null): Promise<void>;
+
+  /** Get today's measurement (or null). */
+  getTodayMeasurement(userId: string, date: string): Promise<Measurement | null>;
+
+  /** Get measurements for a date range (inclusive). Ordered by date ASC. */
+  getMeasurements(userId: string, startDate: string, endDate: string): Promise<Measurement[]>;
+
+  /** Get the most recent measurement for a user (for disambiguation). */
+  getLatestMeasurement(userId: string): Promise<Measurement | null>;
 }
 
 /**
@@ -282,6 +296,50 @@ export class StateStore implements StateStoreLike {
     return fromBatchRow(data);
   }
 
+  // ─── Measurements ───────────────────────────────────────────────────────
+
+  async logMeasurement(userId: string, date: string, weightKg: number, waistCm: number | null): Promise<void> {
+    const { error } = await this.client
+      .from('measurements')
+      .upsert(toMeasurementRow(userId, date, weightKg, waistCm), { onConflict: 'user_id,date' });
+    if (error) throw new Error(`logMeasurement failed: ${error.message}`);
+  }
+
+  async getTodayMeasurement(userId: string, date: string): Promise<Measurement | null> {
+    const { data, error } = await this.client
+      .from('measurements')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('date', date)
+      .single();
+    if (error) return null;
+    return fromMeasurementRow(data);
+  }
+
+  async getMeasurements(userId: string, startDate: string, endDate: string): Promise<Measurement[]> {
+    const { data, error } = await this.client
+      .from('measurements')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true });
+    if (error || !data) return [];
+    return data.map(fromMeasurementRow);
+  }
+
+  async getLatestMeasurement(userId: string): Promise<Measurement | null> {
+    const { data, error } = await this.client
+      .from('measurements')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .limit(1)
+      .single();
+    if (error) return null;
+    return fromMeasurementRow(data);
+  }
+
   // ─── Session State ───────────────────────────────────────────────────────
 
   /**
@@ -374,6 +432,29 @@ function toBatchRow(batch: Omit<Batch, 'createdAt' | 'updatedAt'>): Record<strin
     scaled_ingredients: batch.scaledIngredients,
     status: batch.status,
     created_in_plan_session_id: batch.createdInPlanSessionId,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toMeasurementRow(userId: string, date: string, weightKg: number, waistCm: number | null): Record<string, any> {
+  return {
+    id: crypto.randomUUID(),
+    user_id: userId,
+    date,
+    weight_kg: weightKg,
+    waist_cm: waistCm,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function fromMeasurementRow(row: any): Measurement {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    date: row.date,
+    weightKg: Number(row.weight_kg),
+    waistCm: row.waist_cm != null ? Number(row.waist_cm) : null,
+    createdAt: row.created_at,
   };
 }
 

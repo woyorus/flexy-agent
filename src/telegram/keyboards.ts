@@ -208,6 +208,19 @@ export const recipeReviewKeyboard = new InlineKeyboard()
   .text('New recipe', 'new_recipe')
   .text('Discard', 'discard_recipe');
 
+// ─── Progress keyboards ──────────────────────────────────────────────────────
+
+/** Progress screen: disambiguation prompt — confirm which number is weight vs waist. */
+export const progressDisambiguationKeyboard = new InlineKeyboard()
+  .text('Yes', 'pg_disambig_yes')
+  .text('No, swap them', 'pg_disambig_no');
+
+/** Progress screen: show the last completed weekly report. */
+export const progressReportKeyboard = new InlineKeyboard()
+  .text('Last weekly report', 'pg_last_report');
+
+// ─── Recipe keyboards ────────────────────────────────────────────────────────
+
 /** Meal type selection for new recipe */
 export const mealTypeKeyboard = new InlineKeyboard()
   .text('Breakfast', 'meal_type_breakfast')

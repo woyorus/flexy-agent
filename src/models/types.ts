@@ -229,6 +229,18 @@ export interface Batch {
   createdInPlanSessionId: string;
 }
 
+// ─── Measurements (progress tracking) ────────────────────────────────────────
+
+export interface Measurement {
+  id: string;
+  userId: string;
+  date: string;       // ISO date
+  weightKg: number;
+  waistCm: number | null;
+  /** Server-generated timestamp (Supabase default now()). Read-only — omit from insert rows. */
+  createdAt: string;
+}
+
 // ─── Shopping List (derived, not stored) ─────────────────────────────────────
 
 export interface ShoppingList {

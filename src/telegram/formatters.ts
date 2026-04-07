@@ -8,7 +8,7 @@
  * messages — that's the bot handler's job.
  */
 
-import type { ShoppingList, Recipe } from '../models/types.js';
+import type { ShoppingList, Recipe, Measurement } from '../models/types.js';
 import type { SolverOutput, DailyBreakdown } from '../solver/types.js';
 
 /**
@@ -166,4 +166,125 @@ function formatDay(isoDate: string): string {
 
 function capitalizeFirst(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// ─── Progress formatters ────────────────────────────────────────────────────
+
+/**
+ * Format measurement logging confirmation.
+ */
+export function formatMeasurementConfirmation(weight: number, waist: number | null): string {
+  if (waist != null) {
+    return `Logged ✓ ${weight} kg / ${waist} cm`;
+  }
+  return `Logged ✓ ${weight} kg`;
+}
+
+// Note: this formatter uses legacy Markdown mode (parse_mode: 'Markdown'), not MarkdownV2.
+// Bold is *text* (single asterisk), italic is _text_.
+
+/**
+ * Format a weekly progress report.
+ *
+ * @param currentWeek - Measurements for the completed week being reported
+ * @param previousWeek - Measurements for the week before (for delta computation)
+ * @param weekStart - ISO date of the reported week's Monday
+ * @param weekEnd - ISO date of the reported week's Sunday
+ */
+export function formatWeeklyReport(
+  currentWeek: Measurement[],
+  previousWeek: Measurement[],
+  weekStart: string,
+  weekEnd: string,
+): string {
+  const startLabel = formatWeeklyDate(weekStart);
+  const endLabel = formatWeeklyDate(weekEnd);
+
+  const currentAvgWeight = avg(currentWeek.map((m) => m.weightKg));
+  const currentWaists = currentWeek.filter((m) => m.waistCm != null).map((m) => m.waistCm!);
+  const currentAvgWaist = currentWaists.length > 0 ? avg(currentWaists) : null;
+
+  let msg = `*Week of ${startLabel} – ${endLabel}*\n\n`;
+
+  if (previousWeek.length === 0) {
+    // First week — no delta
+    msg += `Weight: *${round1(currentAvgWeight)} kg* avg`;
+    if (currentAvgWaist != null) {
+      msg += `\nWaist: *${round1(currentAvgWaist)} cm* avg`;
+    }
+    msg += `\n\n_Next report ready Sunday._\n_(delta shown once you have two weeks of data)_`;
+    return msg;
+  }
+
+  const previousAvgWeight = avg(previousWeek.map((m) => m.weightKg));
+  const previousWaists = previousWeek.filter((m) => m.waistCm != null).map((m) => m.waistCm!);
+  const previousAvgWaist = previousWaists.length > 0 ? avg(previousWaists) : null;
+
+  const weightDelta = currentAvgWeight - previousAvgWeight;
+  const weightArrow = weightDelta <= 0 ? '↓' : '↑';
+  msg += `Weight: *${round1(currentAvgWeight)} kg* avg (${weightArrow}${round1(Math.abs(weightDelta))} from last week)`;
+
+  if (currentAvgWaist != null && previousAvgWaist != null) {
+    const waistDelta = currentAvgWaist - previousAvgWaist;
+    const waistArrow = waistDelta <= 0 ? '↓' : '↑';
+    msg += `\nWaist: *${round1(currentAvgWaist)} cm* avg (${waistArrow}${round1(Math.abs(waistDelta))} from last week)`;
+  } else if (currentAvgWaist != null) {
+    msg += `\nWaist: *${round1(currentAvgWaist)} cm* avg`;
+  }
+
+  const tone = pickWeeklyReportTone(currentAvgWeight, previousAvgWeight, currentAvgWaist, previousAvgWaist);
+  msg += `\n\n${tone}`;
+  msg += `\n\n_Next report ready Sunday._`;
+  return msg;
+}
+
+/**
+ * Choose a motivational tone message based on weight/waist delta.
+ *
+ * Only called when previous week data exists.
+ */
+export function pickWeeklyReportTone(
+  currentAvgWeight: number,
+  previousAvgWeight: number,
+  currentAvgWaist: number | null,
+  previousAvgWaist: number | null,
+): string {
+  const delta = currentAvgWeight - previousAvgWeight;
+
+  // Loss > 0.5 kg
+  if (delta < -0.5) {
+    return 'Great progress. If this pace holds, we might ease up slightly -- sustainability matters more than speed.';
+  }
+
+  // Loss 0.1–0.5 kg (delta ≤ −0.1)
+  if (delta <= -0.1) {
+    return 'Steady and sustainable. 0.2-0.5 kg/week is a healthy, sustainable pace.';
+  }
+
+  // Plateau (−0.1 < delta < 0.3)
+  if (delta < 0.3) {
+    if (currentAvgWaist != null && previousAvgWaist != null) {
+      const waistDelta = currentAvgWaist - previousAvgWaist;
+      if (waistDelta < 0) {
+        return `Weight is stable but your waist is down ${round1(Math.abs(waistDelta))} cm -- you're recomposing, the scale will catch up.`;
+      }
+    }
+    return "Weight is stable -- normal. Fluctuations mask fat loss. Keep going.";
+  }
+
+  // Up 0.3+ kg
+  return "Week-to-week fluctuations happen -- water, food volume, stress. One week doesn't define the trend. Keep going.";
+}
+
+function avg(nums: number[]): number {
+  return nums.reduce((sum, n) => sum + n, 0) / nums.length;
+}
+
+function round1(n: number): string {
+  return (Math.round(n * 10) / 10).toFixed(1);
+}
+
+function formatWeeklyDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }

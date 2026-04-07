@@ -82,7 +82,7 @@ function grammyOutputSink(ctx: Context): OutputSink {
       const fullText = text + debugFooter;
       const buttons = extractButtons(options?.reply_markup as unknown);
       log.telegramOut(fullText, buttons);
-      await ctx.reply(fullText, options as { reply_markup?: InlineKeyboard | Keyboard } | undefined);
+      await ctx.reply(fullText, options as { reply_markup?: InlineKeyboard | Keyboard; parse_mode?: 'Markdown' | 'MarkdownV2' | 'HTML' } | undefined);
     },
     async answerCallback() {
       if (ctx.callbackQuery) await ctx.answerCallbackQuery();

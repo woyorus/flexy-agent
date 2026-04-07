@@ -263,6 +263,7 @@ async function generateScenario(args: CliArgs): Promise<void> {
       session: spec.initialState.session ?? null,
       planSessions: spec.initialState.planSessions,
       batches: spec.initialState.batches,
+      measurements: spec.initialState.measurements,
     });
     const deps: BotCoreDeps = { llm, recipes, store };
     const core = createBotCore(deps);

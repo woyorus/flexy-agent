@@ -81,7 +81,8 @@
       "recipeFlow": null,
       "planFlow": null,
       "recipeListPage": 0,
-      "surfaceContext": "plan"
+      "surfaceContext": "plan",
+      "progressFlow": null
     },
     "finalStore": {
       "session": null,

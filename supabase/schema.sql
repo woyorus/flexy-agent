@@ -41,6 +41,17 @@ create index batches_eating_days_gin on batches using gin (eating_days);
 create index batches_user_status on batches (user_id, status);
 create index batches_session_id on batches (created_in_plan_session_id);
 
+-- Measurements: daily weight and optional waist tracking.
+create table measurements (
+  id         uuid primary key,
+  user_id    text not null,
+  date       date not null,
+  weight_kg  numeric(5,2) not null,
+  waist_cm   numeric(5,2),
+  created_at timestamptz default now()
+);
+create unique index measurements_user_date on measurements (user_id, date);
+
 -- Session state: one row per user, stores the current SessionState as JSONB.
 create table session_state (
   user_id    text primary key,
@@ -60,4 +71,8 @@ create policy "Allow all for anon" on batches
   for all using (true) with check (true);
 
 create policy "Allow all for anon" on session_state
+  for all using (true) with check (true);
+
+alter table measurements enable row level security;
+create policy "Allow all for anon" on measurements
   for all using (true) with check (true);

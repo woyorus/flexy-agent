@@ -23,7 +23,7 @@
  * behavioral assertions against known seed data.
  */
 
-import type { PlanSession, DraftPlanSession, Batch } from '../models/types.js';
+import type { PlanSession, DraftPlanSession, Batch, Measurement } from '../models/types.js';
 import type { SessionState } from '../state/machine.js';
 import type { StateStoreLike } from '../state/store.js';
 
@@ -34,6 +34,8 @@ export interface TestStateStoreSeed {
   planSessions?: PlanSession[];
   /** Batches for rolling-horizon scenarios. */
   batches?: Batch[];
+  /** Pre-existing measurements for progress scenarios. */
+  measurements?: Measurement[];
 }
 
 export interface TestStateStoreSnapshot {
@@ -43,6 +45,8 @@ export interface TestStateStoreSnapshot {
   planSessions: PlanSession[];
   /** All batches in insertion order. */
   batches: Batch[];
+  /** All measurements, included only when non-empty to keep diffs clean. */
+  measurements?: Measurement[];
 }
 
 /**
@@ -53,6 +57,7 @@ export class TestStateStore implements StateStoreLike {
   private session: SessionState | null;
   private readonly planSessionsById: Map<string, PlanSession>;
   private readonly batchesById: Map<string, Batch>;
+  private measurements: Measurement[];
   /** Injected "today" for temporal queries. Defaults to real today if not set. */
   private todayOverride: string | null = null;
 
@@ -70,6 +75,7 @@ export class TestStateStore implements StateStoreLike {
         this.batchesById.set(b.id, cloneDeep(b));
       }
     }
+    this.measurements = seed.measurements ? seed.measurements.map(cloneDeep) : [];
   }
 
   /** Override "today" for temporal queries in tests. */
@@ -242,6 +248,42 @@ export class TestStateStore implements StateStoreLike {
     return b ? cloneDeep(b) : null;
   }
 
+  // ─── Measurements ─────────────────────────────────────────────────────
+
+  async logMeasurement(userId: string, date: string, weightKg: number, waistCm: number | null): Promise<void> {
+    const idx = this.measurements.findIndex((m) => m.userId === userId && m.date === date);
+    const entry: Measurement = {
+      id: idx >= 0 ? this.measurements[idx]!.id : crypto.randomUUID(),
+      userId,
+      date,
+      weightKg,
+      waistCm,
+      createdAt: new Date().toISOString(),
+    };
+    if (idx >= 0) {
+      this.measurements[idx] = entry;
+    } else {
+      this.measurements.push(entry);
+    }
+  }
+
+  async getTodayMeasurement(userId: string, date: string): Promise<Measurement | null> {
+    return this.measurements.find((m) => m.userId === userId && m.date === date) ?? null;
+  }
+
+  async getMeasurements(userId: string, startDate: string, endDate: string): Promise<Measurement[]> {
+    return this.measurements
+      .filter((m) => m.userId === userId && m.date >= startDate && m.date <= endDate)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  async getLatestMeasurement(userId: string): Promise<Measurement | null> {
+    const userMeasurements = this.measurements
+      .filter((m) => m.userId === userId)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    return userMeasurements.length > 0 ? userMeasurements[0]! : null;
+  }
+
   // ─── Harness introspection ─────────────────────────────────────────────
 
   /**
@@ -258,6 +300,7 @@ export class TestStateStore implements StateStoreLike {
       session: this.session ? cloneDeep(this.session) : null,
       planSessions: [...this.planSessionsById.values()].map(cloneDeep),
       batches: [...this.batchesById.values()].map(cloneDeep),
+      ...(this.measurements.length > 0 ? { measurements: this.measurements.map(cloneDeep) } : {}),
     };
   }
 }

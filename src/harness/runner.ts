@@ -104,6 +104,7 @@ export async function runScenario(
       session: spec.initialState.session ?? null,
       planSessions: spec.initialState.planSessions,
       batches: spec.initialState.batches,
+      measurements: spec.initialState.measurements,
     });
 
     const deps: BotCoreDeps = { llm, recipes, store };

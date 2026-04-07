@@ -80,9 +80,14 @@ import {
   planRecipeGapKeyboard,
   planGapRecipeReviewKeyboard,
   planConfirmedKeyboard,
+  progressDisambiguationKeyboard,
+  progressReportKeyboard,
 } from './keyboards.js';
 import { getPlanLifecycle, toLocalISODate } from '../plan/helpers.js';
 import type { PlanLifecycle } from '../plan/helpers.js';
+import { getCalendarWeekBoundaries } from '../utils/dates.js';
+import { parseMeasurementInput, assignWeightWaist, formatDisambiguationPrompt } from '../agents/progress-flow.js';
+import { formatMeasurementConfirmation, formatWeeklyReport } from './formatters.js';
 import type { LLMProvider } from '../ai/provider.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import type { Recipe } from '../models/types.js';
@@ -144,7 +149,7 @@ export type HarnessUpdate =
  * into a comparable shape.
  */
 export interface OutputSink {
-  reply(text: string, options?: { reply_markup?: Keyboard | InlineKeyboard }): Promise<void>;
+  reply(text: string, options?: { reply_markup?: Keyboard | InlineKeyboard; parse_mode?: 'Markdown' | 'MarkdownV2' | 'HTML' }): Promise<void>;
   answerCallback(): Promise<void>;
   /** Start a typing indicator. Returns a stop function to call on completion. */
   startTyping(): () => void;
@@ -176,6 +181,14 @@ export interface BotCoreSession {
   surfaceContext: 'plan' | 'cooking' | 'shopping' | 'recipes' | 'progress' | null;
   /** Slug of the last recipe viewed — for contextual back navigation. */
   lastRecipeSlug?: string;
+  /** Progress measurement flow — explicit phase prevents input hijacking after logging. */
+  progressFlow: {
+    phase: 'awaiting_measurement' | 'confirming_disambiguation';
+    pendingWeight?: number;
+    pendingWaist?: number;
+    /** ISO date when the user entered the numbers — store at parse time so midnight-crossing doesn't shift the log date. */
+    pendingDate?: string;
+  } | null;
 }
 
 /**
@@ -208,6 +221,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     planFlow: null,
     recipeListPage: 0,
     surfaceContext: null,
+    progressFlow: null,
   };
 
   // ─── Lifecycle-aware menu keyboard ─────────────────────────────────────
@@ -264,6 +278,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     if (command === 'start') {
       session.recipeFlow = null;
       session.planFlow = null;
+      session.progressFlow = null;
       session.pendingReplan = undefined;
       session.surfaceContext = null;
       session.lastRecipeSlug = undefined;
@@ -275,6 +290,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     if (command === 'cancel') {
       session.recipeFlow = null;
       session.planFlow = null;
+      session.progressFlow = null;
       session.pendingReplan = undefined;
       await sink.reply('Cancelled.', { reply_markup: await getMenuKeyboard() });
       return;
@@ -610,6 +626,59 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
     }
+
+    // ─── Progress callbacks ──────────────────────────────────────────────
+    if (action === 'pg_disambig_yes' || action === 'pg_disambig_no') {
+      if (
+        session.progressFlow?.phase !== 'confirming_disambiguation' ||
+        session.progressFlow.pendingWeight == null ||
+        session.progressFlow.pendingWaist == null ||
+        session.progressFlow.pendingDate == null
+      ) {
+        session.progressFlow = null;
+        await sink.reply('That measurement confirmation expired. Tap Progress to log again.');
+        return;
+      }
+
+      let weight = session.progressFlow.pendingWeight;
+      let waist = session.progressFlow.pendingWaist;
+      if (action === 'pg_disambig_no') {
+        [weight, waist] = [waist, weight];
+      }
+
+      const pendingDate = session.progressFlow.pendingDate;
+      const isFirst = (await store.getLatestMeasurement('default')) === null;
+      await store.logMeasurement('default', pendingDate, weight, waist);
+      session.progressFlow = null;
+
+      let confirmText = formatMeasurementConfirmation(weight, waist);
+      if (isFirst) {
+        confirmText += '\n\nWe track weekly averages, not daily -- so don\'t worry about day-to-day swings. Come back tomorrow -- we\'ll start tracking your trend.';
+      }
+      const reportKb = await getProgressReportKeyboardIfAvailable();
+      if (reportKb) {
+        await sink.reply(confirmText, { reply_markup: reportKb });
+      } else {
+        await sink.reply(confirmText);
+      }
+      return;
+    }
+
+    if (action === 'pg_last_report') {
+      const today = toLocalISODate(new Date());
+      const { lastWeekStart, lastWeekEnd, prevWeekStart, prevWeekEnd } = getCalendarWeekBoundaries(today);
+      const lastWeekData = await store.getMeasurements('default', lastWeekStart, lastWeekEnd);
+
+      if (lastWeekData.length === 0) {
+        await sink.reply('Not enough data for a report yet -- keep logging and your first report will be ready Sunday.');
+        return;
+      }
+
+      const prevWeekData = await store.getMeasurements('default', prevWeekStart, prevWeekEnd);
+      const report = formatWeeklyReport(lastWeekData, prevWeekData, lastWeekStart, lastWeekEnd);
+      await sink.reply(report, { parse_mode: 'Markdown' });
+      return;
+    }
   }
 
   // ─── Main-menu reply-button handling ───────────────────────────────────
@@ -737,6 +806,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
   async function handleMenu(action: string, sink: OutputSink): Promise<void> {
     session.recipeFlow = null; // exit any recipe flow
+    session.progressFlow = null; // exit any progress flow
     // planFlow is NOT cleared here. It persists until the user
     // explicitly confirms the plan or cancels via /cancel.
 
@@ -816,15 +886,41 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         session.lastRecipeSlug = undefined;
         await sink.reply('No active plan yet. Plan your week first!', { reply_markup: await getMenuKeyboard() });
         return;
-      case 'progress':
+      case 'progress': {
         session.surfaceContext = 'progress';
         session.lastRecipeSlug = undefined;
-        await sink.reply('Progress is coming soon.', { reply_markup: await getMenuKeyboard() });
+
+        const today = toLocalISODate(new Date());
+        const existing = await store.getTodayMeasurement('default', today);
+
+        if (existing) {
+          session.progressFlow = null;
+          const { lastWeekStart, lastWeekEnd } = getCalendarWeekBoundaries(today);
+          const lastWeekData = await store.getMeasurements('default', lastWeekStart, lastWeekEnd);
+          const hasCompletedWeekReport = lastWeekData.length > 0;
+          const alreadyText = 'Already logged today ✓';
+          if (hasCompletedWeekReport) {
+            await sink.reply(alreadyText, { reply_markup: progressReportKeyboard });
+          } else {
+            await sink.reply(alreadyText);
+          }
+          return;
+        }
+
+        // No measurement today — prompt for input
+        session.progressFlow = { phase: 'awaiting_measurement' };
+        const hour = new Date().getHours();
+        const timeQualifier = hour >= 14
+          ? '\n\nIf this is your morning weight, drop it here.'
+          : '';
+        const prompt = `Drop your weight (and waist if you track it):\n\nExamples: "82.3 / 91" or just "82.3"${timeQualifier}`;
+        await sink.reply(prompt);
         return;
+      }
+      // Legacy alias — old persistent keyboards may still show "Weekly Budget"
       case 'weekly_budget':
-        session.surfaceContext = 'progress';
-        session.lastRecipeSlug = undefined;
-        await sink.reply('No active plan yet.', { reply_markup: await getMenuKeyboard() });
+        // Fall through to the same handler as 'progress' by re-dispatching
+        await handleMenu('progress', sink);
         return;
     }
   }
@@ -839,7 +935,88 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
   }
 
   // ─── Free-form text / voice routing ────────────────────────────────────
+  /** Check if a completed prior week has data and return the inline keyboard if so. */
+  async function getProgressReportKeyboardIfAvailable(): Promise<typeof progressReportKeyboard | undefined> {
+    const today = toLocalISODate(new Date());
+    const { lastWeekStart, lastWeekEnd } = getCalendarWeekBoundaries(today);
+    const lastWeekData = await store.getMeasurements('default', lastWeekStart, lastWeekEnd);
+    return lastWeekData.length > 0 ? progressReportKeyboard : undefined;
+  }
+
   async function handleTextInput(text: string, sink: OutputSink): Promise<void> {
+    // Progress flow — measurement input
+    if (session.progressFlow) {
+      if (session.progressFlow.phase === 'awaiting_measurement') {
+        const parsed = parseMeasurementInput(text);
+        if (!parsed) {
+          await sink.reply('I\'m expecting a number like 82.3 or 82.3 / 91');
+          return;
+        }
+
+        const today = toLocalISODate(new Date());
+
+        if (parsed.values.length === 1) {
+          // Single number — weight only
+          const weight = parsed.values[0];
+          const isFirst = (await store.getLatestMeasurement('default')) === null;
+          await store.logMeasurement('default', today, weight, null);
+          session.progressFlow = null;
+          let confirmText = formatMeasurementConfirmation(weight, null);
+          if (isFirst) {
+            confirmText += '\n\nWe track weekly averages, not daily -- so don\'t worry about day-to-day swings. Come back tomorrow -- we\'ll start tracking your trend.';
+          }
+          const reportKb = await getProgressReportKeyboardIfAvailable();
+          if (reportKb) {
+            await sink.reply(confirmText, { reply_markup: reportKb });
+          } else {
+            await sink.reply(confirmText);
+          }
+          return;
+        }
+
+        // Two numbers — may need disambiguation
+        const [a, b] = parsed.values;
+        const lastMeasurement = await store.getLatestMeasurement('default');
+        const assignment = assignWeightWaist(a, b, lastMeasurement);
+
+        if (!assignment.ambiguous) {
+          // Unambiguous — log immediately
+          const isFirst = lastMeasurement === null;
+          await store.logMeasurement('default', today, assignment.weight, assignment.waist);
+          session.progressFlow = null;
+          let confirmText = formatMeasurementConfirmation(assignment.weight, assignment.waist);
+          if (isFirst) {
+            confirmText += '\n\nWe track weekly averages, not daily -- so don\'t worry about day-to-day swings. Come back tomorrow -- we\'ll start tracking your trend.';
+          }
+          const reportKb = await getProgressReportKeyboardIfAvailable();
+          if (reportKb) {
+            await sink.reply(confirmText, { reply_markup: reportKb });
+          } else {
+            await sink.reply(confirmText);
+          }
+          return;
+        }
+
+        // Ambiguous — ask for confirmation
+        session.progressFlow = {
+          phase: 'confirming_disambiguation',
+          pendingWeight: assignment.weight,
+          pendingWaist: assignment.waist,
+          pendingDate: today,
+        };
+        await sink.reply(
+          formatDisambiguationPrompt(assignment.weight, assignment.waist),
+          { reply_markup: progressDisambiguationKeyboard },
+        );
+        return;
+      }
+
+      if (session.progressFlow.phase === 'confirming_disambiguation') {
+        await sink.reply('Use the buttons above to confirm.');
+        return;
+      }
+    }
+
     // Recipe flow checked first: when both planFlow and recipeFlow are active
     // (user started recipe creation during a planning side trip), text must
     // reach recipeFlow. planFlow's non-text phases would silently swallow it.
@@ -1002,6 +1179,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
   function reset(): void {
     session.recipeFlow = null;
     session.planFlow = null;
+    session.progressFlow = null;
     session.recipeListPage = 0;
     session.surfaceContext = null;
     session.lastRecipeSlug = undefined;
