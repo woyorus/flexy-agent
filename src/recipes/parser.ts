@@ -5,9 +5,9 @@
  * - YAML frontmatter: structured data (macros, ingredients with roles/amounts/components, structure, storage)
  * - Markdown body: free-form recipe text (description, steps, notes — no amounts)
  *
- * Amounts live only in YAML. Steps reference ingredients by name, not amount.
- * This supports dynamic scaling — when the solver adjusts a recipe, YAML amounts
- * change but the body text stays the same.
+ * Amounts live only in YAML. Recipe bodies may contain `{ingredient_name}` placeholders
+ * resolved at render time to show contextual amounts — but raw amounts still live in
+ * YAML only. This supports dynamic scaling.
  */
 
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
@@ -26,6 +26,7 @@ export function parseRecipe(content: string): Recipe {
 
   return {
     name: meta.name,
+    ...(meta.short_name !== undefined && { shortName: meta.short_name }),
     slug: meta.slug,
     mealTypes: meta.meal_types,
     cuisine: meta.cuisine,
@@ -57,6 +58,7 @@ export function parseRecipe(content: string): Recipe {
 export function serializeRecipe(recipe: Recipe): string {
   const frontmatter = {
     name: recipe.name,
+    ...(recipe.shortName !== undefined && { short_name: recipe.shortName }),
     slug: recipe.slug,
     meal_types: recipe.mealTypes,
     cuisine: recipe.cuisine,

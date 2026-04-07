@@ -280,10 +280,28 @@ ALL ingredient choices must respect this profile. Do not suggest ingredients the
 ## RECIPE TEXT RULES
 - Write the recipe body as natural, human-readable text.
 - Include a brief description of the dish (1-2 sentences — what it is, what makes it good).
-- Steps are numbered and reference ingredients BY NAME ONLY, never by amount.
-  CORRECT: "Season the chicken with salt, pepper, and paprika."
-  WRONG: "Season 200g chicken with 5g salt."
-  Amounts live in the structured ingredient data, not in the steps — this allows dynamic scaling.
+- Steps are numbered and use \`{ingredient_name}\` placeholders for amounts:
+  CORRECT: "Cook {penne pasta} until al dente, **10-11 min**."
+  CORRECT: "Heat {olive oil} in a large skillet."
+  WRONG: "Cook 65g penne pasta until al dente." (hardcoded amount)
+  WRONG: "Cook the pasta until al dente." (no placeholder — user can't know the amount)
+  The placeholder name MUST exactly match an ingredient's \`name\` field in the ingredients array.
+  "To-taste" seasoning — ingredients that a cook applies freely without measuring (salt, pepper,
+  chili flakes) — stay as-is in prose even though they have YAML amounts. No placeholder.
+  Use \`role: seasoning\` as the signal: if it's a role-seasoning ingredient with a small nominal
+  YAML amount (e.g., 1g salt, 0.5g pepper) that doesn't materially affect macros, treat it as to-taste.
+  Only ingredients whose amount directly affects macros or cooking outcome get a placeholder:
+  proteins, carbs, oils, specific spices in meaningful amounts (e.g., "2 tsp smoked paprika")
+  → those DO get a placeholder: "Add {smoked paprika}, stir **1 min**."
+- Every heat step MUST include an explicit duration:
+  CORRECT: "Sear salmon cubes without moving, **2 min per side**."
+  CORRECT: "Cook **4-5 min** until softened."
+  WRONG: "Cook until golden." (no time anchor)
+  WRONG: "Simmer until thickened." (needs "**15-20 min** until thickened")
+- Group to-taste seasonings on one line in the prose:
+  CORRECT: "Season with salt, pepper, and chili flakes."
+  WRONG: "Add the salt. Add the pepper. Add the chili flakes." (three lines for to-taste items)
+  Only seasonings with specific amounts (e.g., "2 tsp smoked paprika") get called out individually.
 - Include: prep time, equipment needed, storage, reheating instructions.
 - Include practical tips or simple variations if relevant.
 
@@ -291,6 +309,7 @@ ALL ingredient choices must respect this profile. Do not suggest ingredients the
 Respond with ONLY valid JSON matching this schema:
 {
   "name": "string — the dish name, clear identity",
+  "short_name": "string — max 25 chars, 2-3 word recognizable identity (e.g., 'Beef Tagine', 'Salmon Pasta')",
   "slug": "string — kebab-case, max 50 chars (e.g. 'chicken-pepperonata-rice', not 'chicken-pepperonata-with-rice-and-roasted-vegetables-mediterranean-style')",
   "meal_types": ["breakfast" | "lunch" | "dinner"],
   "cuisine": "string",
@@ -300,7 +319,7 @@ Respond with ONLY valid JSON matching this schema:
   "per_serving": { "calories": number, "protein": number, "fat": number, "carbs": number },
   "ingredients": [{ "name": "string", "amount": number, "unit": "string", "role": "protein|carb|fat|vegetable|base|seasoning", "component": "string — matching a structure name" }],
   "storage": { "fridge_days": number, "freezable": boolean, "reheat": "string" },
-  "body": "string — the full recipe text (description + steps + storage notes + tips). Use newlines for formatting. Steps as numbered list. No ingredient amounts in the text."
+  "body": "string — the full recipe text (description + steps + storage notes + tips). Use {ingredient_name} placeholders in steps (see RECIPE TEXT RULES). Use newlines for formatting. Steps as numbered list."
 }`;
 }
 
@@ -315,6 +334,7 @@ function buildUserPrompt(input: GenerateRecipeInput): string {
 function mapToRecipe(raw: Record<string, any>): Recipe {
   return {
     name: raw.name,
+    ...(raw.short_name !== undefined && { shortName: raw.short_name as string }),
     slug: raw.slug,
     mealTypes: raw.meal_types,
     cuisine: raw.cuisine,

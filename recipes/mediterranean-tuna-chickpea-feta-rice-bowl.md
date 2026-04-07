@@ -1,5 +1,6 @@
 ---
 name: Mediterranean Tuna, Chickpea and Feta Rice Bowl
+short_name: Tuna Chickpea Bowl
 slug: mediterranean-tuna-chickpea-feta-rice-bowl
 meal_types:
   - lunch

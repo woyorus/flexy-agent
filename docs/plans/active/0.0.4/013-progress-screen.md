@@ -1,6 +1,6 @@
 # Plan 013: Progress Screen
 
-**Status:** Active
+**Status:** Complete
 **Date:** 2026-04-07
 **Affects:** `src/state/store.ts`, `src/harness/test-store.ts`, `src/harness/types.ts`, `src/telegram/core.ts`, `src/telegram/bot.ts`, `src/telegram/formatters.ts`, `src/telegram/keyboards.ts`, `src/models/types.ts`, `src/agents/progress-flow.ts` (new), `src/utils/dates.ts` (new), `supabase/schema.sql`, `supabase/migrations/`
 

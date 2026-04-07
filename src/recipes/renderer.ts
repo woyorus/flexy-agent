@@ -10,7 +10,8 @@
  * The render flow:
  * 1. Header: recipe name + macros per serving (all four)
  * 2. Ingredients: grouped by component (main, carb side, side), with exact amounts
- * 3. Body: the free-form recipe text (description, steps, storage, notes)
+ * 3. Body: the free-form recipe text with `{ingredient_name}` placeholders resolved
+ *    to formatted amounts (e.g., `{olive oil}` → `15ml olive oil`)
  */
 
 import type { Recipe, RecipeIngredient } from '../models/types.js';
@@ -54,8 +55,9 @@ export function renderRecipe(
 
   parts.push('');
 
-  // Body (free-form recipe text)
-  parts.push(recipe.body);
+  // Body — resolve {ingredient_name} placeholders with amounts from the ingredient list
+  const body = resolvePlaceholders(recipe.body, ingredients, servings);
+  parts.push(body);
 
   return parts.join('\n');
 }
@@ -99,6 +101,29 @@ function groupByComponent(
   }
 
   return groups;
+}
+
+/**
+ * Replace `{ingredient_name}` placeholders in body text with the ingredient's
+ * formatted amount + unit. Match is case-insensitive. Unmatched placeholders
+ * pass through unchanged (legacy recipes won't have matching ingredients for
+ * every brace token, and that's fine — they don't use placeholders).
+ */
+function resolvePlaceholders(
+  body: string,
+  ingredients: RecipeIngredient[],
+  servings?: number,
+): string {
+  const byName = new Map<string, RecipeIngredient>();
+  for (const ing of ingredients) {
+    byName.set(ing.name.toLowerCase(), ing);
+  }
+  return body.replace(/\{([^}]+)\}/g, (_match, name: string) => {
+    const ing = byName.get(name.toLowerCase());
+    if (!ing) return _match; // not a known ingredient — leave as-is
+    const amount = servings ? ing.amount * servings : ing.amount;
+    return `${formatAmount(amount)}${ing.unit} ${ing.name}`;
+  });
 }
 
 /** Format amounts to user-friendly values. */

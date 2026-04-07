@@ -1,5 +1,6 @@
 ---
 name: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa
+short_name: Chicken Black Bean Bowl
 slug: chicken-black-bean-avocado-rice-bowl
 meal_types:
   - lunch

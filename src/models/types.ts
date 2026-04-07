@@ -27,8 +27,9 @@
  *   This is what the solver and scaler operate on. Ingredients have a `component` field
  *   linking them to the meal structure (main, carb_side, side, etc.).
  * - Markdown body: free-form human-readable text (steps, notes, tips).
- *   Steps reference ingredients by name only, never by amount — amounts come from YAML
- *   and are rendered dynamically at display time (supports scaling).
+ *   Steps may contain `{ingredient_name}` placeholders that are resolved at render time
+ *   to show batch-total or per-serving amounts contextually. Raw amounts still live in
+ *   YAML only — placeholders are just references, not hardcoded values.
  *
  * Recipes store per-serving amounts. Servings are determined at planning time, not stored
  * on the recipe. The system scales ingredient amounts when generating shopping lists or
@@ -36,6 +37,7 @@
  */
 export interface Recipe {
   name: string;
+  shortName?: string;  // max ~25 chars, for compact display (plan views, week overviews, shopping list headers)
   slug: string;
   mealTypes: Array<'breakfast' | 'lunch' | 'dinner'>;
   cuisine: string;
@@ -46,7 +48,7 @@ export interface Recipe {
   perServing: MacrosWithFatCarbs;
   ingredients: RecipeIngredient[];
   storage: RecipeStorage;
-  /** Free-form recipe text: description, steps, notes, tips. No amounts — those come from ingredients. */
+  /** Free-form recipe text: description, steps, notes, tips. May contain `{ingredient_name}` placeholders resolved at render time; raw amounts remain in YAML only. */
   body: string;
 }
 

@@ -139,6 +139,28 @@ export function validateRecipe(recipe: Recipe, target?: Macros): RecipeValidatio
     }
   }
 
+  // Placeholder validation: every {placeholder} in the body must match an ingredient name
+  if (recipe.body) {
+    const placeholders = recipe.body.match(/\{([^}]+)\}/g) ?? [];
+    const ingredientNames = new Set(
+      (recipe.ingredients ?? []).map((ing) => ing.name.toLowerCase())
+    );
+    for (const ph of placeholders) {
+      const name = ph.slice(1, -1).toLowerCase(); // strip { }
+      if (!ingredientNames.has(name)) {
+        errors.push(`Placeholder ${ph} in recipe body does not match any ingredient name.`);
+      }
+    }
+  }
+
+  // Short name validation
+  if (!recipe.shortName) {
+    warnings.push('Missing short_name (recommended for compact display).');
+  }
+  if (recipe.shortName && recipe.shortName.length > 25) {
+    errors.push(`short_name "${recipe.shortName}" exceeds 25 chars (${recipe.shortName.length}).`);
+  }
+
   return {
     valid: errors.length === 0,
     errors,

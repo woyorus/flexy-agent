@@ -1,5 +1,6 @@
 ---
 name: Ground Beef Rigatoni Bolognese
+short_name: Beef Bolognese
 slug: ground-beef-rigatoni-bolognese
 meal_types:
   - dinner

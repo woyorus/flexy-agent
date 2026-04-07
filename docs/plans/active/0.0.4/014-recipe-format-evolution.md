@@ -1,6 +1,6 @@
 # Plan 014: Recipe Format Evolution
 
-**Status:** Active
+**Status:** Complete
 **Date:** 2026-04-07
 **Affects:** `src/models/types.ts`, `src/recipes/parser.ts`, `src/agents/recipe-generator.ts`, `src/agents/recipe-flow.ts`, `src/qa/validators/recipe.ts`, `recipes/*.md`, `test/fixtures/recipes/**/*.md`
 
@@ -259,20 +259,20 @@ Why changes are safe:
 
 ## Progress
 
-- [ ] Step 1: Add `shortName` to Recipe interface + update `types.ts` doc comments
-- [ ] Step 2: Update parser (`parseRecipe` + `serializeRecipe` + parser header comment)
-- [ ] Step 3a: Add `short_name` to generator output schema
-- [ ] Step 3b: Update `body` field description in generator output schema
-- [ ] Step 3c: Add placeholder + timing + grouping instructions to generator prompt
-- [ ] Step 3d: Add `shortName` mapping in `mapToRecipe()` (conditional spread)
-- [ ] Step 3e: Update `recipeToRawJson()` in `recipe-flow.ts` to include `short_name`
-- [ ] Step 4a: Add placeholder validation to QA validator
-- [ ] Step 4b: Add `shortName` validation to QA validator
-- [ ] Step 4c: Write `test/unit/recipes-validator.test.ts` (placeholder + shortName unit tests)
-- [ ] Step 5: Backfill `short_name` in production recipes (7 files)
-- [ ] Step 5: Backfill `short_name` in fixture recipes (10 recipe files)
-- [ ] Step 6a: Run `npm test` (scenarios) — green
-- [ ] Step 6b: Run parser + database unit tests — green
+- [x] Step 1: Add `shortName` to Recipe interface + update `types.ts` doc comments
+- [x] Step 2: Update parser (`parseRecipe` + `serializeRecipe` + parser header comment)
+- [x] Step 3a: Add `short_name` to generator output schema
+- [x] Step 3b: Update `body` field description in generator output schema
+- [x] Step 3c: Add placeholder + timing + grouping instructions to generator prompt
+- [x] Step 3d: Add `shortName` mapping in `mapToRecipe()` (conditional spread)
+- [x] Step 3e: Update `recipeToRawJson()` in `recipe-flow.ts` to include `short_name`
+- [x] Step 4a: Add placeholder validation to QA validator
+- [x] Step 4b: Add `shortName` validation to QA validator
+- [x] Step 4c: Write `test/unit/recipes-validator.test.ts` (placeholder + shortName unit tests)
+- [x] Step 5: Backfill `short_name` in production recipes (7 files)
+- [x] Step 5: Backfill `short_name` in fixture recipes (10 recipe files)
+- [x] Step 6a: Run `npm test` (scenarios) — green
+- [x] Step 6b: Run parser + database unit tests — green
 
 ## Decision log
 

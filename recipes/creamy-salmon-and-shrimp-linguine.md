@@ -1,5 +1,6 @@
 ---
 name: Creamy Salmon and Shrimp Linguine
+short_name: Salmon Shrimp Linguine
 slug: creamy-salmon-and-shrimp-linguine
 meal_types:
   - dinner

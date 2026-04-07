@@ -78,6 +78,7 @@ export function createEditFlowState(recipe: Recipe): RecipeFlowState {
 function recipeToRawJson(recipe: Recipe): Record<string, unknown> {
   return {
     name: recipe.name,
+    ...(recipe.shortName !== undefined && { short_name: recipe.shortName }),
     slug: recipe.slug,
     meal_types: recipe.mealTypes,
     cuisine: recipe.cuisine,

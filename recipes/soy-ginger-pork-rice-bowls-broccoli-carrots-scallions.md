@@ -1,5 +1,6 @@
 ---
 name: Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions
+short_name: Soy Ginger Pork Bowls
 slug: soy-ginger-pork-rice-bowls-broccoli-carrots-scallions
 meal_types:
   - lunch

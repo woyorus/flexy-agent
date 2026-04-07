@@ -1,5 +1,6 @@
 ---
 name: Moroccan Beef Tagine-Style Skillet with Lemon Couscous
+short_name: Beef Tagine
 slug: moroccan-beef-tagine-style-skillet-with-lemon-couscous
 meal_types:
   - dinner

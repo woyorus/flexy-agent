@@ -1,5 +1,6 @@
 ---
 name: Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt
+short_name: "Salmon Toast & Eggs"
 slug: salmon-avocado-toast-soft-eggs-cinnamon-yogurt
 meal_types:
   - breakfast
