@@ -39,7 +39,7 @@ export class CapturingOutputSink implements OutputSink {
 
   async reply(
     text: string,
-    options?: { reply_markup?: Keyboard | InlineKeyboard },
+    options?: { reply_markup?: Keyboard | InlineKeyboard; parse_mode?: 'Markdown' | 'MarkdownV2' | 'HTML' },
   ): Promise<void> {
     const entry: CapturedOutput = { text };
     if (options?.reply_markup) {

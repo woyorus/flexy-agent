@@ -235,6 +235,40 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     return buildMainMenuKeyboard(lifecycle);
   }
 
+  // ─── Lifecycle-aware free-text fallback ─────────────────────────────────
+  /**
+   * Reply with a contextual hint when the user types text that doesn't match
+   * any active flow or recipe name. Three branches:
+   * 1. Recipe on screen (surfaceContext + lastRecipeSlug)
+   * 2. No plan for the current week
+   * 3. All other states (active plan, planning in progress)
+   */
+  async function replyFreeTextFallback(sink: OutputSink): Promise<void> {
+    const today = toLocalISODate(new Date());
+    const lifecycle = await getPlanLifecycle(session, store, today);
+    const menu = buildMainMenuKeyboard(lifecycle);
+
+    if ((session.surfaceContext === 'cooking' || session.surfaceContext === 'recipes') && session.lastRecipeSlug) {
+      await sink.reply(
+        "I can help with this recipe or your plan. Try: 'can I freeze this?' or tap a button.",
+        { reply_markup: menu },
+      );
+      return;
+    }
+
+    if (lifecycle === 'no_plan') {
+      await sink.reply(
+        'I can help you plan your week, browse recipes, or log measurements. Tap Plan Week to get started.',
+        { reply_markup: menu },
+      );
+    } else {
+      await sink.reply(
+        "I can help with your plan, recipes, shopping, or measurements. Try: 'change Thursday dinner' or tap a button.",
+        { reply_markup: menu },
+      );
+    }
+  }
+
   // ─── Dispatch ──────────────────────────────────────────────────────────
   //
   // No try/catch here. Errors propagate to the adapter:
@@ -282,7 +316,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       session.pendingReplan = undefined;
       session.surfaceContext = null;
       session.lastRecipeSlug = undefined;
-      await sink.reply('Welcome to Flexie! Use the menu below to get started.', {
+      await sink.reply('Welcome to Flexie. Use the menu below to get started.', {
         reply_markup: await getMenuKeyboard(),
       });
       return;
@@ -362,7 +396,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         session.surfaceContext = 'recipes';
         session.lastRecipeSlug = recipe.slug;
         log.debug('FLOW', `recipe view: ${slug}`);
-        await sink.reply(renderRecipe(recipe), { reply_markup: recipeViewKeyboard(slug) });
+        await sink.reply(renderRecipe(recipe), { reply_markup: recipeViewKeyboard(slug), parse_mode: 'MarkdownV2' });
       } else {
         await sink.reply('Recipe not found.', { reply_markup: await getMenuKeyboard() });
       }
@@ -423,7 +457,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       session.planFlow = null;
       session.surfaceContext = 'shopping';
       session.lastRecipeSlug = undefined;
-      await sink.reply('Shopping list generation is coming soon!', { reply_markup: await getMenuKeyboard() });
+      await sink.reply('Shopping list generation is coming soon.', { reply_markup: await getMenuKeyboard() });
       return;
     }
     if (action === 'view_plan_recipes') {
@@ -571,7 +605,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
             : session.planFlow.phase === 'recipe_suggestion'
             ? planRecipeGapKeyboard(session.planFlow.activeGapIndex ?? 0)
             : planProposalKeyboard;
-          await sink.reply(result.text, { reply_markup: kb });
+          await sink.reply(result.text, { reply_markup: kb, ...(result.parseMode && { parse_mode: result.parseMode }) });
         } catch (err) {
           stopTyping();
           throw err;
@@ -618,7 +652,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           const result = await handleGapRecipeReview(session.planFlow, 'different', recipes, llm);
           session.planFlow = result.state;
           stopTyping();
-          await sink.reply(result.text, { reply_markup: planGapRecipeReviewKeyboard });
+          await sink.reply(result.text, { reply_markup: planGapRecipeReviewKeyboard, ...(result.parseMode && { parse_mode: result.parseMode }) });
         } catch (err) {
           stopTyping();
           throw err;
@@ -747,6 +781,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
   function getPlanFlowResumeView(state: PlanFlowState): {
     text: string;
     replyMarkup?: InlineKeyboard | Keyboard;
+    parseMode?: 'MarkdownV2';
   } {
     switch (state.phase) {
       case 'context': {
@@ -783,6 +818,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           return {
             text: renderRecipe(state.currentRecipe),
             replyMarkup: planGapRecipeReviewKeyboard,
+            parseMode: 'MarkdownV2',
           };
         }
         // Edge case: no currentRecipe — fall through to recipe_suggestion behavior
@@ -817,7 +853,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         const all = recipes.getAll();
         if (all.length === 0) {
           session.recipeFlow = createRecipeFlowState();
-          await sink.reply("No recipes yet. Let's create your first one!\n\nWhat type?", {
+          await sink.reply("No recipes yet. Let's create your first one.\n\nWhat type?", {
             reply_markup: mealTypeKeyboard,
           });
         } else {
@@ -835,9 +871,10 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         // Planning in progress → resume where they left off
         if (lifecycle === 'planning' && session.planFlow) {
           const resumeView = getPlanFlowResumeView(session.planFlow);
-          await sink.reply(resumeView.text, resumeView.replyMarkup
-            ? { reply_markup: resumeView.replyMarkup }
-            : undefined);
+          await sink.reply(resumeView.text, {
+            ...(resumeView.replyMarkup && { reply_markup: resumeView.replyMarkup }),
+            ...(resumeView.parseMode && { parse_mode: resumeView.parseMode }),
+          });
           return;
         }
 
@@ -856,7 +893,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           .filter((r) => r.mealTypes.includes('lunch') || r.mealTypes.includes('dinner'));
         if (lunchDinnerRecipes.length === 0) {
           await sink.reply(
-            'You need some lunch/dinner recipes first. Add a few, then come back to plan your week!',
+            'You need some lunch/dinner recipes first. Add a few, then come back to plan your week.',
             { reply_markup: await getMenuKeyboard() },
           );
           return;
@@ -884,7 +921,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       case 'shopping_list':
         session.surfaceContext = 'shopping';
         session.lastRecipeSlug = undefined;
-        await sink.reply('No active plan yet. Plan your week first!', { reply_markup: await getMenuKeyboard() });
+        await sink.reply('No plan for this week. Tap Plan Week to get started.', { reply_markup: await getMenuKeyboard() });
         return;
       case 'progress': {
         session.surfaceContext = 'progress';
@@ -1028,7 +1065,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           const result = await handlePreferencesAndGenerate(session.recipeFlow, text, llm);
           session.recipeFlow = result.state;
           stopTyping();
-          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard });
+          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard, ...(result.parseMode && { parse_mode: result.parseMode }) });
         } catch (err) {
           stopTyping();
           throw err;
@@ -1043,7 +1080,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           const result = await handleRefinement(session.recipeFlow, text, llm);
           session.recipeFlow = result.state;
           stopTyping();
-          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard });
+          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard, ...(result.parseMode && { parse_mode: result.parseMode }) });
         } catch (err) {
           stopTyping();
           throw err;
@@ -1078,7 +1115,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           const result = await handleRefinement(session.recipeFlow, text, llm);
           session.recipeFlow = result.state;
           stopTyping2();
-          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard });
+          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard, ...(result.parseMode && { parse_mode: result.parseMode }) });
         } catch (err) {
           stopTyping2();
           throw err;
@@ -1113,7 +1150,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           const kb = session.planFlow.phase === 'reviewing_recipe'
             ? planGapRecipeReviewKeyboard
             : planProposalKeyboard;
-          await sink.reply(result.text, { reply_markup: kb });
+          await sink.reply(result.text, { reply_markup: kb, ...(result.parseMode && { parse_mode: result.parseMode }) });
         } catch (err) {
           stopTyping();
           throw err;
@@ -1146,7 +1183,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           const result = await handleGapRecipeRefinement(session.planFlow, text, llm);
           session.planFlow = result.state;
           stopTyping();
-          await sink.reply(result.text, { reply_markup: planGapRecipeReviewKeyboard });
+          await sink.reply(result.text, { reply_markup: planGapRecipeReviewKeyboard, ...(result.parseMode && { parse_mode: result.parseMode }) });
         } catch (err) {
           stopTyping();
           throw err;
@@ -1154,7 +1191,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
 
-      // Plan flow active but not awaiting text — ignore
+      // Plan flow active but not awaiting text — show lifecycle-aware hint
+      await replyFreeTextFallback(sink);
       return;
     }
 
@@ -1168,11 +1206,11 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       );
     if (recipe) {
       log.debug('FLOW', `recipe lookup: "${text}" → ${recipe.slug}`);
-      await sink.reply(renderRecipe(recipe));
+      await sink.reply(renderRecipe(recipe), { parse_mode: 'MarkdownV2' });
       return;
     }
 
-    await sink.reply('Use the menu buttons below to get started.', { reply_markup: await getMenuKeyboard() });
+    await replyFreeTextFallback(sink);
   }
 
   // ─── Reset (for harness scenarios) ─────────────────────────────────────

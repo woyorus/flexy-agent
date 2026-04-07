@@ -52,7 +52,7 @@ test('renderRecipe resolves placeholders case-insensitively', () => {
 test('renderRecipe leaves unmatched placeholders unchanged', () => {
   const recipe = makeRecipe({ body: 'Add {mystery spice} and stir.' });
   const output = renderRecipe(recipe);
-  assert.ok(output.includes('{mystery spice}'), 'Unmatched placeholder should pass through');
+  assert.ok(output.includes('\\{mystery spice\\}'), 'Unmatched placeholder should pass through (escaped for MarkdownV2)');
 });
 
 test('renderRecipe scales placeholder amounts when servings provided', () => {
@@ -65,5 +65,5 @@ test('renderRecipe scales placeholder amounts when servings provided', () => {
 test('renderRecipe body with no placeholders is unchanged', () => {
   const recipe = makeRecipe({ body: 'Just cook everything together.' });
   const output = renderRecipe(recipe);
-  assert.ok(output.includes('Just cook everything together.'));
+  assert.ok(output.includes('Just cook everything together\\.'));
 });

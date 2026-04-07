@@ -17,3 +17,4 @@
 | 014 | proposer-orphan-fill | Deterministic orphan fill: LLM underfills the week (fixture edited), fillOrphanSlots extends adjacent batches to cover gaps. |
 | 015 | progress-logging | Progress: first log with disambiguation, first-measurement hint, already-logged same day, defensive pg_last_report with no completed week. |
 | 016 | progress-weekly-report | Progress: tap [Last weekly report] with a full completed week seeded — verifies tone, averages, and delta computation. |
+| 017 | free-text-fallback | Lifecycle-aware free-text fallback: no-plan branch shows helpful guidance, shopping list with no plan shows jargon-free message. |

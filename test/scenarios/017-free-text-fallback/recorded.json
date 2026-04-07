@@ -1,0 +1,170 @@
+{
+  "generatedAt": "2026-04-06T10:00:00.000Z",
+  "specHash": "204bd3e02f3b0af405cd267c425ac1f8fd3a4abbe45fdb38331affee3bc5abf2",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "Welcome to Flexie. Use the menu below to get started.",
+        "keyboard": {
+          "kind": "reply",
+          "buttons": [
+            [
+              "📋 Plan Week",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Progress"
+            ]
+          ],
+          "persistent": true,
+          "resized": true
+        }
+      },
+      {
+        "text": "I can help you plan your week, browse recipes, or log measurements. Tap Plan Week to get started.",
+        "keyboard": {
+          "kind": "reply",
+          "buttons": [
+            [
+              "📋 Plan Week",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Progress"
+            ]
+          ],
+          "persistent": true,
+          "resized": true
+        }
+      },
+      {
+        "text": "No plan for this week. Tap Plan Week to get started.",
+        "keyboard": {
+          "kind": "reply",
+          "buttons": [
+            [
+              "📋 Plan Week",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Progress"
+            ]
+          ],
+          "persistent": true,
+          "resized": true
+        }
+      },
+      {
+        "text": "Your recipes (7):",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa",
+                "callback": "rv_chicken-black-bean-avocado-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Creamy Salmon and Shrimp Linguine",
+                "callback": "rv_creamy-salmon-and-shrimp-linguine"
+              }
+            ],
+            [
+              {
+                "label": "Ground Beef Rigatoni Bolognese",
+                "callback": "rv_ground-beef-rigatoni-bolognese"
+              }
+            ],
+            [
+              {
+                "label": "Mediterranean Tuna, Chickpea and Feta Rice Bowl",
+                "callback": "rv_mediterranean-tuna-chickpea-feta-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Moroccan Beef Tagine-Style Skillet with Lemon Couscous",
+                "callback": "rv_moroccan-beef-tagine-style-skillet-with-lemon-couscous"
+              }
+            ],
+            [
+              {
+                "label": "1/2",
+                "callback": "rp_noop"
+              },
+              {
+                "label": "Next →",
+                "callback": "rp_1"
+              }
+            ],
+            [
+              {
+                "label": "Add new recipe",
+                "callback": "add_recipe"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato\\-Lime Salsa*\n_893 cal \\| 56g P \\| 46g F \\| 68g C_\nMexican\\-inspired · 40 min · meal\\-prep, high\\-protein, microwave\\-friendly, gluten\\-free, rice\\-bowl, latin\\-inspired\n\n*Ingredients \\(per serving\\)*\n\n*smoky chicken with black beans, corn and avocado:*\n  chicken breast, raw: 190g\n  black beans, canned, drained: 75g\n  sweetcorn kernels, frozen: 40g\n  small avocado: 1whole\n  olive oil: 22g\n  ground cumin: 2g\n  smoked paprika: 2g\n  salt: 2g\n  black pepper: 1g\n\n*basmati rice:*\n  basmati rice, dry: 38g\n\n*tomato\\-lime salsa:*\n  large tomato: 1whole\n  small red onion: 0\\.5whole\n  lime, juiced: 1whole\n  fresh coriander \\(cilantro\\): 5g\n\nA bright, meal\\-prep\\-friendly rice bowl with smoky chicken, black beans, sweetcorn, creamy avocado, and a fresh tomato\\-lime salsa\\. It reheats well and stays satisfying without feeling heavy\\.\n\nEquipment: saucepan with lid, frying pan or skillet, chopping board, knife, and a mixing bowl\\.\n\n1\\. Cook the basmati rice until tender, then keep it covered while you finish the rest\\.\n2\\. Season the chicken breast with cumin, smoked paprika, salt, and black pepper\\.\n3\\. Heat olive oil in a skillet and cook the chicken breast until golden and cooked through\\. Rest it briefly, then slice\\.\n4\\. Add the black beans and sweetcorn kernels to the skillet and warm them through\\.\n5\\. Mix the tomato, red onion, lime, fresh coriander, and a pinch of salt to make the salsa\\.\n6\\. Build bowls with the rice, chicken, black beans, sweetcorn, avocado, and tomato\\-lime salsa\\.\n7\\. For meal prep, cool the components before sealing\\. Store in the fridge for up to 3 days, and reheat the rice, chicken, black beans, and sweetcorn before adding the salsa and avocado\\. If you want a brighter finish, squeeze over a little extra lime right before eating\\.",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "← Back to recipes",
+                "callback": "recipe_back"
+              },
+              {
+                "label": "Edit",
+                "callback": "re_chicken-black-bean-avocado-rice-bowl"
+              },
+              {
+                "label": "Delete",
+                "callback": "rd_chicken-black-bean-avocado-rice-bowl"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "I can help with this recipe or your plan. Try: 'can I freeze this?' or tap a button.",
+        "keyboard": {
+          "kind": "reply",
+          "buttons": [
+            [
+              "📋 Plan Week",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Progress"
+            ]
+          ],
+          "persistent": true,
+          "resized": true
+        }
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "recipes",
+      "progressFlow": null,
+      "lastRecipeSlug": "chicken-black-bean-avocado-rice-bowl"
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [],
+      "batches": []
+    }
+  }
+}

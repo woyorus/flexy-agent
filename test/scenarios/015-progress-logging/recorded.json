@@ -5,7 +5,7 @@
   "expected": {
     "outputs": [
       {
-        "text": "Welcome to Flexie! Use the menu below to get started.",
+        "text": "Welcome to Flexie. Use the menu below to get started.",
         "keyboard": {
           "kind": "reply",
           "buttons": [

@@ -901,13 +901,13 @@ if (action.startsWith('sl_')) {
 - [ ] C8: `sl_*` callback handlers in core.ts
 
 ### New scenarios
-- [ ] Author `test/scenarios/017-plan-view-navigation/spec.ts` (seed + events per Validation § Phase 3)
-- [ ] `npm run test:generate -- 017-plan-view-navigation` + verify recorded outputs
-- [ ] Author `test/scenarios/018-shopping-list-tiered/spec.ts`
-- [ ] `npm run test:generate -- 018-shopping-list-tiered` + verify tier-1/2/3 + breakfast annotation in recorded outputs
+- [ ] Author `test/scenarios/018-plan-view-navigation/spec.ts` (seed + events per Validation § Phase 3)
+- [ ] `npm run test:generate -- 018-plan-view-navigation` + verify recorded outputs
+- [ ] Author `test/scenarios/019-shopping-list-tiered/spec.ts`
+- [ ] `npm run test:generate -- 019-shopping-list-tiered` + verify tier-1/2/3 + breakfast annotation in recorded outputs
 - [ ] Regenerate `001-plan-week-happy-path` after A7 (post-confirm message changes)
 - [ ] `npm test` passes — all scenarios green
-- [ ] Update `test/scenarios/index.md` with rows for 017 and 018
+- [ ] Update `test/scenarios/index.md` with rows for 018 and 019
 
 ---
 
@@ -1101,7 +1101,7 @@ const activeBatches: Batch[] = [
 
 ---
 
-#### Scenario 017: `017-plan-view-navigation`
+#### Scenario 018: `018-plan-view-navigation`
 
 **Purpose:** Exercises Agent A screens (Next Action, Week Overview, Day Detail) and Agent B cook view, connected through the natural navigation flow.
 
@@ -1132,7 +1132,7 @@ events: [
 
 ---
 
-#### Scenario 018: `018-shopping-list-tiered`
+#### Scenario 019: `019-shopping-list-tiered`
 
 **Purpose:** Exercises Agent C shopping list — `sl_next` path from main menu and `sl_{date}` path from a direct callback — verifying three-tier ingredient output and breakfast annotation.
 
@@ -1159,7 +1159,7 @@ events: [
   - **Breakfast annotated:** Breakfast ingredients (salmon, avocado, eggs from the breakfast recipe) appear with `(breakfast, 4 days)` note (remainingDays = Apr 9–12 = 4 days)
   - Keyboard: `[Back to plan]` button only
 - `click('sl_2026-04-09')` → Same scoped list (explicit date, same cook day as `sl_next` result)
-- `click('na_show')` → Next Action screen (same content as scenario 017's first output)
+- `click('na_show')` → Next Action screen (same content as scenario 018's first output)
 
 > **Breakfast ingredients note:** The seeded session uses `salmon-avocado-toast-soft-eggs-cinnamon-yogurt` as breakfast. Load that fixture recipe from `test/fixtures/recipes/six-balanced/` and manually confirm which of its ingredients appear in the shopping list output and which are excluded (tier 1 = salt/pepper/water).
 
@@ -1185,7 +1185,7 @@ After all three agents finish their steps:
 npm test
 ```
 
-All scenarios must pass, including the two new 017 and 018 scenarios.
+All scenarios must pass, including the two new 018 and 019 scenarios.
 
 ---
 
@@ -1203,10 +1203,9 @@ Reserve for the final UX sanity check — not the primary feedback loop:
 
 ### Update `test/scenarios/index.md`
 
-After scenarios 017 and 018 are authored, add them to the table:
+After scenarios 018 and 019 are authored, add them to the table:
 
 | # | Name | What it tests |
 |---|------|---------------|
-| 017 | plan-view-navigation | Active-plan navigation: My Plan → Next Action → Week Overview → Day Detail → Cook view → back to plan. Exercises Agent A screens and Agent B cook view handler. |
-| 018 | shopping-list-tiered | Three-tier shopping list: sl_next + sl_{date} with role-enriched ingredients. Verifies tier-1 exclusion, tier-2 checkYouHave, tier-3 category grouping, and breakfast annotation. |
-
+| 018 | plan-view-navigation | Active-plan navigation: My Plan → Next Action → Week Overview → Day Detail → Cook view → back to plan. Exercises Agent A screens and Agent B cook view handler. |
+| 019 | shopping-list-tiered | Three-tier shopping list: sl_next + sl_{date} with role-enriched ingredients. Verifies tier-1 exclusion, tier-2 checkYouHave, tier-3 category grouping, and breakfast annotation. |

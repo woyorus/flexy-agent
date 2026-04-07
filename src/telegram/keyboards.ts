@@ -251,7 +251,7 @@ export const planMoreEventsKeyboard = new InlineKeyboard()
 
 /** Plan proposal review */
 export const planProposalKeyboard = new InlineKeyboard()
-  .text('Looks good!', 'plan_approve')
+  .text('Looks good', 'plan_approve')
   .text('Swap something', 'plan_swap');
 
 /**

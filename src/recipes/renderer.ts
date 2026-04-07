@@ -15,6 +15,7 @@
  */
 
 import type { Recipe, RecipeIngredient } from '../models/types.js';
+import { esc, escapeRecipeBody } from '../utils/telegram-markdown.js';
 
 /**
  * Render a recipe for Telegram display.
@@ -32,24 +33,24 @@ export function renderRecipe(
   const ingredients = scaledIngredients ?? recipe.ingredients;
   const parts: string[] = [];
 
-  // Header
-  parts.push(`${recipe.name}`);
-  parts.push(`${recipe.perServing.calories} cal | ${recipe.perServing.protein}g P | ${recipe.perServing.fat}g F | ${recipe.perServing.carbs}g C`);
-  parts.push(`${recipe.cuisine} · ${recipe.prepTimeMinutes} min · ${recipe.tags.join(', ')}`);
+  // Header — MarkdownV2 formatted
+  parts.push(`*${esc(recipe.name)}*`);
+  parts.push(`_${esc(String(recipe.perServing.calories))} cal \\| ${esc(String(recipe.perServing.protein))}g P \\| ${esc(String(recipe.perServing.fat))}g F \\| ${esc(String(recipe.perServing.carbs))}g C_`);
+  parts.push(`${esc(recipe.cuisine)} · ${recipe.prepTimeMinutes} min · ${esc(recipe.tags.join(', '))}`);
   parts.push('');
 
   // Ingredients grouped by component
-  const title = servings ? `Ingredients (${servings} servings)` : 'Ingredients (per serving)';
+  const title = servings ? `*Ingredients \\(${servings} servings\\)*` : `*Ingredients \\(per serving\\)*`;
   parts.push(title);
 
   const componentGroups = groupByComponent(ingredients, recipe.structure);
   for (const [componentName, ings] of componentGroups) {
     if (componentGroups.size > 1) {
-      parts.push(`\n${componentName}:`);
+      parts.push(`\n*${esc(componentName)}:*`);
     }
     for (const ing of ings) {
       const amount = servings ? ing.amount * servings : ing.amount;
-      parts.push(`  ${ing.name}: ${formatAmount(amount)}${ing.unit}`);
+      parts.push(`  ${esc(ing.name)}: ${esc(formatAmount(amount))}${esc(ing.unit)}`);
     }
   }
 
@@ -57,7 +58,7 @@ export function renderRecipe(
 
   // Body — resolve {ingredient_name} placeholders with amounts from the ingredient list
   const body = resolvePlaceholders(recipe.body, ingredients, servings);
-  parts.push(body);
+  parts.push(escapeRecipeBody(body));
 
   return parts.join('\n');
 }

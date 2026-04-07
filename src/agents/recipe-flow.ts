@@ -28,6 +28,7 @@ import { generateRecipe, refineRecipe, correctRecipeMacros, buildSystemPrompt, t
 import { RecipeDatabase } from '../recipes/database.js';
 import type { ChatMessage } from '../ai/provider.js';
 import { renderRecipe } from '../recipes/renderer.js';
+import { esc } from '../utils/telegram-markdown.js';
 import { validateRecipe, computeMacroCalorieConsistency, MACRO_CAL_TOLERANCE } from '../qa/validators/recipe.js';
 
 const MAX_CORRECTION_RETRIES = 2;
@@ -242,6 +243,8 @@ async function validateAndCorrect(
 export interface FlowResponse {
   text: string;
   state: RecipeFlowState;
+  /** When set, the caller must forward this as `parse_mode` to the sink. */
+  parseMode?: 'MarkdownV2';
 }
 
 /**
@@ -258,7 +261,7 @@ export function handleMealTypeSelected(
   log.debug('FLOW', `meal type selected: ${mealType}, targets: ${targets.calories} cal, ${targets.protein}g P, ${targets.fat}g F, ${targets.carbs}g C`);
 
   return {
-    text: `${capitalize(mealType)} recipe — targets: ${targets.calories} cal, ${targets.protein}g P, ${targets.fat}g F, ${targets.carbs}g C.\n\nDescribe what you want (cuisine, ingredients, style) or just say "surprise me."`,
+    text: `${capitalize(mealType)} recipe.\n\nDescribe what you want (cuisine, ingredients, style) or just say "surprise me."`,
     state,
   };
 }
@@ -290,10 +293,10 @@ export async function handlePreferencesAndGenerate(
   const rendered = renderRecipe(corrected.recipe);
   let text = rendered;
   if (!passed) {
-    text += `\n\n⚠️ Macros are slightly off target after correction — review the numbers above.`;
+    text += `\n\n⚠️ ${esc('Macros are slightly off target after correction — review the numbers above.')}`;
   }
   if (warnings.length > 0) {
-    text += `\n\n⚠️ ${warnings.join('\n⚠️ ')}`;
+    text += `\n\n⚠️ ${warnings.map(esc).join('\n⚠️ ')}`;
   }
 
   state.currentRecipe = corrected.recipe;
@@ -301,7 +304,7 @@ export async function handlePreferencesAndGenerate(
   state.phase = 'reviewing';
   log.debug('FLOW', 'phase → reviewing');
 
-  return { text, state };
+  return { text, state, parseMode: 'MarkdownV2' };
 }
 
 /**
@@ -329,17 +332,17 @@ export async function handleRefinement(
   const rendered = renderRecipe(corrected.recipe);
   let text = rendered;
   if (!passed) {
-    text += `\n\n⚠️ Macros are slightly off target after correction — review the numbers above.`;
+    text += `\n\n⚠️ ${esc('Macros are slightly off target after correction — review the numbers above.')}`;
   }
   if (warnings.length > 0) {
-    text += `\n\n⚠️ ${warnings.join('\n⚠️ ')}`;
+    text += `\n\n⚠️ ${warnings.map(esc).join('\n⚠️ ')}`;
   }
 
   state.currentRecipe = corrected.recipe;
   state.conversationHistory = corrected.messages;
   state.phase = 'reviewing';
 
-  return { text, state };
+  return { text, state, parseMode: 'MarkdownV2' };
 }
 
 /**

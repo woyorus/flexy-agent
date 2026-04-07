@@ -5,7 +5,7 @@
   "expected": {
     "outputs": [
       {
-        "text": "Welcome to Flexie! Use the menu below to get started.",
+        "text": "Welcome to Flexie. Use the menu below to get started.",
         "keyboard": {
           "kind": "reply",
           "buttons": [
@@ -41,7 +41,7 @@
         }
       },
       {
-        "text": "Use the menu buttons below to get started.",
+        "text": "I can help with your plan, recipes, shopping, or measurements. Try: 'change Thursday dinner' or tap a button.",
         "keyboard": {
           "kind": "reply",
           "buttons": [

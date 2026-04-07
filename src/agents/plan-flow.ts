@@ -108,6 +108,8 @@ export interface PlanFlowState {
 export interface FlowResponse {
   text: string;
   state: PlanFlowState;
+  /** When set, the caller must forward this as `parse_mode` to the sink. */
+  parseMode?: 'MarkdownV2';
 }
 
 // ─── Factory ────────────────────────────────────────────────────────────────────
@@ -692,6 +694,7 @@ export async function handleGapRecipeRefinement(
   return {
     text: `Updated:\n\n${rendered}\n\nUse this recipe in the plan?`,
     state,
+    parseMode: 'MarkdownV2',
   };
 }
 
@@ -1046,6 +1049,7 @@ async function generateGapRecipe(
   return {
     text: `Here's what I came up with:\n\n${rendered}\n\nUse this recipe in the plan?`,
     state,
+    parseMode: 'MarkdownV2',
   };
 }
 
@@ -1809,7 +1813,7 @@ function formatPlanProposal(state: PlanFlowState): string {
 
   // Pre-committed slots from prior plan sessions
   if (preCommitted.length > 0) {
-    parts.push('From prior plan:');
+    parts.push('Carried over:');
     for (const slot of preCommitted) {
       parts.push(`  ${capitalize(slot.mealTime)} ${formatDayShort(slot.day)}: ${slot.recipeSlug} (${slot.calories} cal)`);
     }

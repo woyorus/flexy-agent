@@ -1,6 +1,6 @@
 # Plan 015: Copy and Messaging Quality Pass + Free-Text Fallback
 
-**Status:** Active
+**Status:** Complete
 **Date:** 2026-04-07
 **Affects:** `src/telegram/formatters.ts`, `src/telegram/core.ts`, `src/agents/plan-flow.ts`, `src/agents/recipe-flow.ts`, `src/recipes/renderer.ts`, `src/telegram/keyboards.ts`
 
@@ -266,12 +266,12 @@ Per `docs/product-specs/testing.md` § Verifying recorded output:
 
 ## Progress
 
-- [ ] Step 1: Audit all user-visible strings (build inventory; verify which formatters are live vs. dead)
-- [ ] Step 2: Jargon removal across all files (using string anchors, not line numbers)
-- [ ] Step 3: Telegram markdown formatting (extend OutputSink first; or choose Option B plain-text fallback)
-- [ ] Step 4: Tone alignment pass
-- [ ] Step 5: Lifecycle-aware free-text fallback (depends on Phase 0 + Plan 016; skip if prerequisites missing)
-- [ ] Step 6: New scenario 019-free-text-fallback + escapeMarkdownV2 unit test + regenerate all affected scenarios (use `npm test` failures to identify them, not `ls`)
+- [x] Step 1: Audit all user-visible strings (build inventory; verify which formatters are live vs. dead)
+- [x] Step 2: Jargon removal across all files (using string anchors, not line numbers)
+- [x] Step 3: Telegram markdown formatting (MarkdownV2 path chosen — OutputSink already extended by Plan 013)
+- [x] Step 4: Tone alignment pass
+- [x] Step 5: Lifecycle-aware free-text fallback (all Phase 0 prerequisites present)
+- [x] Step 6: Scenario 017-free-text-fallback + escapeMarkdownV2 unit test + regenerated all 14 affected scenarios
 
 ## Decision log
 
@@ -291,6 +291,18 @@ Per `docs/product-specs/testing.md` § Verifying recorded output:
   Rationale: The ui-architecture spec explicitly endorses "Plan locked for Mon Apr 6 – Sun Apr 12" as approved copy in its Post-Confirmation screen example, and lists `"Plan saved!" → "Plan locked ✓"` in the Avoid section (meaning "Plan locked" is the preferred form). Additionally, Agent A owns this string as part of the Post-Confirmation bridge rewrite — this plan should not touch it.
   Date: 2026-04-07
 
+- Decision: MarkdownV2 path (Option A) chosen over plain-text fallback (Option B).
+  Rationale: Plan 013 already extended OutputSink with `parse_mode?: string`, so no additional infrastructure work was needed. The escape utility is small and well-tested.
+  Date: 2026-04-07
+
+- Decision: CapturingOutputSink does NOT capture `parse_mode` — only the signature was widened to accept it.
+  Rationale: parse_mode is a rendering concern (Telegram display), not a behavioral concern (message content, keyboard shape, session state). The harness tests behavioral correctness. Verifying MarkdownV2 rendering is a real-Telegram concern, and the recipe view in scenario 017 already captures the escaped text content which proves the escape utility works.
+  Date: 2026-04-07
+
+- Decision: Used scenario number 017 (next available) instead of 019 (plan-specified).
+  Rationale: Scenarios 017 and 018 didn't exist. Using 017 keeps numbering sequential.
+  Date: 2026-04-07
+
 ## Validation
 
 1. **Jargon check:** Search for the banned terms inside string literals in `sink.reply()` calls, `text:` return values, and formatter output strings specifically. Do NOT flag variable names like `batch.servings` or code comments — only user-visible strings. Banned terms: `"active plan"`, `"plan session"`, `"cook session"`, `"template"`, `"scaled"`, `"batch target"`, `"batches sized"`, `"solver"`, `"QA"`. A useful grep pattern: search for each term inside quoted strings adjacent to `sink.reply(` or `text:` return sites. Zero hits in user-visible strings required.
@@ -305,4 +317,3 @@ Per `docs/product-specs/testing.md` § Verifying recorded output:
    - Type random text while viewing a recipe → "I can help with this recipe..."
 
 5. **`npm test` passes** after scenario regeneration. Diff review confirms only text content changed — no keyboard shapes, session states, or store snapshots diverged.
-

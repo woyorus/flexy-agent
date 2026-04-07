@@ -79,7 +79,10 @@ function grammyOutputSink(ctx: Context): OutputSink {
   return {
     async reply(text, options) {
       const debugFooter = log.getDebugFooter();
-      const fullText = text + debugFooter;
+      // MarkdownV2 messages have pre-escaped content — the debug footer contains
+      // reserved chars (|, ., -) that would cause Telegram to reject the message.
+      // Skip the footer for MarkdownV2; it's a dev convenience, not worth breaking output.
+      const fullText = options?.parse_mode === 'MarkdownV2' ? text : text + debugFooter;
       const buttons = extractButtons(options?.reply_markup as unknown);
       log.telegramOut(fullText, buttons);
       await ctx.reply(fullText, options as { reply_markup?: InlineKeyboard | Keyboard; parse_mode?: 'Markdown' | 'MarkdownV2' | 'HTML' } | undefined);

@@ -2,7 +2,8 @@
  * Message formatters for Telegram output.
  *
  * Converts internal data structures into user-friendly Telegram messages.
- * Uses Telegram's MarkdownV2 formatting where beneficial.
+ * Plain text output (no parse_mode). The weekly report formatter uses
+ * legacy Markdown mode (single asterisk bold) — see formatWeeklyReport.
  *
  * These formatters are pure functions: data in, string out. They don't send
  * messages — that's the bot handler's job.
@@ -57,7 +58,7 @@ export function formatBudgetReview(output: SolverOutput, targets: { calories: nu
   if (output.warnings.length > 0) {
     msg += `\n⚠️ ${output.warnings.join('\n⚠️ ')}`;
   } else {
-    msg += `\nAll batches sized. Calories and protein on target.`;
+    msg += `\nCalories and protein on target.`;
   }
 
   return msg;
