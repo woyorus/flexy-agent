@@ -241,11 +241,19 @@ Convention: place a `fixture-edits.md` file in the scenario directory describing
 Current scenarios with manual fixture edits:
 - **014-proposer-orphan-fill** — removes days from batches to create orphan slots that `fillOrphanSlots` must fix.
 
-Workflow for regenerating these scenarios:
-1. `npm run test:generate -- <name> --regenerate` (captures fresh LLM responses)
-2. Apply the edits described in `fixture-edits.md`
-3. `npm run test:generate -- <name> --regenerate` again (re-records expected outputs with the edited fixture)
-4. `npm test` to confirm
+### DANGER: `--regenerate` always calls the real LLM
+
+`--regenerate` creates a `RecordingLLMProvider(new OpenAIProvider())` (generate.ts:261) — it **always calls the real LLM** and writes fresh `llmFixtures` to `recorded.json`. If you run `--regenerate` after applying fixture edits, **the edits are destroyed** and the scenario silently stops testing the defensive code path it was designed for. The test still passes (deterministic replay of valid LLM output) but it exercises nothing useful.
+
+### Correct workflow for fixture-edited scenarios
+
+1. `npm run test:generate -- <name> --regenerate` — captures fresh LLM responses + expected outputs for the **unedited** (valid) fixture.
+2. Apply the edits described in `fixture-edits.md` to the `llmFixtures` array in `recorded.json`. Only edit fixture entries — do not touch `expected`.
+3. `npm run test:replay -- <name>` — replays the **edited** fixtures through BotCore (no LLM call) and overwrites only the `expected` section of `recorded.json`. This captures what the code actually produces with the broken fixture.
+4. `npm test` — confirms the scenario passes with the edited fixture and correct expected outputs.
+5. Review: read the `expected.outputs` to verify the defensive code (orphan fill, fallback, etc.) behaves correctly with the broken input.
+
+**Never run `--regenerate` after applying fixture edits.** It will overwrite them silently.
 
 ## Adding a new recipe fixture set
 

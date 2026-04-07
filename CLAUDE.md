@@ -81,6 +81,10 @@ Every `npm run test:generate` — new or `--regenerate` — MUST be followed by 
 
 This is not optional. `npm test` passing proves determinism. Verification proves correctness. The ghost batch bug (scenario 003) was caught by reading the output, not by `deepStrictEqual`.
 
+### Fixture-edited scenarios: NEVER `--regenerate` after applying edits
+
+Some scenarios (e.g., 014) have a `fixture-edits.md` that describes manual edits to `recorded.json` to simulate LLM misbehavior. `--regenerate` **always calls the real LLM** and will silently destroy these edits. After applying fixture edits, use `npm run test:replay -- <name>` to re-record expected outputs from the edited fixtures. See `docs/product-specs/testing.md` § "Scenarios with manually edited fixtures" for the full workflow.
+
 ### When the user reports an issue
 
 1. **Read the end of `logs/debug.log` first.** Append-only, can grow large. Start from the last ~200 lines. This is the authoritative record of what happened in the user's actual session — every Telegram message, AI call (full prompts/responses/tokens/duration), flow state transition, and QA validation result. Tags: `[TG:IN]` / `[TG:OUT]` / `[AI:REQ]` / `[AI:RES]` / `[FLOW]` / `[QA]`. The log tells you *what the user did* (the `[TG:IN]` events that become the scenario spec) and *what happened internally* (prompts, state, solver output).
