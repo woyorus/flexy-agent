@@ -10,6 +10,14 @@
  *   awaiting_recipe_prefs → generating_recipe → reviewing_recipe →]
  *   proposal → [awaiting_swap →] confirmed
  *
+ * Meta intents (pattern-matched, any phase):
+ *   "start over" → resets flow, restarts planning from scratch
+ *   "cancel"     → clears flow, returns to main menu
+ *
+ * The `proposal` phase accepts free text routed through the swap classifier
+ * (same path as `awaiting_swap`), so users can type changes without tapping
+ * [Swap something]. The swap classifier also handles `event_remove` intents.
+ *
  * Follows the recipe-flow.ts pattern: exported state type, factory function,
  * and pure handler functions that return FlowResponse (text + updated state).
  *
@@ -998,9 +1006,40 @@ export async function handleSwapText(
       if (swapped) return swapped;
       break;
     }
+    case 'event_remove': {
+      // Remove a meal-out event and restore the slot to a cooked meal.
+      const idx = state.events.findIndex(
+        (e) => e.day === intent.day && e.mealTime === intent.mealTime,
+      );
+      if (idx === -1) {
+        return {
+          text: `No event found on ${formatDayShort(intent.day)} ${intent.mealTime}. Check the day and try again.`,
+          state,
+        };
+      }
+      const removed = state.events.splice(idx, 1)[0]!;
+      log.debug('PLAN-FLOW', `event removed: ${removed.name} on ${removed.day} ${removed.mealTime}`);
+
+      // Restore the meal slot — try to extend an adjacent batch, or create a gap.
+      const restored = restoreMealSlot(state.proposal, intent.day, intent.mealTime);
+      if (!restored) {
+        const gap: RecipeGap = {
+          mealType: intent.mealTime,
+          days: [intent.day],
+          servings: 1,
+          suggestion: 'any recipe that fits',
+          reason: `Event "${removed.name}" removed on ${formatDayShort(intent.day)} — need a recipe for this meal.`,
+        };
+        state.proposal.recipesToGenerate.push(gap);
+        state.pendingGaps = [gap];
+        state.activeGapIndex = 0;
+        return presentRecipeGap(state);
+      }
+      break;
+    }
     case 'unclear':
       return {
-        text: "I'm not sure what to change. Try something like:\n- \"swap lunch Mon-Wed for something with fish\"\n- \"add a flex dinner on Friday\"\n- \"remove the flex meal\"",
+        text: "I'm not sure what to change. Try something like:\n- \"swap lunch Mon-Wed for something with fish\"\n- \"add a flex dinner on Friday\"\n- \"remove the flex meal\"\n- \"remove the Thursday dinner event\"",
         state,
       };
   }
@@ -1660,6 +1699,51 @@ async function buildNewPlanSession(
   return { session, batches };
 }
 
+// ─── Planning meta intents (pattern-matched, no LLM) ──────────────────────────
+
+/**
+ * Classify a free-text message as a planning meta intent.
+ *
+ * "start_over" — user wants to restart the planning flow from scratch.
+ * "cancel"     — user wants to exit planning entirely (back to main menu).
+ * "none"       — not a meta intent; continue with phase-specific handling.
+ *
+ * Uses simple regex patterns — no LLM call needed.
+ * Order matters: "cancel the plan" must match start_over before the bare
+ * "cancel" matches the cancel intent.
+ */
+export type PlanningMetaIntent = 'start_over' | 'cancel' | 'none';
+
+const START_OVER_PATTERNS: RegExp[] = [
+  /\bstart\s*over\b/i,
+  /\bstart\s*(from\s*)?scratch\b/i,
+  /\bscrap\s*(this|the\s*plan)?\b/i,
+  /\bre-?do\b/i,
+  /\bre-?plan\b/i,
+  /\bcancel\s+the\s+plan\b/i,
+];
+
+const CANCEL_PATTERNS: RegExp[] = [
+  /\bnever\s*mind\b/i,
+  /\bnevermind\b/i,
+  /\bforget\s*it\b/i,
+  /\bi'?ll\s*do\s*(this|it)\s*later\b/i,
+  /\bnot\s*now\b/i,
+  /\bstop\s*(planning)?\b/i,
+  /^\s*cancel\s*$/i,
+];
+
+export function matchPlanningMetaIntent(text: string): PlanningMetaIntent {
+  const trimmed = text.trim();
+  for (const p of START_OVER_PATTERNS) {
+    if (p.test(trimmed)) return 'start_over';
+  }
+  for (const p of CANCEL_PATTERNS) {
+    if (p.test(trimmed)) return 'cancel';
+  }
+  return 'none';
+}
+
 // ─── Swap classification ────────────────────────────────────────────────────────
 
 type SwapIntent =
@@ -1674,6 +1758,7 @@ type SwapIntent =
       fromMealTime?: 'lunch' | 'dinner';
     }
   | { type: 'recipe_swap'; batchIndex: number; preference: string }
+  | { type: 'event_remove'; day: string; mealTime: 'lunch' | 'dinner' }
   | { type: 'unclear' };
 
 async function classifySwapIntent(
@@ -1687,6 +1772,10 @@ async function classifySwapIntent(
 
   const flexDescriptions = (state.proposal?.flexSlots ?? []).map((f) =>
     `${f.mealTime} ${formatDayShort(f.day)}: flex meal`,
+  ).join('\n');
+
+  const eventDescriptions = state.events.map((e) =>
+    `${e.mealTime} ${formatDayShort(e.day)}: ${e.name} (~${e.estimatedCalories} cal)`,
   ).join('\n');
 
   const result = await llm.complete({
@@ -1705,11 +1794,15 @@ ${batchDescriptions}
 Current flex slots:
 ${flexDescriptions || '(none)'}
 
+Current events (meals out):
+${eventDescriptions || '(none)'}
+
 Classify into ONE of:
 - {"type":"flex_move","to_day":"ISO date","to_meal_time":"lunch|dinner","from_day":"ISO date|null","from_meal_time":"lunch|dinner|null"} — user wants to move an existing flex meal to a different day. Use this when the user says things like "put flex on Saturday instead" or "move flex to Fri" or "let's put the flex on Sunday". If "from" is clear from context use it, otherwise set from_day and from_meal_time to null (the only existing flex slot will be moved).
 - {"type":"flex_add","day":"ISO date","meal_time":"lunch|dinner"} — user wants to ADD a flex meal (only when no flex slot currently exists, or when they explicitly want an additional one).
 - {"type":"flex_remove","day":"ISO date","meal_time":"lunch|dinner"} — user wants to remove a flex meal and cook that day instead.
 - {"type":"recipe_swap","batch_index":number,"preference":"string"} — user wants to change a specific meal prep recipe (batch_index from the list above).
+- {"type":"event_remove","day":"ISO date","meal_time":"lunch|dinner"} — user wants to remove a previously added event (meal out) so they cook that day instead. Only use this when there IS an event on the specified day.
 - {"type":"unclear"} — can't determine intent.
 
 CRITICAL: if a flex slot ALREADY exists in the plan and the user mentions putting flex on a different day, that is flex_move, NOT flex_add. flex_add is only for creating the first flex slot or adding an extra one.
@@ -1738,6 +1831,8 @@ Respond with JSON only.`,
         };
       case 'recipe_swap':
         return { type: 'recipe_swap', batchIndex: parsed.batch_index, preference: parsed.preference };
+      case 'event_remove':
+        return { type: 'event_remove', day: parsed.day, mealTime: parsed.meal_time };
       default:
         return { type: 'unclear' };
     }

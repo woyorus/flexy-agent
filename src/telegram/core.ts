@@ -136,6 +136,7 @@ import {
   handleApprove,
   handleSwapRequest,
   handleSwapText,
+  matchPlanningMetaIntent,
 } from '../agents/plan-flow.js';
 
 // ─── Public types ────────────────────────────────────────────────────────────
@@ -1378,6 +1379,27 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
     // If in plan flow, route there
     if (session.planFlow) {
+      // ── Meta intents: "start over" / "cancel" — work from any phase ──
+      const metaIntent = matchPlanningMetaIntent(text);
+      if (metaIntent === 'start_over') {
+        // Reset flow and restart planning from scratch with same horizon
+        const horizon = await computeNextHorizonStart(store);
+        session.planFlow = null;
+        await doStartPlanFlow(
+          horizon,
+          horizon.replacingSession,
+          sink,
+        );
+        return;
+      }
+      if (metaIntent === 'cancel') {
+        session.planFlow = null;
+        session.surfaceContext = null;
+        await sink.reply('Planning cancelled.', { reply_markup: await getMenuKeyboard() });
+        return;
+      }
+
+      // ── Phase-specific text handlers ──
       if (session.planFlow.phase === 'awaiting_events') {
         const stopTyping = sink.startTyping();
         try {
@@ -1410,7 +1432,9 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
 
-      if (session.planFlow.phase === 'awaiting_swap') {
+      if (session.planFlow.phase === 'awaiting_swap' || session.planFlow.phase === 'proposal') {
+        // Both phases route through the swap classifier.
+        // For 'proposal', this lets the user type changes without tapping [Swap something] first.
         const stopTyping = sink.startTyping();
         try {
           const result = await handleSwapText(session.planFlow, text, llm, recipes, store);

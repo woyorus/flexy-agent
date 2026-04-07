@@ -20,3 +20,5 @@
 | 017 | free-text-fallback | Lifecycle-aware free-text fallback: no-plan branch shows helpful guidance, shopping list with no plan shows jargon-free message. |
 | 018 | plan-view-navigation | Active-plan navigation: My Plan → Next Action → Week Overview → Day Detail → Cook view → back to plan. Exercises plan view screens and cook view handler. |
 | 019 | shopping-list-tiered | Three-tier shopping list: sl_next + sl_{date} with role-enriched ingredients. Verifies tier-1 exclusion, tier-2 checkYouHave, tier-3 category grouping, and breakfast annotation. |
+| 020 | planning-intents-from-text | Swap from proposal phase (no button tap), "start over" mid-flow resets planning, second attempt approves. Plan 019 intents. |
+| 021 | planning-cancel-intent | "Nevermind" during proposal exits planning cleanly — planFlow null, surfaceContext null, main menu shown. |
