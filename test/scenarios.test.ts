@@ -42,6 +42,7 @@ import {
   discoverScenarios,
   loadScenario,
   runScenario,
+  runFixtureEditAssertions,
 } from '../src/harness/index.js';
 
 // ─── Unit tests ───────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ for (const dir of scenarioDirs) {
     continue;
   }
 
-  const { spec, recorded, error } = loaded;
+  const { dir: loadedDir, spec, recorded, error } = loaded;
   test(`scenario: ${spec.name}`, async () => {
     if (error) {
       assert.fail(error);
@@ -88,6 +89,7 @@ for (const dir of scenarioDirs) {
     if (!recorded) {
       assert.fail(`Scenario ${spec.name}: no recorded expectations and no error surfaced`);
     }
+    await runFixtureEditAssertions(loadedDir, recorded);
     const result = await runScenario(spec, recorded);
 
     // Three independent assertions so the failure report pinpoints WHICH

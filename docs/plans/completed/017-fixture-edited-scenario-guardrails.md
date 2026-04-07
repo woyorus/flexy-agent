@@ -1,6 +1,6 @@
 # Plan 017: Fixture-Edited Scenario Guardrails
 
-**Status:** Active
+**Status:** Completed
 **Date:** 2026-04-07
 **Affects:** `docs/product-specs/testing.md`, `src/harness/generate.ts`, `src/harness/replay.ts`, `test/scenarios/014-proposer-orphan-fill/fixture-edits.md`, `test/scenarios/014-proposer-orphan-fill/*`
 
@@ -93,13 +93,13 @@ For scenario 014, prefer a small direct test of `assertFixtureEdits` if the reco
 
 ## Progress
 
-- [ ] Update generator warning to point to `test:replay`, not post-edit `--regenerate`.
-- [ ] Update scenario 014 `fixture-edits.md` after-edit instructions.
-- [ ] Tighten `docs/product-specs/testing.md` with the canonical post-edit rule.
-- [ ] Add optional scenario-local fixture edit assertion hook.
-- [ ] Add scenario 014 assertions that prove the underfill fixture is still malformed.
-- [ ] Add focused tests for the assertion hook or scenario assertion.
-- [ ] Run `npm test`.
+- [x] Update generator warning to point to `test:replay`, not post-edit `--regenerate`.
+- [x] Update scenario 014 `fixture-edits.md` after-edit instructions.
+- [x] Tighten `docs/product-specs/testing.md` with the canonical post-edit rule.
+- [x] Add optional scenario-local fixture edit assertion hook.
+- [x] Add scenario 014 assertions that prove the underfill fixture is still malformed.
+- [x] Add focused tests for the assertion hook or scenario assertion.
+- [x] Run `npm test`.
 
 ## Decision log
 
@@ -128,4 +128,3 @@ For scenario 014, prefer a small direct test of `assertFixtureEdits` if the reco
 5. `git diff` shows no accidental `llmFixtures` rewrite from `test:replay`.
 
 ## Feedback
-

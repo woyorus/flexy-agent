@@ -316,8 +316,9 @@ async function generateScenario(args: CliArgs): Promise<void> {
       console.log('⚠⚠⚠  THIS SCENARIO HAS MANUAL FIXTURE EDITS  ⚠⚠⚠');
       console.log('='.repeat(70));
       console.log(`\nYou MUST apply the edits described in:\n  ${fixtureEditsPath}\n`);
-      console.log('Then re-run with --regenerate to capture the corrected outputs.');
-      console.log('Without these edits, the scenario will pass but NOT test what it should.\n');
+      console.log(`Then run: npm run test:replay -- ${spec.name}`);
+      console.log('Review recorded.json via `git diff`, then run `npm test`.');
+      console.log('Never run --regenerate after applying edits; it will destroy them.\n');
       console.log(editsContent);
       console.log('='.repeat(70));
     } else {

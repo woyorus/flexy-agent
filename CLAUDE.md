@@ -83,7 +83,7 @@ This is not optional. `npm test` passing proves determinism. Verification proves
 
 ### Fixture-edited scenarios: NEVER `--regenerate` after applying edits
 
-Some scenarios (e.g., 014) have a `fixture-edits.md` that describes manual edits to `recorded.json` to simulate LLM misbehavior. `--regenerate` **always calls the real LLM** and will silently destroy these edits. After applying fixture edits, use `npm run test:replay -- <name>` to re-record expected outputs from the edited fixtures. See `docs/product-specs/testing.md` § "Scenarios with manually edited fixtures" for the full workflow.
+Some scenarios (e.g., 014) have a `fixture-edits.md` that describes manual edits to `recorded.json` to simulate LLM misbehavior. `--regenerate` **always calls the real LLM** and will silently destroy these edits. After applying fixture edits, use `npm run test:replay -- <name>` to re-record expected outputs from the edited fixtures. Fixture-edited scenarios should also include `fixture-assertions.ts`; the harness runs it in both `test:replay` and `npm test` so a fresh valid fixture cannot silently pass. See `docs/product-specs/testing.md` § "Scenarios with manually edited fixtures" for the full workflow.
 
 ### When the user reports an issue
 

@@ -26,8 +26,12 @@ This orphans **Tue 2026-04-07 dinner**. The fill extends salmon forward (1 → 2
 
 ## After editing
 
-Run `npm run test:generate -- 014-proposer-orphan-fill --regenerate` to re-record
-the expected outputs with the edited fixture, then verify with `npm test`.
+Run `npm run test:replay -- 014-proposer-orphan-fill` to re-record the expected
+outputs from the edited fixture without calling the real LLM.
+
+Then review `recorded.json` via `git diff`, and verify with `npm test`.
+Do not run `--regenerate` after editing — it rewrites `llmFixtures` and destroys
+the manual underfill edits.
 
 ## Why
 

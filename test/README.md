@@ -53,6 +53,17 @@ If the spec is unchanged but the bot's behavior is, scenarios fail with an asser
 
 If the spec itself changed, the `specHash` mismatch produces a clear "Stale recording" error pointing at the regenerate command.
 
+## Fixture-edited scenarios
+
+Some scenarios intentionally edit `recorded.json` after generation to simulate malformed LLM output. If a scenario directory contains `fixture-edits.md`:
+
+1. Generate or regenerate the fresh valid fixture: `npm run test:generate -- <name> --regenerate`.
+2. Apply only the documented `llmFixtures` edits from `fixture-edits.md`.
+3. Run `npm run test:replay -- <name>` to recompute `expected` from the edited fixtures without calling the real LLM.
+4. Review `recorded.json` via `git diff`, then run `npm test`.
+
+Never run `--regenerate` after applying fixture edits; it rewrites `llmFixtures` and destroys the manual malformed response. Fixture-edited scenarios should also include `fixture-assertions.ts` so `test:replay` and `npm test` fail if the required malformed fixture is missing.
+
 ## Directory layout
 
 ```

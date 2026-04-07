@@ -238,6 +238,10 @@ Some scenarios require manual edits to `recorded.json` after generation to simul
 
 Convention: place a `fixture-edits.md` file in the scenario directory describing what to edit and why. The generator detects this file and prints a prominent warning after writing — the operator cannot miss it. The edit instructions are written so that an agent can re-apply them mechanically after any regeneration.
 
+Scenario-local `fixture-edits.md` files and generator warnings must point to `npm run test:replay -- <name>` after edits have been applied, never back to `--regenerate`. `test:replay` preserves `llmFixtures` byte-for-byte except for normal JSON formatting of the full `recorded.json` file; it only recomputes `expected` from the edited fixtures.
+
+Fixture-edited scenarios should also add `fixture-assertions.ts` next to `spec.ts` and export `assertFixtureEdits(recorded)`. The harness runs this assertion in both `test:replay` and `npm test`, before the scenario replay. If a fresh valid LLM fixture accidentally replaces the malformed one, the assertion must fail with instructions to regenerate, re-apply `fixture-edits.md`, then run `test:replay`.
+
 Current scenarios with manual fixture edits:
 - **014-proposer-orphan-fill** — removes days from batches to create orphan slots that `fillOrphanSlots` must fix.
 

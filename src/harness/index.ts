@@ -15,6 +15,7 @@
 export { defineScenario, hashSpec, command, text, click, voice } from './define.js';
 export { runScenario } from './runner.js';
 export { discoverScenarios, loadScenario, type LoadedScenario } from './loader.js';
+export { runFixtureEditAssertions, type FixtureEditAssertion } from './fixture-assertions.js';
 export { CapturingOutputSink } from './capturing-sink.js';
 export { TestStateStore } from './test-store.js';
 export { freezeClock } from './clock.js';

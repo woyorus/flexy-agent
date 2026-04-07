@@ -25,6 +25,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runScenario } from './runner.js';
 import { hashSpec } from './define.js';
+import { runFixtureEditAssertions } from './fixture-assertions.js';
 import type { Scenario, RecordedScenario } from './types.js';
 
 const SCENARIOS_ROOT = 'test/scenarios';
@@ -73,6 +74,8 @@ async function main(): Promise<void> {
   console.log(`  ${spec.description}`);
   console.log(`  clock: ${spec.clock}`);
   console.log(`  llmFixtures: ${recorded.llmFixtures.length}`);
+
+  await runFixtureEditAssertions(dir, recorded);
 
   // Run the scenario using the existing (potentially edited) fixtures.
   const result = await runScenario(spec, recorded);
