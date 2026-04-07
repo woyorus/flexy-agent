@@ -2,7 +2,7 @@
 
 **Status:** Active
 **Date:** 2026-04-07
-**Affects:** `src/state/store.ts`, `src/harness/test-store.ts`, `src/telegram/core.ts`, `src/telegram/formatters.ts`, `src/telegram/keyboards.ts`, `src/models/types.ts`, `supabase/schema.sql`, `supabase/migrations/`
+**Affects:** `src/state/store.ts`, `src/harness/test-store.ts`, `src/harness/types.ts`, `src/telegram/core.ts`, `src/telegram/bot.ts`, `src/telegram/formatters.ts`, `src/telegram/keyboards.ts`, `src/models/types.ts`, `src/agents/progress-flow.ts` (new), `src/utils/dates.ts` (new), `supabase/schema.sql`, `supabase/migrations/`
 
 ## Problem
 
@@ -16,6 +16,14 @@ This task builds the complete Progress feature: measurement persistence, input p
 - Dynamic `buildMainMenuKeyboard()` with "Progress" label (Phase 0 scope item 2)
 
 This plan assumes Phase 0 has landed. If `surfaceContext` does not exist on `BotCoreSession` yet, Phase 0 must be completed first.
+
+> **Preflight check — run before starting any step:**
+> 1. `grep 'surfaceContext' src/telegram/core.ts` — must find the field on `BotCoreSession`.
+> 2. `grep 'buildMainMenuKeyboard' src/telegram/keyboards.ts` — must find the function (not the old static `mainMenuKeyboard` const).
+> 3. `grep "'progress'" src/telegram/core.ts` — must find `progress` as a handled action in `matchMainMenu()`.
+> 4. `test -f src/plan/helpers.ts` — must exist (Plan 012 creates it with `toLocalISODate` and plan lifecycle helpers).
+>
+> If any check fails, **stop** and implement Plan 012 first.
 
 ## Plan of work
 
@@ -55,6 +63,7 @@ export interface Measurement {
   date: string;       // ISO date
   weightKg: number;
   waistCm: number | null;
+  /** Server-generated timestamp (Supabase default now()). Read-only — omit from insert rows. */
   createdAt: string;
 }
 ```
@@ -114,16 +123,20 @@ function fromMeasurementRow(row: any): Measurement {
 
 Add `import type { Measurement } from '../models/types.js'` to the import at line 17.
 
-**1f. Implement in-memory measurement storage in `src/harness/test-store.ts`:**
+**1f. Implement in-memory measurement storage in `src/harness/test-store.ts` and wire into harness:**
 
-- Add `measurements: Measurement[]` to `TestStateStoreSeed` (line 30-37) and `TestStateStoreSnapshot` (line 39-46).
-- Add a private `measurements: Measurement[]` array to `TestStateStore`.
+- Add `measurements?: Measurement[]` to `TestStateStoreSeed` (line 30-37) and `TestStateStoreSnapshot` (line 39-46). Optional with default `[]`.
+- Add `measurements?: Measurement[]` to `ScenarioInitialState` in `src/harness/types.ts` (line 42-49). This allows scenarios to seed prior measurement history.
+- Update `src/harness/runner.ts` constructor call (line ~104-106) to pass `measurements: spec.initialState.measurements` to `TestStateStore`.
+- Update `src/harness/generate.ts` constructor call (line ~263-265) identically.
+- Add a private `measurements: Measurement[]` array to `TestStateStore` (initialized from seed, default `[]`).
 - Implement all four methods with in-memory array operations:
   - `logMeasurement`: find existing by userId+date, replace or push.
   - `getTodayMeasurement`: find by userId+date.
   - `getMeasurements`: filter by userId + date range, sort by date ASC.
   - `getLatestMeasurement`: filter by userId, sort date DESC, return first.
 - Add `measurements` to `snapshot()` return value (line 251-257).
+- **Note:** Adding `measurements: []` to every snapshot means all existing scenario `recorded.json` files will include `"measurements": []` in `finalStore`. Regenerate all existing scenarios with `npm run test:generate -- <name> --regenerate` after this step, or design `snapshot()` to omit `measurements` when the array is empty (preferred — keeps diffs clean). If omitting empty arrays, use `...(this.measurements.length > 0 ? { measurements: this.measurements } : {})` in the snapshot return.
 
 ### Step 2: Progress flow state on session
 
@@ -140,6 +153,8 @@ export interface BotCoreSession {
     phase: 'awaiting_measurement' | 'confirming_disambiguation';
     pendingWeight?: number;
     pendingWaist?: number;
+    /** ISO date when the user entered the numbers — store at parse time so midnight-crossing doesn't shift the log date. */
+    pendingDate?: string;
   } | null;
 }
 ```
@@ -165,41 +180,52 @@ This follows the pattern of `recipe-flow.ts` and `plan-flow.ts`: pure functions 
  */
 ```
 
-**`parseMeasurementInput(text: string): { weight: number; waist?: number } | null`**
+**`parseMeasurementInput(text: string): { values: [number] | [number, number] } | null`**
 - Parse "82.3 / 91", "82.3, 91", "82.3 91", or just "82.3".
-- Regex: extract one or two positive numbers (int or decimal).
-- Return null if the text doesn't match (let it fall through to normal dispatch).
-- Do NOT assign weight vs waist yet — disambiguation may be needed.
+- Regex: extract **exactly** one or two positive non-zero numbers (int or decimal). Reject inputs with more than two numbers, negative values, or zero — callers in the flow context handle null by nudging and staying in `awaiting_measurement`.
+- Return null if the text doesn't match (i.e., is not a measurement input). When `progressFlow.phase === 'awaiting_measurement'`, Step 4c handles null by replying with a gentle nudge and staying in phase. When `progressFlow` is null, null falls through to normal dispatch.
+- Returns `{ values: [number] }` for a single value or `{ values: [number, number] }` for two values.
+- Do NOT assign weight vs waist meaning — that is left to `assignWeightWaist`.
 
-**`assignWeightWaist(values: { a: number; b: number }, lastMeasurement: Measurement | null): { weight: number; waist: number; ambiguous: boolean }`**
-- If only one number: it's weight (waist is optional).
-- If two numbers and no prior measurements: ambiguous. Default assumption: first is weight, second is waist, but ask for confirmation.
-- If two numbers and prior measurements exist: the number closer to last weight is weight, the number closer to last waist is waist. If the difference is too close to call (both within 5 of each previous value), it's ambiguous.
+**`assignWeightWaist(a: number, b: number, lastMeasurement: Measurement | null): { weight: number; waist: number; ambiguous: boolean }`**
+- Called only when two numbers are present. Callers destructure `values[0]` and `values[1]` from the parser.
+- If no prior measurements: ambiguous. Default assumption: first is weight, second is waist, but ask for confirmation.
+- If prior measurements exist but `lastMeasurement.waistCm` is null (user has only logged weight before): there is no waist anchor to compare against. Treat this as ambiguous and ask for confirmation.
+- If prior measurements exist with both values: use ordinal proximity — assign each number to the prior value it is closest to. If `a` is closer to `lastMeasurement.weightKg` AND `b` is closer to `lastMeasurement.waistCm`, it is unambiguous. If the assignments conflict (both closer to the same prior value) or if both are equidistant, it is ambiguous.
+- No arbitrary numeric threshold — proximity comparison is the only criterion.
 - Return `ambiguous: true` when the user needs to confirm.
 
 **`formatDisambiguationPrompt(weight: number, waist: number): string`**
-- "Is that {weight} kg weight and {waist} cm waist?"
-- Inline keyboard: `[Yes]` / `[No, swap them]` (callbacks: `pg_disambig_yes`, `pg_disambig_no`)
+- Returns text only: "Is that {weight} kg weight and {waist} cm waist?"
+- The keyboard is NOT returned by this function — it is a separate export `progressDisambiguationKeyboard` from `keyboards.ts` (defined in Step 6a). Core.ts calls `sink.reply(formatDisambiguationPrompt(w, ws), { reply_markup: progressDisambiguationKeyboard })`. This keeps the formatter pure and the keyboard collocated with other keyboard exports.
 
 ### Step 4: Progress menu handler + text routing
 
 **4a. Add `'progress'` case in `handleMenu()` at `src/telegram/core.ts` (after line 696, before the closing brace of the switch):**
 
+Note: the handler uses `new Date()` for both the current date and the hour. This is correct in the harness because the test harness globally freezes `Date` to the scenario's pinned clock — no injected date parameter is needed.
+
+Use `toLocalISODate(new Date())` (imported from `../plan/helpers.js` — Plan 012 moves it there from `plan-proposer.ts` and re-exports for compatibility) instead of `new Date().toISOString().slice(0, 10)`. `toISOString()` shifts dates back by one day in positive-UTC-offset timezones like Europe/Madrid — using `toLocalISODate` avoids this.
+
+The `[Last weekly report]` button must only appear when a completed prior calendar week has measurements. A "completed week" means `lastWeekEnd <= today` (Sunday itself counts as complete — matching the backlog and ui-architecture copy "ready Sunday"). Use `getCalendarWeekBoundaries` (Step 5) and `store.getMeasurements` to check. This matches the ui-architecture spec: "Inline keyboard (if a completed weekly report exists)."
+
 ```typescript
 case 'progress': {
   session.surfaceContext = 'progress';
 
-  // Check if already logged today
-  const today = new Date().toISOString().slice(0, 10);
+  // Use local-date helper to avoid UTC timezone shift (toISOString shifts
+  // dates back one day in positive-offset timezones like Europe/Madrid).
+  const today = toLocalISODate(new Date());
   const existing = await store.getTodayMeasurement('default', today);
 
   if (existing) {
     session.progressFlow = null;
-    const latestMeasurement = await store.getLatestMeasurement('default');
-    // Show "Already logged today" + optional [Last weekly report] button
+    // Show [Last weekly report] only if a completed prior week has data.
+    const { lastWeekStart, lastWeekEnd } = getCalendarWeekBoundaries(today);
+    const lastWeekData = await store.getMeasurements('default', lastWeekStart, lastWeekEnd);
+    const hasCompletedWeekReport = lastWeekData.length > 0;
     const text = 'Already logged today ✓';
-    const hasAnyMeasurement = latestMeasurement != null;
-    if (hasAnyMeasurement) {
+    if (hasCompletedWeekReport) {
       await sink.reply(text, { reply_markup: progressReportKeyboard });
     } else {
       await sink.reply(text);
@@ -241,23 +267,40 @@ if (session.progressFlow) {
 **4c. Measurement input handling logic (inside `awaiting_measurement` branch):**
 
 1. Call `parseMeasurementInput(text)`. If null, reply with a gentle nudge ("I'm expecting a number like 82.3 or 82.3 / 91") and stay in `awaiting_measurement`.
-2. If one number: weight only. Call `store.logMeasurement('default', today, weight, null)`. Set `progressFlow = null`. Reply with confirmation.
-3. If two numbers: call `assignWeightWaist(values, lastMeasurement)`.
+2. If one number: weight only. Call `store.logMeasurement('default', today, weight, null)`. Set `progressFlow = null`. After logging, check for a completed prior week (`getCalendarWeekBoundaries` + `getMeasurements`) — if one exists, include `{ reply_markup: progressReportKeyboard }` with the confirmation reply. This matches the ui-architecture spec: the inline keyboard appears "if a completed weekly report exists" — not just on repeat taps of Progress, but also immediately after a successful log if a prior completed week has data.
+3. If two numbers: destructure `const [a, b] = parsed.values` and call `assignWeightWaist(a, b, lastMeasurement)`.
    - If not ambiguous: log immediately. Set `progressFlow = null`. Reply with confirmation.
-   - If ambiguous: set `progressFlow = { phase: 'confirming_disambiguation', pendingWeight, pendingWaist }`. Reply with disambiguation prompt + inline keyboard.
+   - If ambiguous: set `progressFlow = { phase: 'confirming_disambiguation', pendingWeight, pendingWaist, pendingDate: today }`. Store `today` at parse time to handle the edge case where the user enters numbers before midnight but taps [Yes] after midnight. Reply with `sink.reply(formatDisambiguationPrompt(pendingWeight, pendingWaist), { reply_markup: progressDisambiguationKeyboard })`.
 
 **4d. Add disambiguation callback handlers in `handleCallback()` (after existing callback routing):**
 
-- `pg_disambig_yes`: log with the pending values as-is. Set `progressFlow = null`. Reply with confirmation.
-- `pg_disambig_no`: swap pendingWeight/pendingWaist, log. Set `progressFlow = null`. Reply with confirmation.
+Guard first: if `session.progressFlow?.phase !== 'confirming_disambiguation'` or any of `pendingWeight`, `pendingWaist`, `pendingDate` are missing, reply "That measurement confirmation expired. Tap Progress to log again." and set `progressFlow = null`. This handles stale buttons from previous sessions, double taps, or taps after `/cancel`.
+
+- `pg_disambig_yes`: read `session.progressFlow.pendingDate` (log that date, not today). Check `getLatestMeasurement` before logging — if null, this is the first measurement; append the first-measurement hint to the confirmation. Call `store.logMeasurement('default', pendingDate, pendingWeight, pendingWaist)`. Set `progressFlow = null`. Reply with confirmation (+ hint if first).
+- `pg_disambig_no`: swap pendingWeight/pendingWaist, log with `pendingDate`. Same first-measurement hint check. Set `progressFlow = null`. Reply with confirmation.
+
+**Text in `confirming_disambiguation` phase:** If the user types text instead of tapping a button, reply: "Use the buttons above to confirm." Stay in `confirming_disambiguation`. Do not parse the text as new measurement input.
+
+**4f. Widen `OutputSink.reply` to support `parse_mode` — prerequisite for the weekly report formatter (Step 5):**
+
+The weekly report uses `parse_mode: 'Markdown'`. The current `OutputSink` interface only allows `{ reply_markup?: Keyboard | InlineKeyboard }` — passing `parse_mode` causes an excess-property TypeScript error.
+
+Changes:
+- In `src/telegram/core.ts` line 145, widen options to:
+  ```typescript
+  reply(text: string, options?: { reply_markup?: Keyboard | InlineKeyboard; parse_mode?: string }): Promise<void>;
+  ```
+- In `src/telegram/bot.ts` `grammyOutputSink`, the cast on line 85 already uses `as ... | undefined` — update it to include `parse_mode?: string` so the real grammY `ctx.reply` receives it.
+- `CapturingOutputSink` (`src/harness/capturing-sink.ts`) requires no change — it already reads only `options?.reply_markup`, so additional options are silently ignored in harness runs. `parse_mode` does not affect harness transcript fidelity.
 
 **4e. Clear `progressFlow` when entering other flows:**
 
-In `handleMenu()`, the existing `session.recipeFlow = null; session.planFlow = null;` at line 643-644 (which Phase 0 will modify to be smarter) should also clear `progressFlow`:
-```typescript
-session.progressFlow = null;
-```
-This prevents stale flow state when the user navigates away.
+Three locations:
+1. In `handleMenu()`, the existing `session.recipeFlow = null; session.planFlow = null;` at line 643-644 (which Phase 0 will modify to be smarter) should also clear `progressFlow = null`.
+2. In `handleCommand()` for `/start` (core.ts ~line 247): add `session.progressFlow = null` alongside the existing `session.recipeFlow = null`.
+3. In `handleCommand()` for `/cancel` (core.ts ~line 253-254): add `session.progressFlow = null` alongside the existing `session.recipeFlow = null`.
+
+This prevents stale flow state when the user restarts or cancels mid-flow.
 
 ### Step 5: Formatters
 
@@ -269,29 +312,41 @@ This prevents stale flow state when the user navigates away.
 
 **`formatWeeklyReport(currentWeek: Measurement[], previousWeek: Measurement[], weekStart: string, weekEnd: string): string`**
 - Compute averages for current and previous weeks.
-- If no previous week data: show just the current week averages, no delta.
-- Format: `**Week of Mar 30 – Apr 5**\n\nWeight: **82.1 kg** avg (↓0.4 from last week)\nWaist: **90.5 cm** avg (↓0.3 from last week)\n\n{tone message}`
-- Use MarkdownV2 or plain text depending on what the codebase uses (current formatters use plain text — follow that pattern).
-- Omit waist line entirely if no waist measurements in the week.
+- The existing `src/telegram/formatters.ts` file header says "Uses Telegram's MarkdownV2" — add a local comment above `formatWeeklyReport` clarifying: `// Note: this formatter uses legacy Markdown mode (parse_mode: 'Markdown'), not MarkdownV2.`
+- **No previous week data** (`previousWeek.length === 0`): show current week averages only, no delta arrows, no tone message that requires a previous baseline. Append: `_Next report ready Sunday._ _(delta shown once you have two weeks of data)_`
+- **Previous week has weight but no waist** (`previousAvgWaist` is null): compute weight delta normally; skip waist delta line (as if no previous waist).
+- **Current week has weight but no waist** (`currentWeek` has no waist measurements): omit waist line entirely from the report — do not compare waist.
+- Format (when previous data exists): `*Week of Mar 30 – Apr 5*\n\nWeight: *82.1 kg* avg (↓0.4 from last week)\nWaist: *90.5 cm* avg (↓0.3 from last week)\n\n{tone message}`
+- Uses `parse_mode: 'Markdown'` (legacy Telegram Markdown). Bold syntax is `*text*` (single asterisk), NOT `**text**`. Italic is `_text_`. Do not use MarkdownV2 — its escaping requirements make the formatter brittle for numbers with dots and dashes.
+- Omit waist line entirely if no waist measurements exist in the current week.
 - Append: `_Next report ready Sunday._`
 
 **`pickWeeklyReportTone(currentAvgWeight: number, previousAvgWeight: number, currentAvgWaist: number | null, previousAvgWaist: number | null): string`**
-- Losing 0.2-0.5 kg/week: "Steady and sustainable. 0.2-0.5 kg/week is a healthy, sustainable pace."
-- Losing >0.5 kg/week: "Great progress. If this pace holds, we might ease up slightly -- sustainability matters more than speed."
-- Plateau (+-0.1 kg): if waist is down, "Weight is stable but your waist is down {delta} cm -- you're recomposing, the scale will catch up." If no waist data: "Weight is stable -- normal. Fluctuations mask fat loss. Keep going."
-- Up 0.3+ kg: "Week-to-week fluctuations happen -- water, food volume, stress. One week doesn't define the trend. Keep going."
 
-**`getCalendarWeekBoundaries(today: string): { currentWeekStart: string; currentWeekEnd: string; lastWeekStart: string; lastWeekEnd: string }`**
+Only called when `previousWeek.length > 0` (previous data exists). Delta = currentAvgWeight − previousAvgWeight:
+- Loss > 0.5 kg: "Great progress. If this pace holds, we might ease up slightly -- sustainability matters more than speed."
+- Loss 0.1–0.5 kg (i.e. delta ≤ −0.1): "Steady and sustainable. 0.2-0.5 kg/week is a healthy, sustainable pace."
+- Plateau (−0.1 < delta < 0.3 kg): if both `currentAvgWaist` and `previousAvgWaist` are non-null and waist is down, use: "Weight is stable but your waist is down {waistDelta} cm -- you're recomposing, the scale will catch up." Otherwise: "Weight is stable -- normal. Fluctuations mask fat loss. Keep going."
+- Up 0.3+ kg (delta ≥ 0.3): "Week-to-week fluctuations happen -- water, food volume, stress. One week doesn't define the trend. Keep going."
+
+This covers every range without gaps: loss (> 0.5, 0.1–0.5), plateau (±0.1 to 0.3 gain, treated as noise), and meaningful gain (≥ 0.3).
+
+**`getCalendarWeekBoundaries(today: string): { currentWeekStart: string; currentWeekEnd: string; lastWeekStart: string; lastWeekEnd: string; prevWeekStart: string; prevWeekEnd: string }`**
 - Calendar weeks are Mon-Sun.
-- "Last completed week" = the most recent Mon-Sun that has fully passed.
-- "Previous week" = the week before that (for delta).
-- This is a pure date utility; put it in formatters or a new `src/utils/dates.ts` (formatters is fine for now).
+- "Last completed week" = the most recent Mon-Sun where `lastWeekEnd <= today`. Sunday counts as completed (if today is Sunday Apr 6, `lastWeekEnd` = Apr 6, the week is complete). The report NEVER shows data from the current in-progress week — if today is Wednesday, the last completed week ended the previous Sunday.
+- "Previous week" = the week before the last completed week (for delta computation). Export as `prevWeekStart` / `prevWeekEnd`.
+- **This utility must be exported from its module.** Step 4a imports it to check whether a completed weekly report exists before showing the `[Last weekly report]` button. Put it in `src/utils/dates.ts` (new file) rather than `formatters.ts` — it is needed by both the formatter and the menu handler, and importing from `formatters.ts` inside the core handler would create a circular-ish coupling. `src/utils/dates.ts` is a neutral home for pure date math.
 
 ### Step 6: Weekly report callback
 
-**6a. Add `[Last weekly report]` inline keyboard in `src/telegram/keyboards.ts`:**
+**6a. Add progress inline keyboards in `src/telegram/keyboards.ts`:**
 
 ```typescript
+/** Progress screen: disambiguation prompt — confirm which number is weight vs waist. */
+export const progressDisambiguationKeyboard = new InlineKeyboard()
+  .text('Yes', 'pg_disambig_yes')
+  .text('No, swap them', 'pg_disambig_no');
+
 /** Progress screen: show the last completed weekly report. */
 export const progressReportKeyboard = new InlineKeyboard()
   .text('Last weekly report', 'pg_last_report');
@@ -300,8 +355,8 @@ export const progressReportKeyboard = new InlineKeyboard()
 **6b. Handle `pg_last_report` callback in `handleCallback()` in `src/telegram/core.ts`:**
 
 Three cases:
-1. **Completed week with data:** Compute `getCalendarWeekBoundaries(today)`. Query `store.getMeasurements('default', lastWeekStart, lastWeekEnd)` and `store.getMeasurements('default', prevWeekStart, prevWeekEnd)`. If last week has data, format and reply with `formatWeeklyReport(...)`. Append "Next report ready Sunday."
-2. **No completed week with data:** "Not enough data for a report yet -- keep logging and your first report will be ready Sunday."
+1. **Completed week with data:** Compute `getCalendarWeekBoundaries(today)`. "Completed" means `lastWeekEnd <= today` (Sunday counts as complete — a user logging on Sunday gets the report). Query `store.getMeasurements('default', lastWeekStart, lastWeekEnd)` and `store.getMeasurements('default', prevWeekStart, prevWeekEnd)`. If last week has data, format and reply with `formatWeeklyReport(...)` passing `{ parse_mode: 'Markdown' }` to `sink.reply()`.
+2. **No completed week with data:** "Not enough data for a report yet -- keep logging and your first report will be ready Sunday." (plain text reply, no parse_mode needed)
 3. **No measurements at all:** Same message as case 2 (defensive; button shouldn't appear, but handle gracefully).
 
 ### Step 7: First measurement education
@@ -311,27 +366,112 @@ On the very first measurement ever (no prior measurements from `getLatestMeasure
 ```
 Logged ✓ 82.3 kg / 91 cm
 
-We track weekly averages, not daily -- so don't worry about day-to-day swings.
+We track weekly averages, not daily -- so don't worry about day-to-day swings. Come back tomorrow -- we'll start tracking your trend.
 ```
 
 Check `getLatestMeasurement('default')` before logging. If null, this is the first. Append the hint to the confirmation message. Do not persist a "has seen hint" flag — checking "was there a prior measurement" is equivalent and stateless.
 
 ### Step 8: Test scenario
 
-**8a. Author scenario `test/scenarios/NNN-progress-logging/spec.ts`:**
+**8a. Author scenario `test/scenarios/015-progress-logging/spec.ts`:**
 
-Script (derived from acceptance criteria):
-1. `/start` — get menu.
-2. Tap `📊 Progress` — expect measurement prompt.
-3. Send `"82.3 / 91"` — expect "Logged ✓ 82.3 kg / 91 cm" + first-measurement hint.
-4. Tap `📊 Progress` — expect "Already logged today ✓" + `[Last weekly report]` button.
-5. Tap `[Last weekly report]` — expect "Not enough data" message (only one day of data).
+Next available number is **015** (014 is `proposer-orphan-fill`). Spec skeleton:
 
-Freeze clock to a specific date. Use empty recipe fixtures (progress is independent of recipes/plans).
+```typescript
+import { defineScenario, command, text, click } from '../../../src/harness/define.js';
 
-**8b. Generate recording:** `npm run test:generate -- progress-logging`
+export default defineScenario({
+  name: '015-progress-logging',
+  description: 'Progress: first log, first-measurement hint, already-logged same day, defensive pg_last_report with no completed week',
+  clock: '2026-04-09T10:00:00Z',   // Wednesday — clearly mid-week, no completed prior week
+  recipeSet: 'minimal',             // generate.ts throws on empty; progress is recipe-independent
+  initialState: {},                 // fresh user — no measurements, no plan
+  events: [
+    command('start'),
+    text('📊 Progress'),            // reply keyboard button → text(), NOT click()
+    text('82.3 / 91'),              // measurement input
+    text('📊 Progress'),            // same day — already logged
+    click('pg_last_report'),        // defensive: no completed week → "not enough data"
+  ],
+});
+```
 
-**8c. Review recording:** Verify confirmation copy, "already logged" path, weekly report boundary behavior. Follow the verification protocol in `docs/product-specs/testing.md`.
+**Important:** `text('📊 Progress')` not `click(...)` — "Progress" is a reply keyboard button (main menu). Reply keyboard buttons arrive as plain text messages; `click()` is for inline keyboard callbacks only.
+
+Expected outputs (verify after generate):
+- Step 2 (`text('📊 Progress')`): prompt with examples. No keyboard.
+- Step 3 (`text('82.3 / 91')`): "Logged ✓ 82.3 kg / 91 cm" + first-measurement hint. No inline keyboard (no completed prior week).
+- Step 4 (`text('📊 Progress')`): "Already logged today ✓". No inline keyboard — clock is mid-week, no completed calendar week with data.
+- Step 5 (`click('pg_last_report')`): "Not enough data for a report yet — keep logging and your first report will be ready Sunday."
+
+**8b. Author scenario `test/scenarios/016-progress-weekly-report/spec.ts`:**
+
+This scenario seeds a full prior week of measurements to exercise the weekly report callback and tone logic end-to-end through the harness. It is the only way to verify that `formatWeeklyReport`, `pickWeeklyReportTone`, and `getCalendarWeekBoundaries` work correctly together through real harness dispatch.
+
+```typescript
+import { defineScenario, text, click } from '../../../src/harness/define.js';
+import type { Measurement } from '../../../src/models/types.js';
+
+// Clock: Monday Apr 13 — last completed week is Mon Apr 6 – Sun Apr 12.
+// Previous week: Mon Mar 30 – Sun Apr 5.
+const LAST_WEEK_MEASUREMENTS: Measurement[] = [
+  { id: 'meas-1', userId: 'default', date: '2026-04-06', weightKg: 82.5, waistCm: 91.5, createdAt: '2026-04-06T08:00:00Z' },
+  { id: 'meas-2', userId: 'default', date: '2026-04-07', weightKg: 82.3, waistCm: 91.2, createdAt: '2026-04-07T08:00:00Z' },
+  { id: 'meas-3', userId: 'default', date: '2026-04-08', weightKg: 82.1, waistCm: 91.0, createdAt: '2026-04-08T08:00:00Z' },
+  { id: 'meas-4', userId: 'default', date: '2026-04-09', weightKg: 82.4, waistCm: 91.1, createdAt: '2026-04-09T08:00:00Z' },
+  { id: 'meas-5', userId: 'default', date: '2026-04-10', weightKg: 82.2, waistCm: 90.9, createdAt: '2026-04-10T08:00:00Z' },
+  { id: 'meas-6', userId: 'default', date: '2026-04-11', weightKg: 82.0, waistCm: 90.8, createdAt: '2026-04-11T08:00:00Z' },
+  { id: 'meas-7', userId: 'default', date: '2026-04-12', weightKg: 81.9, waistCm: 90.7, createdAt: '2026-04-12T08:00:00Z' },
+];
+const PREV_WEEK_MEASUREMENTS: Measurement[] = [
+  { id: 'meas-8', userId: 'default', date: '2026-03-30', weightKg: 83.1, waistCm: 92.0, createdAt: '2026-03-30T08:00:00Z' },
+  { id: 'meas-9', userId: 'default', date: '2026-03-31', weightKg: 82.9, waistCm: 91.8, createdAt: '2026-03-31T08:00:00Z' },
+];
+
+export default defineScenario({
+  name: '016-progress-weekly-report',
+  description: 'Progress: tap [Last weekly report] with a full completed week seeded — verifies tone, averages, and delta computation',
+  clock: '2026-04-13T10:00:00Z',   // Monday — last completed week Apr 6–12 is fully past
+  recipeSet: 'minimal',
+  initialState: {
+    measurements: [...LAST_WEEK_MEASUREMENTS, ...PREV_WEEK_MEASUREMENTS],
+  },
+  events: [
+    text('📊 Progress'),           // already logged? no — Apr 13 not in seed. Gets prompt.
+    text('82.0'),                  // log today (weight only)
+    click('pg_last_report'),       // completed week Apr 6–12 exists → show report
+  ],
+});
+```
+
+**Note:** `initialState.measurements` requires Step 1f to add `measurements?: Measurement[]` to `ScenarioInitialState` in `src/harness/types.ts`. Author this spec after Step 1f lands.
+
+Expected outputs (verify after generate):
+- Step 1: measurement prompt (Monday morning, no time qualifier).
+- Step 2: "Logged ✓ 82.0 kg" — weight only. Inline keyboard with `[Last weekly report]` (Apr 6–12 completed week exists). No first-measurement hint (prior measurements exist in seed).
+- Step 3: weekly report showing Apr 6–12 avg vs Mar 30–Apr 5 avg. Tone: steady-loss range (avg ~82.2 vs ~83.0, delta ~−0.8 → "Great progress" path). Append `_Next report ready Sunday._`
+
+**8c. Unit tests — `test/unit/progress.test.ts`:**
+
+The pure functions are high-risk, not exercised at granularity by the scenarios above. Create `test/unit/progress.test.ts` (follows the pattern of `test/unit/solver.test.ts`):
+
+- **`parseMeasurementInput`**: "82.3" → `{values:[82.3]}`, "82.3 / 91" → `{values:[82.3,91]}`, "82.3, 91" → same, "82.3 91" → same, "82.3 / 91 / 40" → null, "-5" → null, "0" → null, "hello" → null.
+- **`assignWeightWaist`**: unambiguous (prior 82kg/91cm → 82.5/91.5 → weight=82.5, waist=91.5, ambiguous=false); null waistCm prior → ambiguous=true; conflict (both closer to weight) → ambiguous=true; no prior → ambiguous=true.
+- **`getCalendarWeekBoundaries`**: Wednesday Apr 9 → lastWeek=Mar30–Apr5, prevWeek=Mar23–Mar29; Sunday Apr 6 → lastWeek=Mar30–Apr6 (inclusive, `<=`), prevWeek=Mar23–Mar29; Monday Apr 7 → lastWeek=Mar31–Apr6, prevWeek=Mar24–Mar30; year-crossing (Jan 2 → lastWeek=Dec22–Dec28, prevWeek=Dec15–Dec21).
+- **`formatWeeklyReport`** / **`pickWeeklyReportTone`**: loss >0.5, loss 0.1–0.5, plateau with waist down, plateau no waist, gain ≥0.3; no-previous-week shows no delta; waist absent from current week omits waist line.
+
+**8d. Generate recordings:**
+
+```bash
+npm run test:generate -- 015-progress-logging
+npm run test:generate -- 016-progress-weekly-report
+```
+
+These call the real LLM only if new LLM calls are needed — progress scenarios make no LLM calls (pure dispatch/store logic), so generate will record zero LLM fixtures but will still capture outputs, finalSession, and finalStore. Verify both `recorded.json` files as per `docs/product-specs/testing.md`.
+
+**8e. Update `test/scenarios/index.md`:** Add rows for 015 and 016.
+
+**8f. `npm test` must pass** — all 16 scenarios + unit tests green.
 
 ## Progress
 
@@ -342,7 +482,7 @@ Freeze clock to a specific date. Use empty recipe fixtures (progress is independ
 - [ ] Step 5: Formatters (confirmation, weekly report, tone, date boundaries)
 - [ ] Step 6: Weekly report callback handler
 - [ ] Step 7: First measurement education hint
-- [ ] Step 8: Test scenario (author, generate, review)
+- [ ] Step 8: Test (015-progress-logging scenario, 016-progress-weekly-report scenario, progress.test.ts unit tests, update index.md)
 - [ ] Final: `npm test` passes, all acceptance criteria met
 
 ## Decision log
@@ -367,22 +507,26 @@ Freeze clock to a specific date. Use empty recipe fixtures (progress is independ
   **Rationale:** Button taps are unambiguous and bypass the LLM (architecture rule 2). Text-based "yes"/"no" would require fuzzy matching and risk collision with other text routing. The `confirming_disambiguation` phase still exists in case we need to handle edge cases, but primary flow uses buttons.
   **Date:** 2026-04-07
 
-- **Decision:** Weekly report uses plain text (not MarkdownV2).
-  **Rationale:** All existing formatters in `src/telegram/formatters.ts` output plain text. MarkdownV2 in Telegram requires aggressive escaping of special characters. Consistency with the codebase wins.
+- **Decision:** Weekly report uses Telegram legacy markdown (`parse_mode: 'Markdown'`), not MarkdownV2 and not plain text.
+  **Rationale:** The ui-architecture spec shows bold formatting in the weekly report. Legacy `Markdown` mode uses `*bold*` (single asterisk) and `_italic_` — simpler than MarkdownV2 which requires escaping every `.`, `-`, `(`, `)`, and digit. **Note: Telegram legacy bold is `*text*`, not `**text**`.** MarkdownV2 is avoided because the report content (numbers with dots, weight deltas with `↓`) would require pervasive escaping. All other formatters remain plain text — `parse_mode: 'Markdown'` is scoped to `formatWeeklyReport` and its `sink.reply()` call only.
+  **Date:** 2026-04-07
+
+- **Decision:** `parseMeasurementInput` returns `{ values: [number] | [number, number] } | null`, not `{ weight, waist }`.
+  **Rationale:** The parser must not assign weight/waist meaning — disambiguation may be needed. Returning a positional tuple preserves raw values without implying semantic roles. Callers destructure `values[0]` and `values[1]` explicitly and pass them to `assignWeightWaist`.
+  **Date:** 2026-04-07
+
+- **Decision:** `assignWeightWaist` uses ordinal proximity comparison, not an arbitrary numeric threshold.
+  **Rationale:** Any fixed threshold (e.g., "within 5") is physically meaningless since weight and waist are measured in different units at different scales. Proximity comparison — which number is closer to the prior weight, which is closer to the prior waist — is scale-independent and unambiguous. If the nearest-neighbor assignments conflict, or if no prior data exists, it is ambiguous and the user is asked to confirm.
   **Date:** 2026-04-07
 
 ## Validation
 
-1. **`npm test` passes** — existing scenarios are unaffected (progress touches no plan/recipe/shopping code).
-2. **New scenario covers the happy path**: tap Progress, enter measurements, see confirmation, tap Progress again same day, see "already logged", tap weekly report button.
+1. **`npm test` passes** — but note: Step 1f adds `progressFlow` to `BotCoreSession` and optionally `measurements` to `TestStateStore.snapshot()`. If `measurements` is included in snapshots even when empty, all existing `recorded.json` files will include `"measurements": []` in `finalStore` and `"progressFlow": null` in `finalSession`. After Step 1f and Step 2, regenerate all existing scenarios: `for each scenario in test/scenarios: npm run test:generate -- <name> --regenerate`. Preferred approach: omit `measurements` from snapshot when empty (see Step 1f) to minimize diff blast radius.
+2. **New scenario covers the happy path**: tap Progress, enter measurements, see confirmation, tap Progress again same day, see "already logged" with no keyboard (no completed prior week), defensive `pg_last_report` click returns "not enough data."
 3. **Manual verification** (`npm run dev`):
    - Tap [Progress] first time — see prompt with examples.
    - Type "82.3 / 91" — see "Logged ✓ 82.3 kg / 91 cm" + first-measurement hint.
-   - Tap [Progress] again — see "Already logged today ✓" + [Last weekly report] button.
-   - Tap [Last weekly report] — see "Not enough data" message.
-   - After a full week of logging: tap [Last weekly report] — see weekly averages + tone.
+   - Tap [Progress] again — see "Already logged today ✓" (no button for a fresh user; button appears after a full completed prior week has data).
+   - After a full completed prior week of logging: tap [Progress] → see "Already logged today ✓" + `[Last weekly report]` button. Tap it → see weekly averages + tone.
    - Test afternoon time-aware prompt (after 14:00 local time).
 4. **Disambiguation**: enter two close numbers on first measurement (no prior data) — confirm disambiguation prompt appears. On subsequent days with prior data, close numbers resolve silently.
-
-# Feedback
-

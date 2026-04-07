@@ -2,7 +2,7 @@
 
 **Status:** Active
 **Date:** 2026-04-07
-**Affects:** `src/plan/helpers.ts` (NEW), `src/telegram/keyboards.ts`, `src/telegram/core.ts`, `src/models/types.ts`, `src/state/store.ts`, `src/harness/test-store.ts`
+**Affects:** `src/plan/helpers.ts` (NEW), `src/telegram/keyboards.ts`, `src/telegram/core.ts`, `src/agents/plan-flow.ts`, `src/models/types.ts`, `src/state/store.ts`, `src/harness/test-store.ts`
 
 ## Problem
 
@@ -39,25 +39,29 @@ export type PlanLifecycle = 'no_plan' | 'planning' | 'active_early' | 'active_mi
 ```
 
 Function `getPlanLifecycle(session: BotCoreSession, store: StateStoreLike, today: string): Promise<PlanLifecycle>`:
-- If `session.planFlow` is non-null, return `'planning'`.
-- Call `store.getRunningPlanSession()`. If null, return `'no_plan'`.
+- If `session.planFlow` is non-null **and `session.planFlow.phase !== 'confirmed'`**, return `'planning'`. (A confirmed planFlow is stale — it should have been cleared by `handleApprove`. Treat it as no active flow.)
+- Call `store.getRunningPlanSession(today)`. If null, return `'no_plan'`.
 - Compute horizon position: `daysSinceStart = dateDiffDays(today, runningSession.horizonStart)`, `daysUntilEnd = dateDiffDays(runningSession.horizonEnd, today)`.
 - All lifecycle stages use **horizon position** (today relative to horizonStart/horizonEnd), NOT confirmation age. Per the backlog, a plan confirmed on Saturday for next Monday starts as `active_early` on Monday, not on Saturday.
-- Lifecycle boundaries (from backlog lines 26-28):
+- Lifecycle boundaries (from backlog lines 26-28). **Evaluation order: check `active_ending` first** (it takes priority when days overlap), then `active_early`, then `active_mid` as default. Boundaries are designed for 7-day horizons (`daysSinceStart + daysUntilEnd = 6`):
+  - `active_ending`: `daysUntilEnd <= 1` (1-2 days remaining). **Checked first.**
   - `active_early`: `daysSinceStart <= 1` (day 0 or day 1).
-  - `active_mid`: `daysSinceStart >= 2 && daysSinceStart <= 4` (days 2-4).
-  - `active_ending`: `daysUntilEnd <= 1` (1-2 days remaining).
+  - `active_mid`: default for all other days (effectively `daysSinceStart >= 2`).
 
 Include a pure `dateDiffDays(a: string, b: string): number` helper (difference in calendar days, `a - b`).
 
-**Plan data helpers** (all pure functions operating on `Batch[]` and a `today` string):
+**Important:** `getRunningPlanSession()` currently hardcodes `new Date().toISOString().slice(0, 10)` (UTC) at `store.ts:192`. This can diverge from the local `today` passed to `getPlanLifecycle()` near midnight in UTC+1/+2. To fix, change the store method signature to `getRunningPlanSession(today?: string)` — if provided, use it for the date filter; if omitted, fall back to the current behavior. Update both `StateStore` and `TestStateStore`. This ensures the lifecycle function and the store agree on what "today" means.
+
+**Plan data helpers** (all pure functions operating on `Batch[]` and a `today` string).
+
+All helpers filter to `status === 'planned'` batches only — cancelled batches (tombstoned by D27 supersede) are excluded. Callers pass raw `Batch[]` from the store; the helpers handle the filter internally. `getServingNumber()` returns `0` if `date` is not in `eatingDays` (defensive — should not happen with correct callers). Helpers gracefully handle empty `eatingDays` arrays by returning `null` from lookup functions.
 
 - `getNextCookDay(batches: Batch[], today: string): { date: string; batches: Batch[] } | null` — finds the earliest cook day (= `eatingDays[0]`) on or after `today`, returns that date and all batches cooking on that date.
 - `getCookDaysForWeek(batches: Batch[]): { date: string; batches: Batch[] }[]` — groups all batches by their cook day (`eatingDays[0]`), sorted chronologically.
 - `getBatchForMeal(batches: Batch[], date: string, mealType: 'lunch' | 'dinner'): { batch: Batch; isReheat: boolean; servingNumber: number } | null` — finds the batch covering a given date/mealType, with reheat status and serving number.
 - `isReheat(batch: Batch, date: string): boolean` — returns `date > batch.eatingDays[0]`.
 - `getServingNumber(batch: Batch, date: string): number` — index of `date` in `batch.eatingDays` + 1 (e.g., "serving 2 of 3").
-- `getDayRange(batch: Batch): { first: string; last: string }` — `{ first: eatingDays[0], last: eatingDays[eatingDays.length - 1] }`.
+- `getDayRange(batch: Batch): { first: string; last: string } | null` — returns `null` if `eatingDays` is empty (should not happen for valid planned batches, but defensive). Otherwise `{ first: eatingDays[0], last: eatingDays[eatingDays.length - 1] }`.
 
 ### Step 2: Add `surfaceContext` and `lastRecipeSlug` to `BotCoreSession`
 
@@ -77,7 +81,29 @@ export interface BotCoreSession {
 
 Initialize `surfaceContext: null` in the session literal (line 200-204). Initialize `lastRecipeSlug: undefined` (omit from literal, it's optional).
 
-Back-button navigation is deterministic, not stack-based. Each back button has a hardcoded destination — no `previousSurfaceContext` field needed. The actual `surfaceContext` assignments happen in later phases when each screen is implemented. Phase 0 only adds the field and initializes it.
+Back-button navigation is deterministic, not stack-based. Each back button has a hardcoded destination — no `previousSurfaceContext` field needed.
+
+**Phase 0 surfaceContext assignments for existing surfaces** (per backlog line 50: "Set `surfaceContext` when entering each surface"):
+- `handleMenu('my_recipes')`: set `session.surfaceContext = 'recipes'`.
+- `handleMenu('plan_week')`: set `session.surfaceContext = 'plan'`.
+- `handleMenu('shopping_list')`: set `session.surfaceContext = 'shopping'`.
+- `handleMenu('progress')` / `handleMenu('weekly_budget')`: set `session.surfaceContext = 'progress'`.
+- `handleCallback` for `rv_` (recipe view): set `session.surfaceContext = 'recipes'` and `session.lastRecipeSlug = recipe.slug`.
+- New screen-specific surfaces (cook view → `'cooking'`, etc.) are set in their respective feature phases.
+- When entering a non-recipe surface, clear `session.lastRecipeSlug = undefined`.
+
+Update `reset()` (core.ts:869-873) to also clear the new fields:
+
+```ts
+function reset(): void {
+  session.recipeFlow = null;
+  session.planFlow = null;
+  session.recipeListPage = 0;
+  session.surfaceContext = null;       // NEW
+  session.lastRecipeSlug = undefined;  // NEW
+  session.pendingReplan = undefined;   // NEW — was already missing from reset
+}
+```
 
 ### Step 3: Replace static `mainMenuKeyboard` with `buildMainMenuKeyboard(lifecycle)`
 
@@ -124,9 +150,11 @@ function matchMainMenu(text: string): string | null {
 }
 ```
 
-Add a `'progress'` case in the `handleMenu()` switch block (after `'weekly_budget'` case at line 695-696). For now it can return the same stub message as `weekly_budget`. Later phases will implement the Progress screen.
+Add a `'progress'` case in the `handleMenu()` switch block (after `'weekly_budget'` case at line 695-696). Use a neutral stub: `'Progress is coming soon.'` (not "No active plan yet" — per ui-architecture, Progress is always available regardless of plan lifecycle). Later phases will implement the real Progress screen.
 
-### Step 5: Fix `handleMenu()` plan flow destruction
+### Step 5: Fix `handleMenu()` plan flow destruction + planFlow lifecycle cleanup
+
+**5a. Remove unconditional planFlow destruction in `handleMenu()`**
 
 In `src/telegram/core.ts`, replace lines 642-644:
 
@@ -141,29 +169,109 @@ async function handleMenu(action: string, sink: OutputSink): Promise<void> {
 ```ts
 async function handleMenu(action: string, sink: OutputSink): Promise<void> {
   session.recipeFlow = null; // exit any recipe flow
-
-  // Only clear planFlow when the action explicitly starts a different flow.
-  // When action === 'plan_week' and session.planFlow exists, we resume —
-  // not restart. Other actions (my_recipes, shopping_list, etc.) leave
-  // planFlow intact so the user can check recipes mid-planning and
-  // return via [Resume Plan].
-  if (action !== 'plan_week') {
-    // Don't destroy planFlow — user might be mid-planning and
-    // checking recipes or shopping list as a side trip.
-    // planFlow persists until the user explicitly cancels or finishes.
-  }
+  // planFlow is NOT cleared here. It persists until the user
+  // explicitly confirms the plan or cancels via /cancel.
 ```
 
-Wait — the backlog says (line 45): "only clear planFlow when the action explicitly starts a different flow." But also: "When `action === 'plan_week'` and `session.planFlow` exists, resume the flow instead of restarting."
+The `'my_recipes'`, `'shopping_list'`, etc. cases do NOT clear `planFlow` — the user is taking a side trip. They return via [Resume Plan].
 
-The correct logic is:
-- **Remove** the unconditional `session.planFlow = null` from line 644.
-- In the `'plan_week'` case (line 660): if `session.planFlow` is already non-null, resume it (re-display the current phase prompt) instead of calling `computeNextHorizonStart` and starting fresh.
-- `planFlow` is only cleared when the planning flow itself completes (plan confirmed) or the user runs `/cancel`.
+**Side-trip text routing contract:** When `planFlow` is preserved during a side trip, `handleTextInput()` (core.ts:713) routes text to `planFlow` first. This is correct — the side trip is menu-based (recipe browsing, shopping list), not text-based. However, the `my_recipes` case at core.ts:650 starts `recipeFlow` when the user has zero recipes and gets "Let's create your first one!" This is the only menu case that starts a text-consuming flow. To handle this:
+- When `session.planFlow` is non-null and `session.recipeFlow` is non-null, text routing must check `recipeFlow` first (the user explicitly started recipe creation during a side trip).
+- Move the `recipeFlow` check above the `planFlow` check in `handleTextInput()`. Do NOT use the alternative of guarding `planFlow` with `!session.recipeFlow` — that approach has a silent-return bug: `planFlow`'s text handler returns silently for non-text phases (e.g., `'proposal'`), which would swallow the text before `recipeFlow` ever sees it.
 
-The `'my_recipes'`, `'shopping_list'`, etc. cases should NOT clear `planFlow` — the user is just taking a side trip. They'll come back via [Resume Plan].
+**5b. Clear planFlow on plan confirmation**
 
-Implementation detail for the `'plan_week'` resume path: when `session.planFlow` exists, we need to re-send the current phase's prompt. The simplest approach is to call the existing plan-flow handler with a synthetic "resume" signal that re-emits the current phase's message. This may require a small addition to `plan-flow.ts` (e.g., `getResumeMessage(state)` that returns the appropriate prompt for the current phase). Scope this narrowly — just enough to show "You're in the middle of planning. [current phase prompt]" when the user taps [Resume Plan].
+After `handleApprove()` succeeds (core.ts:487-488), clear planFlow. The `result.state` has `phase: 'confirmed'` but we don't need to keep it — the plan is persisted to the store:
+
+```ts
+const result = await handleApprove(session.planFlow, store, recipes, llm);
+// Plan is persisted — clear the in-progress flow state.
+// getPlanLifecycle() will now return active_* based on the persisted session.
+session.planFlow = null;
+```
+
+**5c. Clear planFlow on `/cancel` and `/start`**
+
+In `handleCommand()` (core.ts:246-257), add planFlow cleanup to both commands:
+
+```ts
+if (command === 'start') {
+  session.recipeFlow = null;
+  session.planFlow = null;           // NEW: reset all flow state
+  session.pendingReplan = undefined;  // NEW
+  await sink.reply('Welcome to Flexie! Use the menu below to get started.', {
+    reply_markup: await getMenuKeyboard(),
+  });
+  return;
+}
+if (command === 'cancel') {
+  session.recipeFlow = null;
+  session.planFlow = null;           // NEW: clear planning state on cancel
+  session.pendingReplan = undefined;  // NEW: clear pending replan too
+  await sink.reply('Cancelled.', { reply_markup: await getMenuKeyboard() });
+  return;
+}
+```
+
+**5d. Lifecycle-aware routing for `plan_week` action**
+
+The `'plan_week'` case handles all three lifecycle labels (`Plan Week`, `Resume Plan`, `My Plan`). It must branch by lifecycle — not just by the presence of `planFlow`:
+
+```ts
+case 'plan_week': {
+  session.surfaceContext = 'plan'; // All plan_week branches are plan surface
+  const today = toLocalISODate(new Date());
+  const lifecycle = await getPlanLifecycle(session, store, today);
+
+  // Planning in progress → resume where they left off
+  if (lifecycle === 'planning' && session.planFlow) {
+    const resumeView = getPlanFlowResumeView(session.planFlow);
+    await sink.reply(resumeView.text, resumeView.replyMarkup
+      ? { reply_markup: resumeView.replyMarkup }
+      : undefined);
+    return;
+  }
+
+  // Active plan → stub placeholder for Next Action (Agent A will implement)
+  if (lifecycle.startsWith('active_')) {
+    await sink.reply(
+      'Your plan is active. Next Action view is coming soon!',
+      { reply_markup: await getMenuKeyboard() },
+    );
+    return;
+  }
+
+  // no_plan → check recipe gate, then start new plan
+  // Preserve the existing lunchDinnerRecipes.length === 0 gate below.
+  // ... existing computeNextHorizonStart logic
+}
+```
+
+This prevents `[My Plan]` from accidentally starting a new planning flow when a plan is already active. Agent A (Coordinated Agent A — Plan View Screens) will replace the `active_*` stub with the real Next Action screen.
+
+**5e. Add `getPlanFlowResumeView()` to `core.ts`**
+
+Add a helper function inside `createBotCore` (not in `plan-flow.ts`, because it needs access to keyboard constants from `keyboards.ts` and the resume view is a UI concern, not a flow logic concern). `plan-flow.ts` keeps its current contract of returning `{ text, state }` without Telegram UI types.
+
+```ts
+function getPlanFlowResumeView(state: PlanFlowState): {
+  text: string;
+  replyMarkup?: InlineKeyboard | Keyboard;
+} { ... }
+```
+
+**Prerequisite:** Add a `proposalText?: string` field to `PlanFlowState` (in `plan-flow.ts`). Set it in `handleGenerateProposal()` when the proposal text is generated (the text is currently returned in `FlowResponse.text` but not stored on state). This is needed because the resume view must reconstruct the proposal display without re-running the generator.
+
+Behavior by phase:
+- `'context'`: "Planning {weekStart} – {weekEnd}. Breakfast: keep {state.breakfast.name}?" using `state.weekStart` and `state.weekDays[6]`. Keyboard: `planBreakfastKeyboard` (keyboards.ts).
+- `'awaiting_events'`: "You're adding events for the week. Send another event or tap Done." Keyboard: `planEventsKeyboard` if `state.events.length === 0`, otherwise `planMoreEventsKeyboard` (keyboards.ts:195 and :200 respectively).
+- `'generating_proposal'` / `'generating_recipe'`: "Still working on it…" No keyboard.
+- `'recipe_suggestion'`: re-show the recipe gap question using `state.pendingGaps?.[state.activeGapIndex ?? 0]`. Keyboard: `planRecipeGapKeyboard(state.activeGapIndex ?? 0)` (keyboards.ts:213 — 3-button keyboard: Generate it / I have an idea / Pick from my recipes). Returns the first matching batch per date+mealType. The solver guarantees at most one planned batch per slot — multiple matches would indicate data corruption.
+- `'awaiting_recipe_prefs'`: "What kind of recipe do you want?" No keyboard (free text).
+- `'reviewing_recipe'`: if `state.currentRecipe` exists, re-show it. Keyboard: `planGapRecipeReviewKeyboard` (keyboards.ts:221 — Use it / Different one). If `currentRecipe` is null (edge case — should not happen), fall through to `recipe_suggestion` behavior.
+- `'proposal'`: re-show the plan proposal using `state.proposalText`. Keyboard: `planProposalKeyboard` (keyboards.ts — Approve / Swap).
+- `'awaiting_swap'`: "Tell me what you'd like to swap." No keyboard (free text).
+- `'confirmed'`: should not reach here (handled by the lifecycle guard above).
 
 ### Step 6: Update all `mainMenuKeyboard` call sites in core.ts
 
@@ -184,9 +292,9 @@ Then each call site becomes:
 await sink.reply('...', { reply_markup: await getMenuKeyboard() });
 ```
 
-Update the import in core.ts: replace `mainMenuKeyboard` with `buildMainMenuKeyboard` in the import from `./keyboards.js`. Add import for `getPlanLifecycle` and `PlanLifecycle` from `../plan/helpers.js`.
+Update the import in core.ts: replace `mainMenuKeyboard` with `buildMainMenuKeyboard` in the import from `./keyboards.js`. Add import for `getPlanLifecycle` and `PlanLifecycle` from `../plan/helpers.js`. Add import for `toLocalISODate` — currently exported from `src/agents/plan-proposer.ts`. Since `toLocalISODate` is a general utility, move it to `src/plan/helpers.ts` and re-export from `plan-proposer.ts` to avoid breaking existing imports.
 
-### Step 7: Add `getBatch(id)` to store interface and implementations
+### Step 7: Add `getBatch(id)` to store + update `getRunningPlanSession(today?)` signature
 
 **`src/state/store.ts`:**
 
@@ -196,7 +304,19 @@ Update the import in core.ts: replace `mainMenuKeyboard` with `buildMainMenuKeyb
    getBatch(id: string): Promise<Batch | null>;
    ```
 
-2. Add implementation in `StateStore` class (after `getBatchesByPlanSessionId` method at line 270):
+2. Update `getRunningPlanSession()` signature in both `StateStoreLike` and `StateStore` to accept an optional `today` parameter:
+   ```ts
+   // StateStoreLike interface:
+   getRunningPlanSession(today?: string): Promise<PlanSession | null>;
+
+   // StateStore implementation:
+   async getRunningPlanSession(today?: string): Promise<PlanSession | null> {
+     const effectiveToday = today ?? new Date().toISOString().slice(0, 10);
+     // ... use effectiveToday instead of the hardcoded date
+   }
+   ```
+
+3. Add implementation in `StateStore` class (after `getBatchesByPlanSessionId` method at line 270):
    ```ts
    async getBatch(id: string): Promise<Batch | null> {
      const { data, error } = await this.client
@@ -210,6 +330,8 @@ Update the import in core.ts: replace `mainMenuKeyboard` with `buildMainMenuKeyb
    ```
 
 **`src/harness/test-store.ts`:**
+
+Update `getRunningPlanSession()` to accept optional `today` parameter (same signature change).
 
 Add implementation in `TestStateStore` class (after `getBatchesByPlanSessionId` method at line 238):
 ```ts
@@ -252,9 +374,13 @@ Add a comment block at the top of `src/telegram/keyboards.ts` (after the file do
 - [ ] Step 2: Add `surfaceContext` and `lastRecipeSlug` to `BotCoreSession`
 - [ ] Step 3: Replace static `mainMenuKeyboard` with `buildMainMenuKeyboard(lifecycle)`
 - [ ] Step 4: Update `matchMainMenu()` + add `progress` case in `handleMenu()`
-- [ ] Step 5: Fix `handleMenu()` plan flow destruction
+- [ ] Step 5a: Remove unconditional planFlow destruction in `handleMenu()`
+- [ ] Step 5b: Clear planFlow on plan confirmation
+- [ ] Step 5c: Clear planFlow on `/cancel`
+- [ ] Step 5d: Add resume path for `plan_week` action
+- [ ] Step 5e: Add `getPlanFlowResumeView()` to `core.ts` + `proposalText` field to `PlanFlowState`
 - [ ] Step 6: Update all 15 `mainMenuKeyboard` call sites in core.ts
-- [ ] Step 7: Add `getBatch(id)` to `StateStoreLike` + both implementations
+- [ ] Step 7: Add `getBatch(id)` + update `getRunningPlanSession(today?)` signature
 - [ ] Step 8: Add callback prefix registry comment block to keyboards.ts
 - [ ] Final: Run `npm test`, verify existing scenarios pass
 
@@ -272,8 +398,8 @@ Add a comment block at the top of `src/telegram/keyboards.ts` (after the file do
   **Rationale:** They operate on `Batch[]` arrays already loaded from the store. No need for an object — pure functions are simpler, easier to test, and easier to import. The lifecycle function is the only one that needs the store directly.
   **Date:** 2026-04-07
 
-- **Decision:** `surfaceContext` is added in Phase 0 but only initialized to `null`. Actual assignment at each screen transition happens in the respective feature phases.
-  **Rationale:** Phase 0 is infrastructure, not features. Adding the field now prevents merge conflicts when multiple feature PRs land. The field having `null` as its default means existing scenarios are unaffected.
+- **Decision:** `surfaceContext` is set for existing surfaces in Phase 0 (recipes, plan, shopping stub, progress stub). New screen-specific surfaces (cook view, day detail, etc.) are set in their feature phases.
+  **Rationale:** The backlog says "Set `surfaceContext` when entering each surface" in Phase 0 scope. Deferring all assignments would leave downstream features (free-text fallback, navigation) without the contract they depend on. Setting it for surfaces that already exist in core.ts fulfills the backlog requirement while keeping new-screen assignments in their respective phases.
   **Date:** 2026-04-07
 
 - **Decision:** Use `getMenuKeyboard()` async helper instead of passing lifecycle through every function.
@@ -281,12 +407,36 @@ Add a comment block at the top of `src/telegram/keyboards.ts` (after the file do
   **Date:** 2026-04-07
 
 - **Decision:** "Resume Plan" triggers a resume message rather than re-running the full plan start flow.
-  **Rationale:** When `planFlow` exists and the user taps [Resume Plan], we should show where they left off — not restart from scratch. This requires a small `getResumeMessage(state)` addition to `plan-flow.ts` that returns the prompt appropriate for the current phase. Minimal scope: just enough to remind the user where they are and re-show the current step's keyboard.
+  **Rationale:** When `planFlow` exists and the user taps [Resume Plan], we should show where they left off — not restart from scratch. This requires a `getPlanFlowResumeView(state)` export from `plan-flow.ts` that returns the prompt and keyboard appropriate for the current phase. Minimal scope: just enough to remind the user where they are and re-show the current step's keyboard.
+  **Date:** 2026-04-07
+
+- **Decision:** `planFlow` is cleared on confirmation and `/cancel`, not left dangling.
+  **Rationale:** Review round 1 caught that `handleApprove()` sets `phase = 'confirmed'` but keeps `planFlow` on the session. Since `getPlanLifecycle()` checks `session.planFlow != null`, a stale confirmed flow would make the lifecycle return `'planning'` forever — showing "Resume Plan" instead of "My Plan". Clearing on confirm (in core.ts after `handleApprove`) and on `/cancel` (in `handleCommand`) fixes this.
+  **Date:** 2026-04-07
+
+- **Decision:** Text routing prioritizes `recipeFlow` over `planFlow` when both are active.
+  **Rationale:** Review round 1 identified that preserving `planFlow` during side trips creates a dual-flow state. The `my_recipes` case can start `recipeFlow` (when zero recipes exist), and `handleTextInput()` currently routes to `planFlow` first. The fix is to check `recipeFlow` before `planFlow` in the text routing, so explicit recipe creation during a side trip works correctly.
+  **Date:** 2026-04-07
+
+- **Decision:** `getRunningPlanSession()` accepts an optional `today` parameter.
+  **Rationale:** Review round 1 found that the store method hardcodes UTC date while `getPlanLifecycle()` uses local date. Near midnight in UTC+1/+2 (user is in Spain), these diverge. Making the param injectable ensures consistency.
+  **Date:** 2026-04-07
+
+- **Decision:** `[My Plan]` (active lifecycle) shows a stub, not the start-new-plan flow.
+  **Rationale:** Review round 2 caught that mapping `[My Plan]` to `plan_week` without a lifecycle guard would run `computeNextHorizonStart()` on an active plan — either triggering a replan prompt or starting a duplicate session. The backlog says `active_* → show Next Action screen`. Phase 0 stubs this with a placeholder; Agent A replaces it with the real Next Action view.
+  **Date:** 2026-04-07
+
+- **Decision:** `getPlanFlowResumeView()` lives in `core.ts`, not `plan-flow.ts`.
+  **Rationale:** Review round 2 identified that `plan-flow.ts` keeps Telegram UI types out of its contract (`FlowResponse` is `{ text, state }`). The resume view needs keyboard constants from `keyboards.ts`. Putting it in `core.ts` (inside `createBotCore`) keeps the UI concern where keyboards already live and avoids leaking Telegram types into the flow module.
+  **Date:** 2026-04-07
+
+- **Decision:** Move `toLocalISODate` from `plan-proposer.ts` to `plan/helpers.ts`.
+  **Rationale:** `toLocalISODate` is needed by both `getPlanLifecycle()` and `getMenuKeyboard()` in `core.ts`. Currently it's buried in `plan-proposer.ts`. Moving it to the new `plan/helpers.ts` module makes it a proper shared utility. Re-export from `plan-proposer.ts` to avoid breaking existing imports.
   **Date:** 2026-04-07
 
 ## Validation
 
-1. **`npm test` passes.** All existing scenarios start with `no_plan` lifecycle, so they get "Plan Week" label as before. The `matchMainMenu()` still maps "Plan Week" to `plan_week`. No behavioral change in existing scenarios.
+1. **`npm test` passes after regenerating affected scenarios.** The menu label change from "📊 Weekly Budget" to "📊 Progress" will change recorded Telegram outputs in any scenario that captures the main menu keyboard. Scenarios with running/future plan sessions (e.g., scenario 010 with `planSessions: [sessionA]`) may also be affected by lifecycle-driven labels. Adding `surfaceContext: null` to the session will change `finalSession` assertions. **All scenarios must be regenerated** (`npm run test:generate -- <name> --regenerate` for each) and their diffs reviewed to confirm only expected changes: menu label renames, `surfaceContext: null` additions, `finalSession.planFlow` becoming `null` after successful confirmation (Step 5b), and `pendingReplan` clearing. No behavioral regressions beyond these expected structural changes.
 
 2. **Type check passes.** `npx tsc --noEmit` should succeed. `StateStoreLike` gains `getBatch()`, both implementations provide it. `BotCoreSession` gains `surfaceContext` — existing session initialization includes it with `null`.
 

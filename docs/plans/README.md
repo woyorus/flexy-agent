@@ -60,3 +60,7 @@ For larger plans, also add: **Surprises & discoveries**, **Outcomes & retrospect
 1. Update status to `Completed`.
 2. Move from `active/` to `completed/`.
 3. Promote lasting decisions into the relevant spec or design doc.
+
+# Feedback
+
+Empty section where I (or another agent) leaves the feedback for you to iterate on.
