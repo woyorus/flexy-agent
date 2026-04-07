@@ -1,6 +1,6 @@
 # Backlog
 
-> Scope: What the current version delivers, what's out of scope, and the versioned feature roadmap. See also: [product-specs/](./product-specs/) for what IS built, [PRODUCT_SENSE.md](./PRODUCT_SENSE.md) for the vision.
+> Scope: What the current version delivers, what's out of scope, and the versioned feature roadmap. See also: [product-specs/](./product-specs/) for what IS built, [PRODUCT_SENSE.md](./PRODUCT_SENSE.md) for the vision, [jtbd.md](./product-specs/jtbd.md) for user jobs, [ui-architecture.md](./product-specs/ui-architecture.md) for the UI surface area.
 
 ## Current version: v0.0.3
 
@@ -16,113 +16,103 @@
 - Recipe generation with multi-turn refinement and QA correction loop
 - Recipe scaling to hit solver targets
 - Restaurant meal estimation
-- Shopping list aggregated from weekly plan
+- Shopping list aggregated from weekly plan (bare-bones, not usable at the store)
 - Budget view (read-only)
 - Voice input via Whisper for all free-form inputs
 - Structured recipe components (breakfast + lunch/dinner)
 - Debug logging system (full AI call traces, flow state transitions)
-
-### Explicitly out of scope (v0.0.3)
-
-| Feature | Reason | Planned for |
-|---|---|---|
-| Freeform conversation (Q&A escape hatch from flows) | Needs intent classifier + context injection | v0.0.5 |
-| Photo tracking | Needs vision model integration | v0.0.5 |
-| Voice/text tracking | Needs running budget state | v0.0.5 |
-| Running budget (planned vs actual) | Needs tracking first | v0.0.5 |
-| Mid-week adjustment | Needs tracking + running budget | v0.0.5 |
-| Cook-time ingredient adjustment | Needs daily plan view + running budget | v0.0.5 |
-| Three-tier notifications | Needs tracking + adjustment | v0.0.5 |
-| Messaging overhaul (voice, treats stance, usage guide, method education) | Polish, not blocking daily use | v0.0.6 |
-| Proactive nudges | Needs scheduled messages | v0.0.6 |
-| Breakfast variety | Nice-to-have, not core | v0.0.6 |
-| Ingredient-aware suggestions | Needs ingredient inventory | v0.0.7 |
-| Recipe import from URL/photo | Nice-to-have | v0.0.7 |
-| User onboarding (macro calc) | Needed for multi-user | v0.1.0 |
-| Multi-user support | Not needed for prototype | v0.1.0 |
-| Alternative UI (web/app) | Telegram is sufficient for now | v0.1.0+ |
+- Recipe parser/database unit tests (landed in v0.0.4 sprint)
 
 ## Roadmap
 
-### v0.0.4 — Production-ready for personal use (target: 2026-04-06)
+### v0.0.4 — UI/UX overhaul (JTBD-informed)
 
-The minimum required to start using the product daily from Monday 2026-04-06. Focus: the one UI surface needed to actually cook from the plan. Everything else is deferred — we find out what's broken by using it.
+The backend engine works. The UI doesn't serve the real jobs. This version makes the product usable and pleasant for daily cooking, shopping, and progress tracking. Every screen and message traces back to a job in `jtbd.md`. Design decisions are documented in `ui-architecture.md`.
 
-- **Plan view with scaled recipes**: The backend is mostly done — the solver produces a valid weekly plan and scaling logic exists. What's missing is the UI to *see* it. Need an overall view of the current week's plan where every meal's recipe is already scaled to its day's targets (quantities, macros, calories). The recipe library stays as-is (original unscaled templates); scaling is applied when reading from the plan. Open question: daily-first vs week-first framing — is it "what do I cook today" (drill into one day) or "here's the whole week, tap any meal"? Don't lock the name "daily plan view" in yet. This is the only real UX work left in v0.0.4 — the rest of the sprint has been backend. Design the shape when we build it tonight.
-- **Known broken: shopping list button**: The current shopping list implementation is bare-bones and not usable at the store. For v0.0.4 we accept this as a known gap — the button is either disabled or clearly labeled as not yet working. With the plan view showing scaled recipes, the user can derive shopping from the week manually until the proper overhaul lands (v0.0.6).
-- **Recipe parser/database unit tests (landed)**: Round-trip (parse → serialize → parse across all fixture recipes), malformed-file resilience (bad file in the directory must not kill `load()`), save/load/remove/overwrite against a real temp directory. Targeted at the data-loss class of silent failure on Monday morning. See `test/unit/recipes-parser.test.ts` and `test/unit/recipes-database.test.ts`.
+**Plan view** (serves A1: know my next action, A4: browse my week):
+- **Next Action screen** — the primary surface. Today + next 2 days. Cook days marked with 🔪. Inline button to the next recipe and shopping list. Shows only near-horizon, not the full week.
+- **Week Overview** — compact day-by-day list. Recipe names, cook/reheat/flex/event markers. "Weekly target: on track ✓" — no calorie dashboard. Drill into any day via day buttons.
+- **Day Detail** — one day's meals with cook-or-reheat status, servings count, day range. Button to open recipe or shopping list for that cook session.
+- **Post-confirmation bridge** — replaces the current dead-end "Plan locked" message. Immediately surfaces first cook day and shopping need.
+- **State-sensitive main menu** — [Plan Week] when no plan, [Resume Plan] during planning, [My Plan] when active. Telegram reply keyboard updates dynamically.
 
-**Explicitly not in v0.0.4 (found scope, cut on 2026-04-05 night):**
+**Cook-time recipe view** (serves A3: cook from the plan):
+- Batch totals (not per-serving). Servings count at the top ("3 servings — divide into equal portions").
+- Ingredient amounts inlined in steps via `{ingredient_name}` placeholders — "Cook `225g` penne, **10-11 min**." No more scrolling between ingredients and steps.
+- Explicit cooking duration on every heat step. No "until golden" without a time anchor.
+- Storage instructions at the bottom (fridge days, reheat method).
+- Telegram markdown formatting: **bold** for headers/timings, `monospace` for amounts, _italic_ for secondary info.
 
-- *Bug fixes / stability as a planned bucket* — we don't know what's broken yet. Real-life use starts Monday; bugs get triaged as they surface, not pre-allocated.
-- *Daily measurements (weight/waist tracking)* — important for progress tracking but not blocking daily cooking. No time tonight, and v0.0.5 is already packed with tracking/adjustment work. Moved to v0.0.6.
-- *Shopping list overhaul* — same reason: no time, and the plan view covers the "I need to know what to buy" job manually. Moved to v0.0.6.
+**Recipe generation prompt updates**:
+- **Short names** (~25 chars) for compact views, in addition to full names inside the recipe.
+- **Ingredient placeholders** `{ingredient_name}` in recipe steps — renderer resolves to the correct amount based on context (cook-time batch totals vs. library per-serving).
+- **Step-by-step timing** — every heat step must include a duration.
+- **Grouped seasonings** — salt, pepper, and to-taste spices on one line, not as separate ingredients.
+- **QA validation** — verify every `{placeholder}` in steps matches an ingredient `name` in the YAML frontmatter.
 
-### v0.0.5 — Tracking, adjustment, and natural conversation
+**Shopping list** (serves A2: build a shopping list):
+- Renamed from "shopping list" to "needs list" framing: "What you'll need — long-press to copy, paste into Notes, then remove what you already have."
+- Grouped by category (produce, fish, dairy, pantry). User maps categories to their own stores.
+- Three-tier ingredient intelligence: never-show basics (salt, water), "check you have" section for long-lasting pantry items (spices, olive oil), main buy list for perishables.
+- Scoped to next cook day + prorated breakfast for remaining plan days. Not full remaining week.
+- Breakfast always included regardless of entry point.
+- Plain text, copies cleanly.
 
-The system becomes dynamic and conversational. User reports what happened, agent rebalances. User asks questions, agent answers without derailing the flow.
+**Recipe library** (plan-aware):
+- "Cooking Soon" section at the top — only upcoming cook-day recipes, sorted by next cook date, 🔪 on each button.
+- 🔪 recipes open cook view directly. Non-🔪 recipes open library view. One rule, no exceptions.
+- "All Recipes" section below — alphabetical, full library, browse/edit/delete.
 
-- **Freeform conversation layer**: An LLM intent classifier on every inbound message determines whether the user is continuing the current flow or asking an off-flow question. Off-flow messages branch into a freeform conversation with context from the current flow state (e.g., the recipe being viewed, the day being planned). Multi-turn follow-ups are supported. When the side conversation ends, the user returns seamlessly to the flow they were in. The state machine stays deterministic — this is an escape hatch, not a replacement. We solve one specific problem (meal planning), not general chat, but the product must feel natural in a chat UI where users expect to be able to just ask things.
-- **Photo tracking**: Snap a meal photo, vision model estimates calories. Two taps.
-- **Voice/text tracking**: "Had carbonara at that Italian place." Agent extracts estimate.
-- **Running budget**: Planned vs. actual, updated as tracking comes in.
-- **Three-tier adjustment system**:
-  - Silent (< 300 cal): Budget updates, no notification
-  - Informational (300-800 cal): Gentle FYI with optional lever
-  - Replan offer (800+ cal or budget-threatening drift): Explicit rebalance offer
-- **Mid-week replanning**: When deviation is large, agent proposes minimal adjustments to remaining days.
-- **Cook-time ingredient adjustment**: Real-world quantities don't match plan quantities — you can't buy exactly 440g of beef, you get 500g and don't want to waste 60g. At cook time, the user tells the system what they actually have ("I have 500g of beef, not 440g") and the recipe rescales around that real quantity. Protein overshoot is acceptable — compensate by trimming carbs or fats to stay close to calorie target. This applies mainly to indivisible ingredients (meat, fish) where cutting to exact grams is wasteful. Vegetables and measurable ingredients can be portioned precisely. The system should be anti-food-waste: use what you bought, adjust the math, don't throw food away.
-- **Plan mutation architecture — fast/slow path refactor**: The v0.0.4 swap flow uses a nano classifier to route to deterministic handlers (flex_add, flex_remove, flex_move, recipe_swap). This is the correct foundation but has two problems that should be fixed in v0.0.5 while we're already rebuilding the conversation layer:
-  1. **"Unclear" is a dead end.** Currently when the classifier can't match an intent, it asks the user to rephrase. That's a failure mode. It should fall back to a **slow path**: re-run the plan-proposer (mini, high reasoning) with the current plan as context and the user's free-text request as a mutation instruction. The proposer returns a new valid plan respecting all constraints.
-  2. **Swap handlers duplicate proposer logic.** `flex_add` knows about `flexSlotsPerWeek`. `removeBatchDay` knows about the 2-3 serving rule. `absorbFreedDay` knows batch extension priorities. All of this logic already lives in the proposer prompt — we're rebuilding it inside mutation handlers, which means plan invariants live in two places and will drift.
+**Progress screen** (serves D2: see that what I'm doing is working):
+- Replaces [Weekly Budget] with [Progress] in main menu. Narrowly scoped: weight/waist measurements + weekly report. NOT a general tracking destination.
+- Input: one or two numbers in natural language ("82.3 / 91" or just "82.3"). Under 5 seconds.
+- Daily response: "Logged ✓" — no mid-week averages, no comparisons.
+- Weekly report: delivered end of week, shows weekly averages compared to last week. Tone adapts to scenario (steady loss, plateau, temporary gain). Last completed report replayable on request.
+- Time-aware: afternoon prompt adds "If this is your morning weight, drop it here."
+- Waist is optional, weight-only is first-class.
 
-  **Target architecture (cheap/expensive fast-path pattern):**
-  ```
-  User input
-    ↓
-  Nano classifier (cheap, ~$0.0001, ~1-2s)
-    ├── matches simple intent → fast-path handler
-    │     (handlers express intent as a CONSTRAINT DELTA, not direct mutation;
-    │      delegate plan restructuring to the proposer so invariants live in one place)
-    └── unclear / complex / multi-operation → slow path
-          ↓
-        Mini re-proposer with current plan as context (~$0.05, ~30-60s)
-          Handles anything the user can express. No intent limit.
-  ```
+**Copy and messaging quality pass**:
+- Telegram markdown formatting across all messages (bold, italic, monospace for hierarchy).
+- No internal jargon in user-facing copy ("active plan", "template", "scaled", "batch target", "cook session").
+- Calm, brief, action-oriented, non-judgmental tone. See `ui-architecture.md` § Copy and messaging tone.
+- Graceful free-text fallback: lifecycle-aware examples, doesn't promise capabilities that don't exist yet.
 
-  **Why this matters:** The fast path is deterministic, cheap, and precise — right for the common case (single swap, single flex move). The slow path has no shape limit — right for complex, multi-operation, or unusual requests. Together they scale without an intent explosion. The product shape is "reliable structure + LLM-powered flexibility" — the code should mirror that shape.
+**Explicitly not in v0.0.4:**
 
-  **Do NOT restructure in v0.0.4.** The current handlers work for shipping. This is a v0.0.5 refactor tied to the freeform conversation layer — they share the classifier layer and should be designed together.
+- *Freeform conversation layer* — full intent classification + side conversations. v0.0.4 has a graceful fallback; v0.0.5 has the real thing.
+- *Treat tracking / running budget* — requires the freeform conversation layer to work well (free-text from anywhere). v0.0.5.
+- *Mid-week plan mutations* — unplanned restaurants, ingredient substitutions. v0.0.5.
+- *Bug fixes as a planned bucket* — real-life use surfaces what's broken; bugs are triaged as they appear.
 
-  **Known classifier gaps (currently hit "unclear"):**
-  - `batch_swap`: User wants to swap the day assignments of two existing batches, keeping both recipes (e.g., "swap tue-thu dinner and fri-sat dinner"). No intent type exists for this — the slow path would handle it generically.
+### v0.0.5 — Adaptivity and dynamicity
 
-  **Open questions for v0.0.5 design:**
-  - How does the classifier distinguish "unclear" (→ slow path) from "off-flow question" (→ side conversation)? Are they the same branch?
-  - Should simple intents ALSO delegate to the proposer (for invariant consolidation), or keep mutating directly (for speed)?
-  - What does a "constraint delta" look like as a prompt input to the proposer? (e.g., `currentPlan + "the flex slot must be on Saturday dinner"`)
-  - How do we handle retry/rejection when the slow-path proposer returns an invalid plan?
-- **Test coverage expansion**: The v0.0.4 weekend sprint landed recipe parser/database tests. v0.0.5 fills the remaining scenario and unit gaps surfaced by the QA audit on 2026-04-05 — scheduled here because tracking, running-budget, and the fast/slow path refactor all exercise this code fresh, so tests written now cover old + new behavior in one pass:
-  - **Solver + plan validator unit tests**: Direct coverage for `src/solver/solver.ts` (boundary cases: low-budget clamping, flex/event precedence, protein protection, cook-day ordering) and `src/qa/validators/plan.ts` (hard checks: orphan slots, calorie-cap breaches, missing batch references). Today they're only exercised indirectly through recorded scenarios, which is weak for boundary cases.
-  - **Recipe scaling + shopping list unit tests**: The remaining deterministic cores mentioned in the v0.0.3 backlog carry-over — must not break silently when the scaler or list aggregator is touched.
-  - **Recipe flow scenarios**: Scenario coverage for create / refine / ask-a-question / save / discard / edit-existing. This is the largest user-facing scenario gap but was deliberately deferred from v0.0.4 — batch it with the fast/slow path refactor in this version since both touch recipe-adjacent code paths.
-  - **Voice smoke-test scenario**: One scenario exercising voice → transcription → routing into a flow (the harness supports `voice()` events but no scenario uses it). Covers the main voice path without needing to fake the adapter-level audio download.
+The plan bends without breaking. The product becomes conversational. Real life stops being an edge case.
 
-### v0.0.6 — Polish and proactivity
+- **Freeform conversation layer**: Intent classifier on every inbound message: flow_input (existing behavior), contextual_question (side conversation with context), domain_question (food/nutrition, answered briefly and routed back). Domain answers are read-only — informational questions never mutate plan state. Out-of-scope questions declined honestly. Persistent [← Back to ...] button on every side-conversation response. See `ui-architecture.md` § Freeform conversation layer.
+- **Treat tracking**: One message in, one message out. "Had a small Snickers" → "Logged: ~245 cal. Treat budget remaining: ~608 cal (~1-2 more treats)." Works via free-text from any screen — no need to navigate to a specific button. LLM estimates calories from description.
+- **Running budget**: Planned vs. actual, updated as treat tracking and restaurant reporting come in. Shown in plan view after deviations, not in the Progress screen.
+- **Mid-week plan mutations**: Unplanned restaurant → absorb calorie impact across remaining days. Missing ingredient at cook time → substitution or recipe swap. Adding these as natural conversation: "I don't have salmon" or "I got invited to dinner Friday."
+- **Cook-time ingredient adjustment**: "I have 500g of beef, not 440g" → recipe rescales around real quantity. Anti-food-waste: use what you bought, adjust the math.
+- **Plan mutation architecture — fast/slow path refactor**: Nano classifier routes to deterministic fast-path handlers for simple intents (flex move, recipe change). "Unclear" falls back to a slow path: re-proposer with current plan as context. Handlers express intent as constraint deltas, not direct mutations — plan invariants live in one place (the proposer). See current backlog for full design notes.
+- **Three-tier adjustment system**: Silent (< 300 cal) → budget updates quietly. Informational (300-800 cal) → gentle FYI. Replan offer (800+ cal) → explicit rebalance proposal.
+- **Test coverage expansion**: Solver + plan validator unit tests, recipe scaling + shopping list unit tests, recipe flow scenarios, voice smoke-test scenario. Scheduled here because tracking and fast/slow path refactor exercise this code fresh.
 
-- **Shopping list overhaul**: Proper ingredient aggregation, unit handling, and a clean Telegram UI for use at the store. Deferred from v0.0.4 — the plan view lets the user derive shopping manually until this lands, so it's a quality-of-life upgrade rather than a blocker.
-- **Daily measurements**: Body weight and waist circumference tracking via Telegram. Store daily entries, display rolling averages to track progress over time. Deferred from v0.0.4 (no time in the weekend sprint) and skipped in v0.0.5 (already packed with tracking/adjustment work). Fits naturally alongside week-end review since both are about reflecting on what actually happened.
-- **Messaging overhaul**: Rework the product's communication style and voice across all flows.
-  - Clear stance on treats: hyper-palatable and ultra-processed foods trigger addictive behavior and compulsiveness. The product should be opinionated about this, not neutral.
-  - Product usage guide: in-bot instructions on how to use the system (planning rhythm, what to expect, how measurements work).
-  - Method education: learning materials about the approach — why weekly budgets, why flex slots exist, why we track averages not daily numbers. Help the user understand the "why" so they trust the system.
-- **Planning nudge**: Agent sends one message when it's time to plan next week.
-- **Breakfast variety**: Agent suggests different breakfasts based on recent history.
+### v0.0.6 — Proactivity and polish
+
+The product reaches out at the right moments. Communication quality rises.
+
+- **Planning nudge**: Single non-nagging notification 1-2 days before plan ends. "Your plan ends Sunday — want to plan next week?" One message, one button. Ignore = fine.
+- **Restaurant preparation**: Planning-first guidance before ordering. Cuisine-based heuristics as minimum ("At an Italian restaurant with 1,200 cal budget: grilled fish or single-portion pasta"). Menu scanning (photo or pulled from Google Maps) as stretch.
+- **Breakfast variety**: Rotate 2-3 learned recipes across weeks. Still "one per week, no thinking" — but different weeks get different breakfasts.
 - **Recipe rotation**: Track when recipes were last used, avoid repeating too soon.
-- **Week-end review**: Brief, non-judgmental summary of the week.
+- **Week-end review**: Brief, non-judgmental summary of the week. Pairs with the weekly progress report.
+- **Messaging overhaul**: Treats stance (hyper-palatable foods trigger compulsiveness — the product is opinionated, not neutral). Method education (why weekly budgets, why flex, why averages not daily numbers). Light-touch, contextual, not a lecture.
 
 ### v0.0.7 — Intelligence
 
+The product gets smarter about the user's patterns and available ingredients.
+
+- **Photo tracking**: Snap a meal photo, vision model estimates calories. Two taps.
 - **Ingredient-aware suggestions**: "I have zucchini and peppers to use up."
 - **Recipe import**: Send a URL, photo, or text of a recipe. Agent parses and structures it.
 - **Pattern learning**: Agent notices trends and adjusts planning defaults.
@@ -130,9 +120,12 @@ The system becomes dynamic and conversational. User reports what happened, agent
 
 ### v0.1.0 — Multi-user readiness
 
+The product works for more than one person.
+
 - **Onboarding flow**: Calculate personalized targets from user data.
+- **Flex meal education**: In-product explanation of what flex meals are, why they exist, and how to use them. New users need this — the single-user prototype doesn't.
 - **User preferences**: Stored dietary/cuisine/ingredient preferences.
 - **Multi-user state**: Supabase schema supports multiple users.
-- **Persistent session state**: Flow state (`planFlow`, `recipeFlow` in `src/telegram/bot.ts`) currently lives in-memory — a bot restart silently drops any in-progress conversation, so pressing a button on a pre-restart message does nothing. For multi-user we need state to survive restarts. MVP approach: serialize per-chat flow state to a flat file on disk (JSON per chat), rehydrate on startup. No Redis, no schema migrations — just enough to not lose in-flight sessions.
-- **Supabase persistence parity tests**: Direct coverage for `src/state/store.ts` query shape and `confirmPlanSession` / `confirmPlanSessionReplacing` write ordering. Deferred until multi-user because a single-user tool pointed at one Supabase project doesn't earn the cost of a test DB or heavy mock infrastructure — but as soon as multiple users share the schema, adapter-level bugs become silent cross-user corruption and this becomes load-bearing. `test/unit/test-store.test.ts` explicitly tests the in-memory double, not parity against the real class.
-- **Alternative UI**: Web UI or app if needed.
+- **Persistent session state**: Flow state currently lives in-memory — a bot restart drops in-progress conversations. Serialize per-chat flow state to disk, rehydrate on startup.
+- **Supabase persistence parity tests**: Direct coverage for store query shapes and write ordering. Deferred until multi-user because single-user doesn't earn the cost.
+- **Alternative UI**: Web UI or mobile app if there's traction.
