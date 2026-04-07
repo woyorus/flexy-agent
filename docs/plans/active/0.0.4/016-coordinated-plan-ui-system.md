@@ -860,54 +860,54 @@ if (action.startsWith('sl_')) {
 ## Progress
 
 ### Phase 1 — Pre-work
-- [ ] Export `BatchView` interface from `src/models/types.ts`
+- [x] Export `BatchView` interface from `src/models/types.ts`
 
 ### Phase 2 — ScaledIngredient role enrichment
-- [ ] 2.0: Normalize `fromBatchRow` in store.ts with `role ?? 'base'` fallback for old Supabase rows
-- [ ] 2.1: Add `role: IngredientRole` to `ScaledIngredient` interface in types.ts
-- [ ] 2.2: Update recipe-scaler.ts output mapping with post-hoc name matching
-- [ ] 2.3: Update plan-flow.ts scaler fallback path to include `role`
-- [ ] 2.4: Add `role` to all seeded `scaledIngredients` in scenario spec files
-- [ ] 2.5: Regenerate affected scenario recordings and verify diffs
-- [ ] 2.6: `npm test` passes
+- [x] 2.0: Normalize `fromBatchRow` in store.ts with `role ?? 'base'` fallback for old Supabase rows
+- [x] 2.1: Add `role: IngredientRole` to `ScaledIngredient` interface in types.ts
+- [x] 2.2: Update recipe-scaler.ts output mapping with post-hoc name matching
+- [x] 2.3: Update plan-flow.ts scaler fallback path to include `role`
+- [x] 2.4: Add `role` to all seeded `scaledIngredients` in scenario spec files
+- [x] 2.5: Regenerate affected scenario recordings and verify diffs
+- [x] 2.6: `npm test` passes
 
 ### Phase 3 — Plan View Screens + Navigation
-- [ ] 3.1: Next Action formatter in formatters.ts
-- [ ] 3.2: Next Action keyboard in keyboards.ts
-- [ ] 3.3: Week Overview formatter in formatters.ts
-- [ ] 3.4: Week Overview keyboard in keyboards.ts
-- [ ] 3.5: Day Detail formatter in formatters.ts
-- [ ] 3.6: Day Detail keyboard in keyboards.ts
-- [ ] 3.7: Post-confirmation bridge (plan-flow.ts return data + formatter + keyboard)
-- [ ] 3.8: Plan view callback handlers in core.ts (`na_show`, `wo_show`, `dd_*`)
-- [ ] 3.9: Menu routing updates (lifecycle-aware `plan_week` + `shopping_list` cases)
+- [x] 3.1: Next Action formatter in formatters.ts
+- [x] 3.2: Next Action keyboard in keyboards.ts
+- [x] 3.3: Week Overview formatter in formatters.ts
+- [x] 3.4: Week Overview keyboard in keyboards.ts
+- [x] 3.5: Day Detail formatter in formatters.ts
+- [x] 3.6: Day Detail keyboard in keyboards.ts
+- [x] 3.7: Post-confirmation bridge (plan-flow.ts return data + formatter + keyboard)
+- [x] 3.8: Plan view callback handlers in core.ts (`na_show`, `wo_show`, `dd_*`)
+- [x] 3.9: Menu routing updates (`my_plan` → Next Action, `shopping_list` → lifecycle-aware)
 
 ### Phase 4 — Recipe Display Contexts
-- [ ] 4.1: Cook-time recipe renderer (`renderCookView()`) in renderer.ts
-- [ ] 4.2: Cook view keyboard in keyboards.ts
-- [ ] 4.3: Cook view callback handler (`cv_*`) in core.ts
-- [ ] 4.4: Recipe library plan-aware redesign (Cooking Soon section in `showRecipeList()` + keyboard)
-- [ ] 4.5: Library view placeholder resolution in `renderRecipe()` (blocked on Task 2)
+- [x] 4.1: Cook-time recipe renderer (`renderCookView()`) in renderer.ts
+- [x] 4.2: Cook view keyboard in keyboards.ts
+- [x] 4.3: Cook view callback handler (`cv_*`) in core.ts
+- [x] 4.4: Recipe library plan-aware redesign (Cooking Soon section in `showRecipeList()` + keyboard)
+- [x] 4.5: Library view placeholder resolution — verified existing `resolvePlaceholders()` in renderRecipe() (no-op per plan)
 
 ### Phase 5 — Shopping List Overhaul
-- [ ] 5.1: Three-tier ingredient intelligence (tier definitions + classification)
-- [ ] 5.2: Category grouping (PRODUCE, FISH, MEAT, DAIRY & EGGS, PANTRY, OILS & FATS)
-- [ ] 5.3: Scope to next cook day (rewrite `generateShoppingList()` signature + filtering)
-- [ ] 5.4: Aggregation with role-aware merging
-- [ ] 5.5: Update `ShoppingList` interface with `checkYouHave` field + add `note?` to `ShoppingItem`
-- [ ] 5.5b: Update shopping-list QA validator for three-tier structure
-- [ ] 5.6: Shopping list formatter (replace `formatShoppingList()`)
-- [ ] 5.7: Shopping list keyboard (rename to `buildShoppingListKeyboard()`, update all call sites)
-- [ ] 5.8: `sl_*` callback handlers in core.ts
+- [x] 5.1: Three-tier ingredient intelligence (tier definitions + classification)
+- [x] 5.2: Category grouping (PRODUCE, FISH, MEAT, DAIRY & EGGS, PANTRY, OILS & FATS)
+- [x] 5.3: Scope to next cook day (rewrite `generateShoppingList()` signature + filtering)
+- [x] 5.4: Aggregation with role-aware merging
+- [x] 5.5: Update `ShoppingList` interface with `checkYouHave` field + add `note?` to `ShoppingItem`
+- [x] 5.5b: Update shopping-list QA validator for three-tier structure
+- [x] 5.6: Shopping list formatter (replace `formatShoppingList()`)
+- [x] 5.7: Shopping list keyboard (rename to `buildShoppingListKeyboard()`, update all call sites)
+- [x] 5.8: `sl_*` callback handlers in core.ts
 
 ### Phase 6 — New scenarios + final validation
-- [ ] Author `test/scenarios/018-plan-view-navigation/spec.ts` (seed + events per Validation § V3)
-- [ ] `npm run test:generate -- 018-plan-view-navigation` + verify recorded outputs
-- [ ] Author `test/scenarios/019-shopping-list-tiered/spec.ts`
-- [ ] `npm run test:generate -- 019-shopping-list-tiered` + verify tier-1/2/3 + breakfast annotation in recorded outputs
-- [ ] Regenerate `001-plan-week-happy-path` after 3.7 (post-confirm message changes)
-- [ ] `npm test` passes — all scenarios green
-- [ ] Update `test/scenarios/index.md` with rows for 018 and 019
+- [x] Author `test/scenarios/018-plan-view-navigation/spec.ts` (seed + events per Validation § V3)
+- [x] `npm run test:generate -- 018-plan-view-navigation` + verify recorded outputs
+- [x] Author `test/scenarios/019-shopping-list-tiered/spec.ts`
+- [x] `npm run test:generate -- 019-shopping-list-tiered` + verify tier-1/2/3 + breakfast annotation in recorded outputs
+- [x] Regenerate all plan-approve scenarios after 3.7 (post-confirm message changes)
+- [x] `npm test` passes — all 119 scenarios green
+- [x] Update `test/scenarios/index.md` with rows for 018 and 019
 
 ---
 

@@ -1,7 +1,30 @@
 {
   "generatedAt": "2026-04-12T10:00:00.000Z",
-  "specHash": "9bbcb23d7d1d1befe06ca892ae0c60fd93b9caadf68e0cba19ad6fe8475e1007",
-  "llmFixtures": [],
+  "specHash": "2a15f84ef85208264f4b1af545fa6f090dca9b9ff406a40f84924724a8c00f78",
+  "llmFixtures": [
+    {
+      "hash": "4f8c5b894602ed33903890661595978fd62ef623bd70faec914cac93e3790408",
+      "callIndex": 1,
+      "model": "mini",
+      "reasoning": "high",
+      "json": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a meal planning assistant that creates 7-day meal plans optimized for nutritional variety, adherence, and simplicity.\n\n## YOUR JOB\n\nGiven a recipe database, recent meal history, and this horizon's constraints, propose a complete 7-day meal plan. Assign recipes to lunch and dinner slots, suggest flex meals, and identify gaps where new recipes should be generated.\n\n## HORIZON STRUCTURE\n\n- 7-day planning horizon, 3 meals each day: breakfast (fixed), lunch, dinner\n- Lunch and dinner are meal-prepped in batches of 2-3 servings (consecutive days)\n- Some slots may be taken by restaurant events (provided in the constraints)\n- Some slots are pre-committed from a prior plan session (provided below) — do NOT plan new batches for those slots\n- Exactly 1 slot(s) per horizon is a \"flex meal\" — the user eats something fun instead of meal prep\n- The cook day for each batch is always the first day of its eating days (eating_days[0]). Do NOT propose separate cook days.\n\n## FLEX SLOTS (HARD CONSTRAINT)\n\n- Propose EXACTLY 1 flex meal slot(s) per week — not 0, not 2+\n- Each additional flex slot beyond this shrinks every meal prep slot by ~25 cal, which hurts meal satisfaction\n- Preferred day: Friday or Saturday dinner (social/weekend context)\n- Flex bonus: 300-400 extra calories on top of normal meal budget\n- A flex slot replaces one meal-prep slot — don't assign a recipe batch to that slot\n\n## BATCH SIZING STRATEGY\n\nYou must cover this many meal prep slots with batches:\n  meal_prep_slots = 14 - (event slots) - 1 (flex)\n\nPreference order for filling those slots:\n1. **Prefer 3-serving batches** over 2-serving. A 3-serving batch covers 3 days from one cooking session — fewer cook days, less fridge churn, easier adherence.\n2. **Mix 2 and 3 serving batches** to hit the exact slot count. Example: with 13 slots and 6 recipes, use five 2-serving batches + one 3-serving batch.\n3. **Generate new recipes** ONLY if existing recipes cannot cover all slots even with 3-serving batches (i.e., recipe_count × 3 < slots_needed). This is a last resort.\n\nRules:\n- A recipe can only appear in ONE batch per week\n- Each batch covers consecutive days for the same meal type (e.g., lunch Mon-Wed)\n- Don't leave slots uncovered — every non-event, non-flex slot must have a batch\n\n## VARIETY RULES (CRITICAL)\n\n1. **No repeats**: Do NOT use any recipe that appears in the recent plan history\n2. **Protein source rotation**: If recent weeks used chicken + fish + beef, prefer pork, legumes, or different preparations this week. Aim for at least 2-3 different protein sources across the week.\n3. **Cuisine rotation**: If recent weeks were Mediterranean + Italian, prefer Asian, Latin American, or other profiles this week\n4. **Within-week variety**: Don't use the same protein source for both lunch and dinner on the same day block. If lunch Mon-Wed is chicken, dinner Mon-Wed should be fish or beef, not chicken.\n5. **Pre-committed slot recipes count as used**: Recipes appearing in PRE-COMMITTED SLOTS count as already-used for THIS horizon. Do NOT propose a new batch using a recipe that already appears in a pre-committed slot — the user would see the same meal on two non-adjacent days.\n\n## PRE-COMMITTED SLOTS\n\nSome meal slots in this horizon are already covered by batches from a prior plan session. These are FIXED — you cannot move, replace, or plan on top of them. Plan new batches only for uncovered slots.\n\nPre-committed slots will be listed in the user message below. Treat them as taken (like events) when counting available slots.\n\n## CROSS-HORIZON BATCHES\n\nA 2- or 3-serving batch started on day 6 or 7 of the horizon can have eating days that extend into days 8 or 9 (belonging to the next plan session). This is preferred over creating a 1-day orphan at the horizon edge. When a batch extends past the horizon end:\n- Use `eating_days` to list ALL days (including overflow past the horizon)\n- Use `overflow_days` to list the subset of days that fall past the horizon end\n- The solver only sees in-horizon days; overflow days become pre-committed slots in the next session\n\n## USER FOOD PROFILE\nThe user lives in Southern Spain. Shopping: Standard European supermarkets (Mercadona, Lidl, Carrefour). Good access to fresh seafood, Mediterranean produce, olive oil, Iberian pork, Spanish cheeses.\nPrefer ingredients commonly available in Spanish supermarkets. Mediterranean, Spanish, and Southern European ingredients are natural choices. Asian ingredients are fine if they are the common ones found in any supermarket (soy sauce, rice, ginger, coconut milk) — avoid specialty Asian grocery items. Avoid niche North American ingredients (Cotija cheese, chipotle en adobo, ranch seasoning, American-style BBQ sauces). When a recipe calls for cheese, prefer commonly available European options (manchego, mozzarella, parmesan, feta, goat cheese).\nWhen suggesting new recipes to generate, respect this profile — suggest cuisines and ingredients natural to the user's region and store access.\n\n## RECIPE GAPS\n\nIf the recipe database doesn't have enough variety to fill the week without repeating recent meals:\n- Identify which slots can't be filled\n- Suggest what KIND of recipe to generate (cuisine, protein source, style)\n- Base suggestions on what's MISSING — if the DB is heavy on Mediterranean chicken, suggest Asian fish or Latin American pork\n- Keep suggestions practical — simple home cooking, not restaurant complexity\n\n## MICRONUTRIENT AWARENESS\n\nEnsure the week's recipes together cover diverse food groups:\n- At least one fish meal for omega-3 (if available in DB)\n- Varied vegetables across recipes (not all peppers and tomatoes)\n- Mix of food preparation methods\n- If the DB is thin on vegetable variety, mention it in your reasoning\n\n## OUTPUT FORMAT\n\nRespond with ONLY valid JSON:\n{\n  \"batches\": [\n    {\n      \"recipe_slug\": \"string — from the available recipes list\",\n      \"recipe_name\": \"string\",\n      \"meal_type\": \"lunch\" | \"dinner\",\n      \"eating_days\": [\"ISO date strings — ALL consecutive days this batch covers, including overflow\"],\n      \"overflow_days\": [\"ISO dates past horizon end, if any — empty array or omit if none\"],\n      \"servings\": number\n    }\n  ],\n  \"flex_slots\": [\n    {\n      \"day\": \"ISO date string\",\n      \"meal_time\": \"lunch\" | \"dinner\",\n      \"flex_bonus\": number (300-400),\n      \"note\": \"string — e.g., 'fun dinner night'\"\n    }\n  ],\n  \"recipes_to_generate\": [\n    {\n      \"meal_type\": \"lunch\" | \"dinner\",\n      \"days\": [\"ISO date strings\"],\n      \"servings\": number,\n      \"suggestion\": \"string — what kind of recipe to generate\",\n      \"reason\": \"string — why this gap exists\"\n    }\n  ],\n  \"reasoning\": \"string — brief explanation of your choices (protein rotation, cuisine variety, etc.)\"\n}"
+        },
+        {
+          "role": "user",
+          "content": "## THIS HORIZON: 2026-04-13 to 2026-04-19\nDays: Mon 2026-04-13, Tue 2026-04-14, Wed 2026-04-15, Thu 2026-04-16, Fri 2026-04-17, Sat 2026-04-18, Sun 2026-04-19\n\n## EVENTS: None this week\n\n## AVAILABLE RECIPES\n- chicken-black-bean-avocado-rice-bowl: \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" | lunch | Mexican-inspired | chicken | 893 cal, 56g P | tags: meal-prep, high-protein, microwave-friendly, gluten-free, rice-bowl, latin-inspired\n- creamy-salmon-and-shrimp-linguine: \"Creamy Salmon and Shrimp Linguine\" | dinner | Spanish-inspired Mediterranean | salmon | 867 cal, 56g P | tags: seafood, pasta, creamy, high-protein, meal-prep, easy, dinner\n- ground-beef-rigatoni-bolognese: \"Ground Beef Rigatoni Bolognese\" | dinner | Italian-inspired | beef | 888 cal, 55g P | tags: meal-prep, high-protein, pasta, beef, macro-friendly\n- mediterranean-tuna-chickpea-feta-rice-bowl: \"Mediterranean Tuna, Chickpea and Feta Rice Bowl\" | lunch | Mediterranean | tuna | 886 cal, 54.3g P | tags: meal-prep, high-protein, tuna, rice-bowl, microwave-friendly, one-container, mediterranean\n- moroccan-beef-tagine-style-skillet-with-lemon-couscous: \"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\" | dinner | Moroccan-inspired | beef | 908 cal, 56g P | tags: moroccan, beef, tagine-style, couscous, meal-prep, high-protein, dinner\n- soy-ginger-pork-rice-bowls-broccoli-carrots-scallions: \"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\" | lunch | Asian-inspired | pork | 889 cal, 57g P | tags: meal-prep, high-protein, microwave-friendly, one-container, soy-ginger, rice-bowl\n\n## RECENT PLANS (avoid repeating these recipes)\nWeek of 2026-04-06:\n  Recipes used: chicken-black-bean-avocado-rice-bowl, soy-ginger-pork-rice-bowls-broccoli-carrots-scallions, mediterranean-tuna-chickpea-feta-rice-bowl, creamy-salmon-and-shrimp-linguine, ground-beef-rigatoni-bolognese, moroccan-beef-tagine-style-skillet-with-lemon-couscous\n  Cuisines: mexican-inspired, asian-inspired, mediterranean, spanish-inspired mediterranean, italian-inspired, moroccan-inspired\n  Protein sources: chicken, pork, tuna, salmon, beef\n\n## PRE-COMMITTED SLOTS (from prior plan — FIXED, do NOT plan on these)\n- 2026-04-13 dinner: moroccan-beef-tagine-style-skillet-with-lemon-couscous (808 cal, 56g P)\n\n## SLOT MATH (do this arithmetic carefully)\n- Total non-breakfast slots: 14 (7 lunches + 7 dinners)\n- Event slots taken: 0\n- Pre-committed slots (from prior plan): 1\n- Flex slots to propose (required): 1\n- Meal prep slots to cover with NEW batches: 14 - 0 - 1 - 1 = 12\n- Available recipes: 6\n- Max coverage if all batches are 3-serving: 18\n- ✓ Existing recipes CAN cover all slots — mix 2 and 3 serving batches to hit exactly 12. Do NOT generate new recipes.\n\nCreate the best plan for this horizon. Use existing recipes with a mix of 2 and 3 serving batches to cover exactly 12 meal prep slots + 1 flex slot(s). Prefer 3-serving batches where possible."
+        }
+      ],
+      "response": "{\n  \"batches\": [],\n  \"flex_slots\": [\n    {\n      \"day\": \"2026-04-17\",\n      \"meal_time\": \"dinner\",\n      \"flex_bonus\": 350,\n      \"note\": \"fun dinner night\"\n    }\n  ],\n  \"recipes_to_generate\": [\n    {\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-13\",\n        \"2026-04-14\",\n        \"2026-04-15\"\n      ],\n      \"servings\": 3,\n      \"suggestion\": \"Lentil, spinach and roasted courgette rice bowls with feta and lemon\",\n      \"reason\": \"Adds a legume-based lunch with leafy greens and avoids repeating last week's chicken/pork/fish/beef pattern.\"\n    },\n    {\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-16\",\n        \"2026-04-17\"\n      ],\n      \"servings\": 2,\n      \"suggestion\": \"Turkey, zucchini and pea rice bowls with paprika and olives\",\n      \"reason\": \"Lean poultry for Thu-Fri lunches; practical meal prep and a different protein source from the prior week.\"\n    },\n    {\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-18\",\n        \"2026-04-19\"\n      ],\n      \"servings\": 2,\n      \"suggestion\": \"White bean and roasted vegetable couscous bowls with manchego\",\n      \"reason\": \"Weekend lunch gap that adds plant protein and a different vegetable mix without clashing with the dinner protein.\"\n    },\n    {\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-14\",\n        \"2026-04-15\",\n        \"2026-04-16\"\n      ],\n      \"servings\": 3,\n      \"suggestion\": \"Baked cod with potatoes, fennel and cherry tomatoes\",\n      \"reason\": \"Includes a fish dinner for omega-3s and uses simple Spanish-supermarket ingredients.\"\n    },\n    {\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-18\",\n        \"2026-04-19\"\n      ],\n      \"servings\": 2,\n      \"suggestion\": \"Turkey albondigas with tomato sauce, peas and potatoes\",\n      \"reason\": \"Hearty weekend dinner that keeps protein rotation varied and does not repeat the same protein as the weekend lunch.\"\n    }\n  ],\n  \"reasoning\": \"All available recipes were already used in the recent plan, and one dinner is pre-committed, so I used the required Friday dinner flex and marked the remaining 12 meal-prep slots as generation gaps. The proposed new recipes rotate legumes, turkey and fish, and vary vegetables and cooking styles to keep the week practical and diverse.\"\n}",
+      "usage": {
+        "inputTokens": 2486,
+        "outputTokens": 19307
+      }
+    }
+  ],
   "expected": {
     "outputs": [
       {
@@ -23,21 +46,82 @@
         }
       },
       {
-        "text": "Your plan is active. Next Action view is coming soon!",
+        "text": "Planning Mon, Apr 13 – Sun, Apr 19.\n\nBreakfast: keep Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt (658 cal/day)?",
         "keyboard": {
-          "kind": "reply",
+          "kind": "inline",
           "buttons": [
             [
-              "📋 My Plan",
-              "🛒 Shopping List"
-            ],
-            [
-              "📖 My Recipes",
-              "📊 Progress"
+              {
+                "label": "Keep it",
+                "callback": "plan_keep_breakfast"
+              },
+              {
+                "label": "Change this week",
+                "callback": "plan_change_breakfast"
+              }
             ]
-          ],
-          "persistent": true,
-          "resized": true
+          ]
+        }
+      },
+      {
+        "text": "✓ Breakfast: Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt\n\nAny meals you'll eat out this week? (restaurants, dinner parties, etc.)",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "No meals out",
+                "callback": "plan_no_events"
+              },
+              {
+                "label": "Add meal out",
+                "callback": "plan_add_event"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "No events this week. Generating your plan..."
+      },
+      {
+        "text": "Adds a legume-based lunch with leafy greens and avoids repeating last week's chicken/pork/fish/beef pattern.\n\nI'd suggest: Lentil, spinach and roasted courgette rice bowls with feta and lemon for lunch Mon-Tue-Wed (3 servings).\n\nWant me to generate one, or do you have something specific in mind?",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Generate it",
+                "callback": "plan_gen_gap_0"
+              },
+              {
+                "label": "I have an idea",
+                "callback": "plan_idea_gap_0"
+              },
+              {
+                "label": "Pick from my recipes",
+                "callback": "plan_skip_gap_0"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "Plan locked for Mon, Apr 13 – Sun, Apr 19 ✓\n\nYour first cook day is Monday, Apr 13:\n\nYou'll need to shop for both \\+ breakfast\\.",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "🛒 Get shopping list",
+                "callback": "sl_next"
+              },
+              {
+                "label": "📅 View full week",
+                "callback": "wo_show"
+              }
+            ]
+          ]
         }
       }
     ],
@@ -75,6 +159,31 @@
           "superseded": false,
           "createdAt": "2026-04-05T10:00:00.000Z",
           "updatedAt": "2026-04-05T10:00:00.000Z"
+        },
+        {
+          "id": "{{uuid:0}}",
+          "horizonStart": "2026-04-13",
+          "horizonEnd": "2026-04-19",
+          "breakfast": {
+            "locked": true,
+            "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
+            "caloriesPerDay": 658,
+            "proteinPerDay": 41
+          },
+          "treatBudgetCalories": 853,
+          "flexSlots": [
+            {
+              "day": "2026-04-17",
+              "mealTime": "dinner",
+              "flexBonus": 350,
+              "note": "fun dinner night"
+            }
+          ],
+          "events": [],
+          "confirmedAt": "2026-04-12T10:00:00.000Z",
+          "superseded": false,
+          "createdAt": "2026-04-12T10:00:00.000Z",
+          "updatedAt": "2026-04-12T10:00:00.000Z"
         }
       ],
       "batches": [
@@ -103,7 +212,8 @@
               "name": "chicken breast",
               "amount": 190,
               "unit": "g",
-              "totalForBatch": 570
+              "totalForBatch": 570,
+              "role": "protein"
             }
           ],
           "status": "planned",
@@ -134,7 +244,8 @@
               "name": "pork tenderloin",
               "amount": 180,
               "unit": "g",
-              "totalForBatch": 540
+              "totalForBatch": 540,
+              "role": "protein"
             }
           ],
           "status": "planned",
@@ -163,7 +274,8 @@
               "name": "tuna",
               "amount": 150,
               "unit": "g",
-              "totalForBatch": 150
+              "totalForBatch": 150,
+              "role": "protein"
             }
           ],
           "status": "planned",
@@ -193,7 +305,8 @@
               "name": "salmon fillet",
               "amount": 160,
               "unit": "g",
-              "totalForBatch": 320
+              "totalForBatch": 320,
+              "role": "protein"
             }
           ],
           "status": "planned",
@@ -223,7 +336,8 @@
               "name": "ground beef",
               "amount": 200,
               "unit": "g",
-              "totalForBatch": 400
+              "totalForBatch": 400,
+              "role": "protein"
             }
           ],
           "status": "planned",
@@ -254,7 +368,8 @@
               "name": "beef stew meat",
               "amount": 180,
               "unit": "g",
-              "totalForBatch": 540
+              "totalForBatch": 540,
+              "role": "protein"
             }
           ],
           "status": "planned",

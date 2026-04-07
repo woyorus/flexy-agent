@@ -14,7 +14,7 @@
  *    to formatted amounts (e.g., `{olive oil}` → `15ml olive oil`)
  */
 
-import type { Recipe, RecipeIngredient } from '../models/types.js';
+import type { Recipe, RecipeIngredient, Batch, ScaledIngredient } from '../models/types.js';
 import { esc, escapeRecipeBody } from '../utils/telegram-markdown.js';
 
 /**
@@ -124,6 +124,81 @@ function resolvePlaceholders(
     if (!ing) return _match; // not a known ingredient — leave as-is
     const amount = servings ? ing.amount * servings : ing.amount;
     return `${formatAmount(amount)}${ing.unit} ${ing.name}`;
+  });
+}
+
+/**
+ * Render a recipe in cook-time mode — batch totals, portion guidance, storage.
+ *
+ * Uses `batch.scaledIngredients` for amounts (totalForBatch), resolves
+ * `{ingredient_name}` placeholders with batch amounts. Seasoning grouping:
+ * unitless or universal-basics seasonings are collapsed onto one line.
+ *
+ * @param recipe - The recipe to render
+ * @param batch - The batch with scaledIngredients and serving count
+ * @returns MarkdownV2 formatted string
+ */
+export function renderCookView(recipe: Recipe, batch: Batch): string {
+  const parts: string[] = [];
+
+  // Header
+  parts.push(`*${esc(recipe.name)}* — ${batch.servings} servings`);
+  parts.push(`_\\~${batch.actualPerServing.calories} cal/serving · ${batch.actualPerServing.protein}g protein_`);
+  parts.push(`_Divide into ${batch.servings} equal portions_`);
+  parts.push('');
+
+  // Ingredients (total for batch)
+  parts.push(`*Ingredients* \\(total for batch\\):`);
+
+  const universalBasics = new Set(['salt', 'black pepper', 'pepper']);
+  const groupedSeasonings: string[] = [];
+  const regularIngredients: ScaledIngredient[] = [];
+
+  for (const ing of batch.scaledIngredients) {
+    const isGroupable = ing.role === 'seasoning' &&
+      (!ing.unit || ing.unit === '' || universalBasics.has(ing.name.toLowerCase()));
+    if (isGroupable) {
+      groupedSeasonings.push(ing.name);
+    } else {
+      regularIngredients.push(ing);
+    }
+  }
+
+  for (const ing of regularIngredients) {
+    parts.push(`  · ${esc(ing.name)} — \`${formatAmount(ing.totalForBatch)}${esc(ing.unit)}\``);
+  }
+  if (groupedSeasonings.length > 0) {
+    parts.push(`  · ${esc(groupedSeasonings.join(', '))}`);
+  }
+
+  parts.push('');
+
+  // Body with batch-amount placeholder resolution
+  const body = resolveBatchPlaceholders(recipe.body, batch.scaledIngredients);
+  parts.push(escapeRecipeBody(body));
+
+  // Storage instructions
+  if (recipe.storage) {
+    parts.push('');
+    parts.push(`_Storage: Fridge ${recipe.storage.fridgeDays} days\\. ${esc(recipe.storage.reheat)}_`);
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Replace `{ingredient_name}` placeholders with batch-total amounts.
+ * Similar to resolvePlaceholders but uses ScaledIngredient (batch totals).
+ */
+function resolveBatchPlaceholders(body: string, scaledIngredients: ScaledIngredient[]): string {
+  const byName = new Map<string, ScaledIngredient>();
+  for (const ing of scaledIngredients) {
+    byName.set(ing.name.toLowerCase(), ing);
+  }
+  return body.replace(/\{([^}]+)\}/g, (_match, name: string) => {
+    const ing = byName.get(name.toLowerCase());
+    if (!ing) return _match;
+    return `${formatAmount(ing.totalForBatch)}${ing.unit} ${ing.name}`;
   });
 }
 

@@ -468,7 +468,10 @@ function fromBatchRow(row: any): Batch {
     servings: row.servings,
     targetPerServing: row.target_per_serving,
     actualPerServing: row.actual_per_serving,
-    scaledIngredients: row.scaled_ingredients,
+    scaledIngredients: (row.scaled_ingredients ?? []).map((i: any) => ({
+      ...i,
+      role: i.role ?? 'base',  // 'base' is the safest default for old rows without role
+    })),
     status: row.status,
     createdInPlanSessionId: row.created_in_plan_session_id,
   };

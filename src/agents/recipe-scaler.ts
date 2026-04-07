@@ -174,12 +174,27 @@ Adjust ingredients using clean, measurable amounts within the calorie range. Fol
   }
 
   return {
-    scaledIngredients: parsed.scaled_ingredients.map((ing: Record<string, unknown>) => ({
-      name: ing.name as string,
-      amount: ing.amount as number,
-      unit: ing.unit as string,
-      totalForBatch: ing.total_for_batch as number,
-    })),
+    scaledIngredients: parsed.scaled_ingredients.map((ing: Record<string, unknown>) => {
+      const name = ing.name as string;
+      // Match back to source recipe ingredient to get role.
+      // LLM may rename ingredients (e.g., "chicken breast" -> "chicken"),
+      // so use case-insensitive substring matching.
+      const nameLower = name.toLowerCase();
+      const sourceIng = recipe.ingredients.find(
+        (ri) => ri.name.toLowerCase().includes(nameLower)
+          || nameLower.includes(ri.name.toLowerCase())
+      );
+      if (!sourceIng) {
+        log.warn('SCALER', `no role match for scaled ingredient "${name}" in ${recipe.slug}, defaulting to 'base'`);
+      }
+      return {
+        name,
+        amount: ing.amount as number,
+        unit: ing.unit as string,
+        totalForBatch: ing.total_for_batch as number,
+        role: sourceIng?.role ?? 'base',
+      };
+    }),
     actualPerServing,
   };
 }

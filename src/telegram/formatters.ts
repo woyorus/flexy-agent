@@ -9,8 +9,10 @@
  * messages — that's the bot handler's job.
  */
 
-import type { ShoppingList, Recipe, Measurement } from '../models/types.js';
+import type { ShoppingList, Recipe, Measurement, BatchView, FlexSlot, MealEvent, PlanSession } from '../models/types.js';
 import type { SolverOutput, DailyBreakdown } from '../solver/types.js';
+import { esc } from '../utils/telegram-markdown.js';
+import { getBatchForMeal, isReheat, getServingNumber, getDayRange } from '../plan/helpers.js';
 
 /**
  * Format the budget review message shown in Step 5 of planning.
@@ -65,26 +67,53 @@ export function formatBudgetReview(output: SolverOutput, targets: { calories: nu
 }
 
 /**
- * Format the shopping list for display in Telegram.
+ * Format the shopping list for display in Telegram (MarkdownV2).
+ *
+ * @param list - The three-tier shopping list
+ * @param targetDate - ISO date for the cook day
+ * @param scopeDescription - e.g., "Salmon Pasta (3 servings) + Breakfast"
  */
-export function formatShoppingList(list: ShoppingList): string {
-  let msg = `Shopping list for this week:\n`;
+export function formatShoppingList(list: ShoppingList, targetDate: string, scopeDescription: string): string {
+  const dayLabel = formatDayMdV2Long(targetDate);
+  const lines: string[] = [];
 
+  lines.push(`*What you'll need* — ${esc(dayLabel)}`);
+  lines.push(`_For: ${esc(scopeDescription)}_`);
+  lines.push('');
+
+  // Tier 3 — main buy list by category
   for (const cat of list.categories) {
-    msg += `\n${cat.name}\n`;
+    lines.push(`*${esc(cat.name)}*`);
     for (const item of cat.items) {
-      msg += `- ${capitalizeFirst(item.name)}: ${item.amount}${item.unit}\n`;
+      let line = `\\- ${esc(capitalizeFirst(item.name))} — ${esc(String(item.amount))}${esc(item.unit)}`;
+      if (item.note) {
+        line += ` _${esc(item.note)}_`;
+      }
+      lines.push(line);
     }
+    lines.push('');
   }
 
+  // Tier 2 — "check you have"
+  if (list.checkYouHave.length > 0) {
+    lines.push(`_Check you have:_`);
+    lines.push(`_${esc(list.checkYouHave.join(', '))}_`);
+    lines.push('');
+  }
+
+  // Custom items (future)
   if (list.customItems.length > 0) {
-    msg += `\nOTHER\n`;
+    lines.push(`*OTHER*`);
     for (const item of list.customItems) {
-      msg += `- ${item}\n`;
+      lines.push(`\\- ${esc(item)}`);
     }
+    lines.push('');
   }
 
-  return msg;
+  lines.push(`_Long\\-press to copy\\. Paste into Notes,_`);
+  lines.push(`_then remove what you already have\\._`);
+
+  return lines.join('\n');
 }
 
 /**
@@ -151,6 +180,322 @@ export function formatCookingSchedule(
     }
   }
   return msg;
+}
+
+// ─── Plan view formatters (MarkdownV2) ─────────────────────────────────────
+
+/**
+ * Format the "next action" view: today + next 2 days (3 days total).
+ *
+ * Shows lunch and dinner for each day. Meals can be cook batches, reheats,
+ * flex slots, or events. Uses MarkdownV2 formatting.
+ *
+ * @param batchViews - Batch+Recipe view models for all planned batches
+ * @param events - Meal events (restaurant outings, etc.)
+ * @param flexSlots - Flex slots (user-decided meals)
+ * @param today - ISO date string for "today"
+ * @returns MarkdownV2 formatted string
+ */
+export function formatNextAction(
+  batchViews: BatchView[],
+  events: MealEvent[],
+  flexSlots: FlexSlot[],
+  today: string,
+): string {
+  const batches = batchViews.map(bv => bv.batch);
+  const dates = getNextNDates(today, 3);
+  const lines: string[] = [];
+
+  for (const date of dates) {
+    const dayLabel = formatDayMdV2Short(date);
+    lines.push(`*${esc(dayLabel)}*`);
+
+    for (const mealType of ['lunch', 'dinner'] as const) {
+      const event = events.find(e => e.day === date && e.mealTime === mealType);
+      if (event) {
+        lines.push(`🍽️ ${esc(event.name)}`);
+        continue;
+      }
+
+      const flex = flexSlots.find(f => f.day === date && f.mealTime === mealType);
+      if (flex) {
+        lines.push(`Flex`);
+        continue;
+      }
+
+      const match = getBatchForMeal(batches, date, mealType);
+      if (match) {
+        const recipeName = batchViews.find(bv => bv.batch.id === match.batch.id)?.recipe.name ?? 'Recipe';
+        if (match.isReheat) {
+          lines.push(`${esc(recipeName)} _\\(reheat\\)_`);
+        } else {
+          const mealLabel = capitalizeFirst(mealType);
+          lines.push(`🔪 Cook ${mealLabel}: *${esc(recipeName)}* — ${match.batch.servings} servings`);
+        }
+        continue;
+      }
+
+      lines.push(`—`);
+    }
+
+    lines.push('');
+  }
+
+  return lines.join('\n').trimEnd();
+}
+
+/**
+ * Format the full week overview for a confirmed plan.
+ *
+ * Header with date range, breakfast note, one line per day with lunch/dinner,
+ * cook-day indicators, weekly target footer, and prompt for day detail.
+ * Uses MarkdownV2 formatting.
+ *
+ * @param session - The confirmed plan session (for horizon dates and breakfast)
+ * @param batchViews - Batch+Recipe view models
+ * @param events - Meal events
+ * @param flexSlots - Flex slots
+ * @param breakfastRecipe - The breakfast recipe (if any)
+ * @returns MarkdownV2 formatted string
+ */
+export function formatWeekOverview(
+  session: PlanSession,
+  batchViews: BatchView[],
+  events: MealEvent[],
+  flexSlots: FlexSlot[],
+  breakfastRecipe: Recipe | undefined,
+): string {
+  const batches = batchViews.map(bv => bv.batch);
+  const dates = buildDateRange(session.horizonStart, session.horizonEnd);
+
+  const startLabel = formatDayMdV2Short(session.horizonStart);
+  const endLabel = formatDayMdV2Short(session.horizonEnd);
+
+  const lines: string[] = [];
+  lines.push(`*Your week: ${esc(startLabel)} – ${esc(endLabel)}*`);
+  lines.push(`Breakfast: ${esc(breakfastRecipe?.name ?? 'Breakfast')} \\(daily\\)`);
+  lines.push('');
+
+  for (const date of dates) {
+    const shortDay = formatWeekdayShort(date);
+    let line = `*${esc(shortDay)}*`;
+
+    // Check if any batch cooks on this day
+    const cookOnDay = batches.some(b => b.eatingDays.length > 0 && b.eatingDays[0] === date);
+    if (cookOnDay) {
+      line += ` 🔪`;
+    }
+
+    const lunchName = getMealSlotName(batches, batchViews, events, flexSlots, date, 'lunch');
+    const dinnerName = getMealSlotName(batches, batchViews, events, flexSlots, date, 'dinner');
+    line += ` L: ${lunchName} · D: ${dinnerName}`;
+
+    lines.push(line);
+  }
+
+  lines.push('');
+  lines.push(`*Weekly target: on track ✓*`);
+  lines.push(`_Tap a day for details:_`);
+
+  return lines.join('\n');
+}
+
+/**
+ * Format detailed view of a single day (lunch + dinner).
+ *
+ * Shows cook instructions, reheat info with serving numbers, flex slots,
+ * or events for each meal. Uses MarkdownV2 formatting.
+ *
+ * @param date - ISO date string for the day to detail
+ * @param batchViews - Batch+Recipe view models
+ * @param events - Meal events
+ * @param flexSlots - Flex slots
+ * @returns MarkdownV2 formatted string
+ */
+export function formatDayDetail(
+  date: string,
+  batchViews: BatchView[],
+  events: MealEvent[],
+  flexSlots: FlexSlot[],
+): string {
+  const batches = batchViews.map(bv => bv.batch);
+  const dayLabel = formatDayMdV2Long(date);
+
+  const lines: string[] = [];
+  lines.push(`*${esc(dayLabel)}*`);
+  lines.push('');
+
+  for (const mealType of ['lunch', 'dinner'] as const) {
+    const mealLabel = capitalizeFirst(mealType);
+
+    const event = events.find(e => e.day === date && e.mealTime === mealType);
+    if (event) {
+      lines.push(`🍽️ ${esc(mealLabel)}: ${esc(event.name)}`);
+      continue;
+    }
+
+    const flex = flexSlots.find(f => f.day === date && f.mealTime === mealType);
+    if (flex) {
+      lines.push(`${esc(mealLabel)}: *Flex*`);
+      continue;
+    }
+
+    const match = getBatchForMeal(batches, date, mealType);
+    if (match) {
+      const recipeName = batchViews.find(bv => bv.batch.id === match.batch.id)?.recipe.name ?? 'Recipe';
+
+      if (match.isReheat) {
+        const cookDay = match.batch.eatingDays[0] ?? date;
+        const cookDayLabel = formatWeekdayShort(cookDay);
+        const servNum = getServingNumber(match.batch, date);
+        const total = match.batch.servings;
+        lines.push(`${esc(mealLabel)}: ${esc(recipeName)}`);
+        lines.push(`_Reheat \\(cooked ${esc(cookDayLabel)}\\) · serving ${servNum} of ${total}_`);
+      } else {
+        const range = getDayRange(match.batch);
+        const dayRangeStr = range
+          ? `${formatWeekdayShort(range.first)}–${formatWeekdayShort(range.last)}`
+          : '';
+        const cal = match.batch.actualPerServing.calories;
+        lines.push(`🔪 ${esc(mealLabel)}: *${esc(recipeName)}*`);
+        lines.push(`Cook ${match.batch.servings} servings \\(${esc(dayRangeStr)}\\) · \\~${cal} cal each`);
+      }
+      continue;
+    }
+
+    lines.push(`${esc(mealLabel)}: —`);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Format the post-confirmation message after a plan is locked.
+ *
+ * Shows confirmation, first cook day with batch list, and shopping reminder.
+ * Uses MarkdownV2 formatting.
+ *
+ * @param horizonStart - ISO date for plan start
+ * @param horizonEnd - ISO date for plan end
+ * @param firstCookDay - ISO date of the first cook day
+ * @param cookBatchViews - BatchViews cooking on the first cook day
+ * @returns MarkdownV2 formatted string
+ */
+export function formatPostConfirmation(
+  horizonStart: string,
+  horizonEnd: string,
+  firstCookDay: string,
+  cookBatchViews: BatchView[],
+): string {
+  const startLabel = formatDayMdV2Short(horizonStart);
+  const endLabel = formatDayMdV2Short(horizonEnd);
+  const firstCookDayLabel = formatDayMdV2Long(firstCookDay);
+
+  const lines: string[] = [];
+  lines.push(`Plan locked for ${esc(startLabel)} – ${esc(endLabel)} ✓`);
+  lines.push('');
+  lines.push(`Your first cook day is ${esc(firstCookDayLabel)}:`);
+
+  for (const bv of cookBatchViews) {
+    lines.push(`  🔪 ${esc(bv.recipe.name)} — ${bv.batch.servings} servings`);
+  }
+
+  lines.push('');
+  lines.push(`You'll need to shop for both \\+ breakfast\\.`);
+
+  return lines.join('\n');
+}
+
+// ─── Plan view helpers (MarkdownV2) ────────────────────────────────────────
+
+/**
+ * Get N consecutive ISO date strings starting from `start`.
+ */
+function getNextNDates(start: string, n: number): string[] {
+  const dates: string[] = [];
+  const d = new Date(start + 'T00:00:00');
+  for (let i = 0; i < n; i++) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    dates.push(`${year}-${month}-${day}`);
+    d.setDate(d.getDate() + 1);
+  }
+  return dates;
+}
+
+/**
+ * Build an array of ISO date strings from startDate to endDate (inclusive).
+ */
+function buildDateRange(startDate: string, endDate: string): string[] {
+  const dates: string[] = [];
+  const d = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  while (d <= end) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    dates.push(`${year}-${month}-${day}`);
+    d.setDate(d.getDate() + 1);
+  }
+  return dates;
+}
+
+/**
+ * Format a date as "Wed, Apr 8" style for MarkdownV2 display.
+ */
+function formatDayMdV2Short(isoDate: string): string {
+  const d = new Date(isoDate + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+/**
+ * Format a date as "Thursday, Apr 10" style for MarkdownV2 display.
+ */
+function formatDayMdV2Long(isoDate: string): string {
+  const d = new Date(isoDate + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+/**
+ * Format a date as short weekday only (e.g. "Mon", "Tue").
+ */
+function formatWeekdayShort(isoDate: string): string {
+  const d = new Date(isoDate + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+/**
+ * Get the display name for a meal slot in the week overview.
+ *
+ * Returns the recipe name (with 🔪 prefix for cook days), "Flex" for flex slots,
+ * the event name for events, or "—" if nothing is scheduled.
+ */
+function getMealSlotName(
+  batches: import('../models/types.js').Batch[],
+  batchViews: BatchView[],
+  events: MealEvent[],
+  flexSlots: FlexSlot[],
+  date: string,
+  mealType: 'lunch' | 'dinner',
+): string {
+  const event = events.find(e => e.day === date && e.mealTime === mealType);
+  if (event) return esc(event.name);
+
+  const flex = flexSlots.find(f => f.day === date && f.mealTime === mealType);
+  if (flex) return 'Flex';
+
+  const match = getBatchForMeal(batches, date, mealType);
+  if (match) {
+    const recipeName = batchViews.find(bv => bv.batch.id === match.batch.id)?.recipe.name ?? 'Recipe';
+    const isCookDay = match.batch.eatingDays.length > 0 && match.batch.eatingDays[0] === date;
+    if (isCookDay) {
+      return `🔪 ${esc(recipeName)}`;
+    }
+    return esc(recipeName);
+  }
+
+  return '—';
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

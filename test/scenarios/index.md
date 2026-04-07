@@ -18,3 +18,5 @@
 | 015 | progress-logging | Progress: first log with disambiguation, first-measurement hint, already-logged same day, defensive pg_last_report with no completed week. |
 | 016 | progress-weekly-report | Progress: tap [Last weekly report] with a full completed week seeded — verifies tone, averages, and delta computation. |
 | 017 | free-text-fallback | Lifecycle-aware free-text fallback: no-plan branch shows helpful guidance, shopping list with no plan shows jargon-free message. |
+| 018 | plan-view-navigation | Active-plan navigation: My Plan → Next Action → Week Overview → Day Detail → Cook view → back to plan. Exercises plan view screens and cook view handler. |
+| 019 | shopping-list-tiered | Three-tier shopping list: sl_next + sl_{date} with role-enriched ingredients. Verifies tier-1 exclusion, tier-2 checkYouHave, tier-3 category grouping, and breakfast annotation. |

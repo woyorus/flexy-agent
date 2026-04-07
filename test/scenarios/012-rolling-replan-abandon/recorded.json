@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-04-08T10:00:00.000Z",
-  "specHash": "cef8c1b53773ba4db7a6d661075525ce1dc8baf1ad656a0f4e9fbbc8af3aaa50",
+  "specHash": "bcbecc8549a5aef46ec3a1f1ac12ac13881151f302796e1c4f132fc6439c5832",
   "llmFixtures": [],
   "expected": {
     "outputs": [
@@ -23,39 +23,39 @@
         }
       },
       {
-        "text": "Your plan is active. Next Action view is coming soon!",
+        "text": "You already have a plan for Mon, Apr 13 – Sun, Apr 19. Replan it?",
         "keyboard": {
-          "kind": "reply",
+          "kind": "inline",
           "buttons": [
             [
-              "📋 My Plan",
-              "🛒 Shopping List"
-            ],
-            [
-              "📖 My Recipes",
-              "📊 Progress"
+              {
+                "label": "Replan it",
+                "callback": "plan_replan_confirm"
+              },
+              {
+                "label": "Keep current plan",
+                "callback": "plan_replan_cancel"
+              }
             ]
-          ],
-          "persistent": true,
-          "resized": true
+          ]
         }
       },
       {
-        "text": "No pending replan. Tap Plan Week again.",
+        "text": "Planning Mon, Apr 13 – Sun, Apr 19.\n\nBreakfast: keep Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt (658 cal/day)?",
         "keyboard": {
-          "kind": "reply",
+          "kind": "inline",
           "buttons": [
             [
-              "📋 My Plan",
-              "🛒 Shopping List"
-            ],
-            [
-              "📖 My Recipes",
-              "📊 Progress"
+              {
+                "label": "Keep it",
+                "callback": "plan_keep_breakfast"
+              },
+              {
+                "label": "Change this week",
+                "callback": "plan_change_breakfast"
+              }
             ]
-          ],
-          "persistent": true,
-          "resized": true
+          ]
         }
       },
       {
@@ -150,7 +150,8 @@
               "name": "chicken breast",
               "amount": 190,
               "unit": "g",
-              "totalForBatch": 570
+              "totalForBatch": 570,
+              "role": "protein"
             }
           ],
           "status": "planned",

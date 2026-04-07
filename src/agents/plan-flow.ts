@@ -110,6 +110,11 @@ export interface FlowResponse {
   state: PlanFlowState;
   /** When set, the caller must forward this as `parse_mode` to the sink. */
   parseMode?: 'MarkdownV2';
+  /** Set by handleApprove() — structured data for the post-confirmation UI. */
+  postConfirmData?: {
+    firstCookDay: string;
+    cookBatches: import('../models/types.js').Batch[];
+  };
 }
 
 // ─── Factory ────────────────────────────────────────────────────────────────────
@@ -723,9 +728,22 @@ export async function handleApprove(
 
   state.phase = 'confirmed';
 
+  // Find the first cook day among the freshly persisted batches
+  const plannedBatches = batches.filter(b => b.status === 'planned');
+  const cookDays = plannedBatches
+    .filter(b => b.eatingDays.length > 0)
+    .map(b => b.eatingDays[0]!)
+    .sort();
+  const firstCookDay = cookDays[0] ?? state.weekStart;
+  const firstCookBatches = plannedBatches.filter(b => b.eatingDays[0] === firstCookDay);
+
   return {
     text: `Plan locked for ${formatDayShort(state.weekStart)} – ${formatDayShort(state.weekDays[6]!)}. Shopping list ready.`,
     state,
+    postConfirmData: {
+      firstCookDay,
+      cookBatches: firstCookBatches,
+    },
   };
 }
 
@@ -1610,6 +1628,7 @@ async function buildNewPlanSession(
           amount: ing.amount,
           unit: ing.unit,
           totalForBatch: ing.amount * eatingDays.length,  // Plan 010: total portions
+          role: ing.role,
         }));
       }
     }

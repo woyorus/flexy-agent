@@ -1,0 +1,346 @@
+{
+  "generatedAt": "2026-04-08T10:00:00.000Z",
+  "specHash": "7d08109ee0142f18ee600db3f0eb7cc6a18503a49dd26510de5a246c1beb8cc4",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "*What you'll need* — Thursday, Apr 9\n_For: Ground Beef Rigatoni Bolognese \\(3 servings\\) \\+ Soy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions \\(3 servings\\) \\+ Breakfast_\n\n*PRODUCE*\n\\- Broccoli — 300g\n\\- Cherry tomatoes — 450g\n\\- Chives — 12g _\\(breakfast, 4 days\\)_\n\n*FISH*\n\\- Smoked salmon — 200g _\\(breakfast, 4 days\\)_\n\n*MEAT*\n\\- Ground beef — 540g\n\\- Pork tenderloin — 540g\n\n*DAIRY & EGGS*\n\\- Large egg — 200g _\\(breakfast, 4 days\\)_\n\\- Pasteurized liquid egg whites — 320g _\\(breakfast, 4 days\\)_\n\\- Plain yogurt \\(58 kcal/100 g, 3\\.2% fat\\) — 800g _\\(breakfast, 4 days\\)_\n\n*PANTRY*\n\\- Basmati rice — 240g\n\\- Rigatoni — 270g\n\\- Wholegrain bread — 280g _\\(breakfast, 4 days\\)_\n\n*OILS & FATS*\n\\- Avocado — 280g _\\(breakfast, 4 days\\)_\n\\- Walnuts — 52g _\\(breakfast, 4 days\\)_\n\n_Check you have:_\n_cinnamon, lemon juice, olive oil, sesame oil, soy sauce_\n\n_Long\\-press to copy\\. Paste into Notes,_\n_then remove what you already have\\._",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "← Back to plan",
+                "callback": "na_show"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*What you'll need* — Thursday, Apr 9\n_For: Ground Beef Rigatoni Bolognese \\(3 servings\\) \\+ Soy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions \\(3 servings\\) \\+ Breakfast_\n\n*PRODUCE*\n\\- Broccoli — 300g\n\\- Cherry tomatoes — 450g\n\\- Chives — 12g _\\(breakfast, 4 days\\)_\n\n*FISH*\n\\- Smoked salmon — 200g _\\(breakfast, 4 days\\)_\n\n*MEAT*\n\\- Ground beef — 540g\n\\- Pork tenderloin — 540g\n\n*DAIRY & EGGS*\n\\- Large egg — 200g _\\(breakfast, 4 days\\)_\n\\- Pasteurized liquid egg whites — 320g _\\(breakfast, 4 days\\)_\n\\- Plain yogurt \\(58 kcal/100 g, 3\\.2% fat\\) — 800g _\\(breakfast, 4 days\\)_\n\n*PANTRY*\n\\- Basmati rice — 240g\n\\- Rigatoni — 270g\n\\- Wholegrain bread — 280g _\\(breakfast, 4 days\\)_\n\n*OILS & FATS*\n\\- Avocado — 280g _\\(breakfast, 4 days\\)_\n\\- Walnuts — 52g _\\(breakfast, 4 days\\)_\n\n_Check you have:_\n_cinnamon, lemon juice, olive oil, sesame oil, soy sauce_\n\n_Long\\-press to copy\\. Paste into Notes,_\n_then remove what you already have\\._",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "← Back to plan",
+                "callback": "na_show"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Wed, Apr 8*\nChicken, Black Bean, Corn and Avocado Rice Bowl with Tomato\\-Lime Salsa _\\(reheat\\)_\nMoroccan Beef Tagine\\-Style Skillet with Lemon Couscous _\\(reheat\\)_\n\n*Thu, Apr 9*\n🔪 Cook Lunch: *Ground Beef Rigatoni Bolognese* — 3 servings\n🔪 Cook Dinner: *Soy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions* — 3 servings\n\n*Fri, Apr 10*\nGround Beef Rigatoni Bolognese _\\(reheat\\)_\nSoy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions _\\(reheat\\)_",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "🔪 Beef Bolognese — 3 servings",
+                "callback": "cv_batch-019-lunch2-0000-0000-000000000003"
+              }
+            ],
+            [
+              {
+                "label": "🔪 Soy Ginger Pork Bowls — 3 servings",
+                "callback": "cv_batch-019-dinner2-0000-0000-000000000004"
+              }
+            ],
+            [
+              {
+                "label": "🛒 Get shopping list",
+                "callback": "sl_next"
+              },
+              {
+                "label": "📅 View full week",
+                "callback": "wo_show"
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "plan",
+      "progressFlow": null
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [
+        {
+          "id": "session-019-0000-0000-0000-000000000001",
+          "horizonStart": "2026-04-06",
+          "horizonEnd": "2026-04-12",
+          "breakfast": {
+            "locked": true,
+            "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
+            "caloriesPerDay": 390,
+            "proteinPerDay": 31
+          },
+          "treatBudgetCalories": 1050,
+          "flexSlots": [
+            {
+              "day": "2026-04-12",
+              "mealTime": "lunch",
+              "flexBonus": 300,
+              "note": "flex lunch"
+            }
+          ],
+          "events": [
+            {
+              "name": "Sunday dinner out",
+              "day": "2026-04-12",
+              "mealTime": "dinner",
+              "estimatedCalories": 900
+            }
+          ],
+          "confirmedAt": "2026-04-06T08:00:00.000Z",
+          "superseded": false,
+          "createdAt": "2026-04-06T08:00:00.000Z",
+          "updatedAt": "2026-04-06T08:00:00.000Z"
+        }
+      ],
+      "batches": [
+        {
+          "id": "batch-019-lunch1-0000-0000-000000000001",
+          "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-06",
+            "2026-04-07",
+            "2026-04-08"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 893,
+            "protein": 56
+          },
+          "actualPerServing": {
+            "calories": 893,
+            "protein": 56,
+            "fat": 46,
+            "carbs": 68
+          },
+          "scaledIngredients": [
+            {
+              "name": "chicken breast, raw",
+              "amount": 190,
+              "unit": "g",
+              "totalForBatch": 570,
+              "role": "protein"
+            },
+            {
+              "name": "black beans, canned, drained",
+              "amount": 75,
+              "unit": "g",
+              "totalForBatch": 225,
+              "role": "carb"
+            },
+            {
+              "name": "small avocado",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 3,
+              "role": "fat"
+            },
+            {
+              "name": "olive oil",
+              "amount": 22,
+              "unit": "ml",
+              "totalForBatch": 66,
+              "role": "fat"
+            },
+            {
+              "name": "smoked paprika",
+              "amount": 1,
+              "unit": "tsp",
+              "totalForBatch": 3,
+              "role": "seasoning"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-019-0000-0000-0000-000000000001"
+        },
+        {
+          "id": "batch-019-dinner1-0000-0000-000000000002",
+          "recipeSlug": "moroccan-beef-tagine-style-skillet-with-lemon-couscous",
+          "mealType": "dinner",
+          "eatingDays": [
+            "2026-04-06",
+            "2026-04-07",
+            "2026-04-08"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 720,
+            "protein": 48
+          },
+          "actualPerServing": {
+            "calories": 720,
+            "protein": 48,
+            "fat": 28,
+            "carbs": 72
+          },
+          "scaledIngredients": [
+            {
+              "name": "ground beef",
+              "amount": 200,
+              "unit": "g",
+              "totalForBatch": 600,
+              "role": "protein"
+            },
+            {
+              "name": "couscous",
+              "amount": 80,
+              "unit": "g",
+              "totalForBatch": 240,
+              "role": "carb"
+            },
+            {
+              "name": "olive oil",
+              "amount": 15,
+              "unit": "ml",
+              "totalForBatch": 45,
+              "role": "fat"
+            },
+            {
+              "name": "salt",
+              "amount": 0,
+              "unit": "",
+              "totalForBatch": 0,
+              "role": "seasoning"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-019-0000-0000-0000-000000000001"
+        },
+        {
+          "id": "batch-019-lunch2-0000-0000-000000000003",
+          "recipeSlug": "ground-beef-rigatoni-bolognese",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-09",
+            "2026-04-10",
+            "2026-04-11"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 780,
+            "protein": 52
+          },
+          "actualPerServing": {
+            "calories": 780,
+            "protein": 52,
+            "fat": 32,
+            "carbs": 78
+          },
+          "scaledIngredients": [
+            {
+              "name": "ground beef",
+              "amount": 180,
+              "unit": "g",
+              "totalForBatch": 540,
+              "role": "protein"
+            },
+            {
+              "name": "rigatoni",
+              "amount": 90,
+              "unit": "g",
+              "totalForBatch": 270,
+              "role": "carb"
+            },
+            {
+              "name": "cherry tomatoes",
+              "amount": 150,
+              "unit": "g",
+              "totalForBatch": 450,
+              "role": "vegetable"
+            },
+            {
+              "name": "olive oil",
+              "amount": 15,
+              "unit": "ml",
+              "totalForBatch": 45,
+              "role": "fat"
+            },
+            {
+              "name": "black pepper",
+              "amount": 0,
+              "unit": "",
+              "totalForBatch": 0,
+              "role": "seasoning"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-019-0000-0000-0000-000000000001"
+        },
+        {
+          "id": "batch-019-dinner2-0000-0000-000000000004",
+          "recipeSlug": "soy-ginger-pork-rice-bowls-broccoli-carrots-scallions",
+          "mealType": "dinner",
+          "eatingDays": [
+            "2026-04-09",
+            "2026-04-10",
+            "2026-04-11"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 650,
+            "protein": 44
+          },
+          "actualPerServing": {
+            "calories": 650,
+            "protein": 44,
+            "fat": 22,
+            "carbs": 65
+          },
+          "scaledIngredients": [
+            {
+              "name": "pork tenderloin",
+              "amount": 180,
+              "unit": "g",
+              "totalForBatch": 540,
+              "role": "protein"
+            },
+            {
+              "name": "broccoli",
+              "amount": 100,
+              "unit": "g",
+              "totalForBatch": 300,
+              "role": "vegetable"
+            },
+            {
+              "name": "basmati rice",
+              "amount": 80,
+              "unit": "g",
+              "totalForBatch": 240,
+              "role": "carb"
+            },
+            {
+              "name": "soy sauce",
+              "amount": 20,
+              "unit": "ml",
+              "totalForBatch": 60,
+              "role": "seasoning"
+            },
+            {
+              "name": "sesame oil",
+              "amount": 10,
+              "unit": "ml",
+              "totalForBatch": 30,
+              "role": "fat"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-019-0000-0000-0000-000000000001"
+        }
+      ]
+    }
+  }
+}

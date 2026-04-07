@@ -151,6 +151,7 @@ export interface ScaledIngredient {
   unit: string;
   /** amount × servings — for the shopping list */
   totalForBatch: number;
+  role: IngredientRole;
 }
 
 // ─── Plan Session + First-class Batch (Plan 007: rolling horizon model) ─────
@@ -231,6 +232,16 @@ export interface Batch {
   createdInPlanSessionId: string;
 }
 
+/**
+ * View model: a persisted Batch joined with its loaded Recipe.
+ * Used by formatters and keyboards that need recipe display names.
+ * `Batch.recipeSlug` is the FK; resolution happens in the handler before calling any formatter.
+ */
+export interface BatchView {
+  batch: Batch;
+  recipe: Recipe;
+}
+
 // ─── Measurements (progress tracking) ────────────────────────────────────────
 
 export interface Measurement {
@@ -246,7 +257,15 @@ export interface Measurement {
 // ─── Shopping List (derived, not stored) ─────────────────────────────────────
 
 export interface ShoppingList {
+  /** Main buy list — tier 3 ingredients grouped by category */
   categories: ShoppingCategory[];
+  /** Tier 2 — "check you have" items (long-lasting pantry, seasonings) */
+  checkYouHave: string[];
+  /**
+   * User-added custom items. Not populated by the generator in v0.0.4 — kept for future use.
+   * The formatter should render this array if non-empty, but the generator always produces [].
+   * Do not remove; removing would be a breaking interface change for any future custom-item feature.
+   */
   customItems: string[];
 }
 
@@ -259,4 +278,6 @@ export interface ShoppingItem {
   name: string;
   amount: number;
   unit: string;
+  /** Optional annotation shown after the amount, e.g. "(breakfast, 4 days)". */
+  note?: string;
 }

@@ -35,6 +35,7 @@
 
 import { Keyboard, InlineKeyboard } from 'grammy';
 import type { PlanLifecycle } from '../plan/helpers.js';
+import type { BatchView } from '../models/types.js';
 
 /**
  * Telegram limits callback data to 64 bytes. With a 3-char prefix (rv_, rd_, re_),
@@ -150,15 +151,24 @@ export const recipeBrowseKeyboard = new InlineKeyboard()
  * @returns InlineKeyboard with recipe buttons, nav row, and "Add new recipe"
  */
 export function recipeListKeyboard(
-  recipes: { name: string; slug: string }[],
+  recipes: { name: string; slug: string; shortName?: string }[],
   page: number,
   pageSize: number = 5,
+  cookingSoonBatchViews?: BatchView[],
 ): InlineKeyboard {
   const totalPages = Math.max(1, Math.ceil(recipes.length / pageSize));
   const start = page * pageSize;
   const pageRecipes = recipes.slice(start, start + pageSize);
 
   const kb = new InlineKeyboard();
+
+  // Cooking Soon section — each batch gets a 🔪 button with cv_ callback
+  if (cookingSoonBatchViews && cookingSoonBatchViews.length > 0) {
+    for (const bv of cookingSoonBatchViews) {
+      const label = `🔪 ${bv.recipe.shortName ?? bv.recipe.name}`;
+      kb.text(label, `cv_${bv.batch.id}`).row();
+    }
+  }
 
   // One button per recipe, one per row
   // Telegram limits callback data to 64 bytes. With 3-char prefix (rv_), max slug is 61 chars.
@@ -270,7 +280,129 @@ export const planGapRecipeReviewKeyboard = new InlineKeyboard()
   .text('Use it', 'plan_use_recipe')
   .text('Different one', 'plan_diff_recipe');
 
-/** After plan is confirmed */
+/** After plan is confirmed — legacy, kept for backward compatibility */
 export const planConfirmedKeyboard = new InlineKeyboard()
   .text('🛒 Shopping list', 'view_shopping_list')
   .text('📖 View recipes', 'view_plan_recipes');
+
+// ─── Plan view keyboards (Phase 3) ────────────────────────────────────────
+
+/**
+ * Next Action keyboard — shows cooking buttons + navigation.
+ *
+ * @param nextCookBatchViews - BatchViews for the next cook session
+ * @param lifecycle - Current plan lifecycle for conditional buttons
+ */
+export function nextActionKeyboard(
+  nextCookBatchViews: BatchView[],
+  lifecycle: PlanLifecycle,
+): InlineKeyboard {
+  const kb = new InlineKeyboard();
+
+  // Cook buttons for upcoming batches
+  for (const bv of nextCookBatchViews) {
+    const label = bv.recipe.shortName ?? bv.recipe.name;
+    kb.text(`🔪 ${label} — ${bv.batch.servings} servings`, `cv_${bv.batch.id}`).row();
+  }
+
+  if (nextCookBatchViews.length > 0) {
+    kb.text('🛒 Get shopping list', 'sl_next');
+    kb.text('📅 View full week', 'wo_show');
+  } else {
+    kb.text('📅 View full week', 'wo_show');
+  }
+
+  return kb;
+}
+
+/**
+ * Week Overview keyboard — day buttons for Mon-Sun + Back.
+ *
+ * @param weekDays - Array of 7 ISO date strings
+ */
+export function weekOverviewKeyboard(weekDays: string[]): InlineKeyboard {
+  const kb = new InlineKeyboard();
+
+  // Derive day labels from actual dates (horizons can start on any day)
+  const dayLabels = weekDays.map(d => {
+    const date = new Date(d + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  });
+
+  // Row 1: first 4 days
+  for (let i = 0; i < 4 && i < weekDays.length; i++) {
+    kb.text(dayLabels[i]!, `dd_${weekDays[i]}`);
+  }
+  kb.row();
+
+  // Row 2: remaining days
+  for (let i = 4; i < 7 && i < weekDays.length; i++) {
+    kb.text(dayLabels[i]!, `dd_${weekDays[i]}`);
+  }
+  kb.row();
+
+  kb.text('← Back', 'na_show');
+
+  return kb;
+}
+
+/**
+ * Day Detail keyboard — cook buttons + shopping + back to week.
+ *
+ * @param date - ISO date for this day
+ * @param cookBatchViews - BatchViews for batches cooking on this day
+ * @param today - Today's ISO date (shopping button only for future/current days)
+ */
+export function dayDetailKeyboard(
+  date: string,
+  cookBatchViews: BatchView[],
+  today: string,
+): InlineKeyboard {
+  const kb = new InlineKeyboard();
+
+  for (const bv of cookBatchViews) {
+    const label = bv.recipe.shortName ?? bv.recipe.name;
+    kb.text(`🔪 ${label} — ${bv.batch.servings} servings`, `cv_${bv.batch.id}`).row();
+  }
+
+  if (date >= today && cookBatchViews.length > 0) {
+    kb.text('🛒 Get shopping list', `sl_${date}`);
+  }
+  kb.text('← Back to week', 'wo_show');
+
+  return kb;
+}
+
+/**
+ * Post-confirmation keyboard (replaces planConfirmedKeyboard).
+ */
+export function postConfirmationKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text('🛒 Get shopping list', 'sl_next')
+    .text('📅 View full week', 'wo_show');
+}
+
+// ─── Cook view keyboards (Phase 4) ─────────────────────────────────────────
+
+/**
+ * Cook view keyboard — back to plan + recipe actions.
+ */
+export function cookViewKeyboard(recipeSlug: string): InlineKeyboard {
+  const s = truncateSlug(recipeSlug);
+  return new InlineKeyboard()
+    .text('← Back to plan', 'na_show')
+    .row()
+    .text('Edit this recipe', `re_${s}`)
+    .text('View in my recipes', `rv_${s}`);
+}
+
+// ─── Shopping list keyboard (Phase 5) ──────────────────────────────────────
+
+/**
+ * Shopping list keyboard — back to plan.
+ * Replaces the old `shoppingListKeyboard` const.
+ */
+export function buildShoppingListKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text('← Back to plan', 'na_show');
+}

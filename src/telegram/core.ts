@@ -80,19 +80,34 @@ import {
   planRecipeGapKeyboard,
   planGapRecipeReviewKeyboard,
   planConfirmedKeyboard,
+  postConfirmationKeyboard,
+  nextActionKeyboard,
+  weekOverviewKeyboard,
+  dayDetailKeyboard,
+  cookViewKeyboard,
+  buildShoppingListKeyboard,
   progressDisambiguationKeyboard,
   progressReportKeyboard,
 } from './keyboards.js';
-import { getPlanLifecycle, toLocalISODate } from '../plan/helpers.js';
+import { getPlanLifecycle, toLocalISODate, getNextCookDay } from '../plan/helpers.js';
 import type { PlanLifecycle } from '../plan/helpers.js';
 import { getCalendarWeekBoundaries } from '../utils/dates.js';
 import { parseMeasurementInput, assignWeightWaist, formatDisambiguationPrompt } from '../agents/progress-flow.js';
-import { formatMeasurementConfirmation, formatWeeklyReport } from './formatters.js';
+import {
+  formatMeasurementConfirmation,
+  formatWeeklyReport,
+  formatNextAction,
+  formatWeekOverview,
+  formatDayDetail,
+  formatPostConfirmation,
+  formatShoppingList,
+} from './formatters.js';
 import type { LLMProvider } from '../ai/provider.js';
 import type { RecipeDatabase } from '../recipes/database.js';
-import type { Recipe } from '../models/types.js';
+import type { Recipe, BatchView } from '../models/types.js';
 import type { StateStoreLike } from '../state/store.js';
-import { renderRecipe } from '../recipes/renderer.js';
+import { renderRecipe, renderCookView } from '../recipes/renderer.js';
+import { generateShoppingList } from '../shopping/generator.js';
 import {
   type RecipeFlowState,
   createRecipeFlowState,
@@ -569,7 +584,23 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           // getPlanLifecycle() will now return active_* based on the persisted session.
           session.planFlow = null;
           stopTyping();
-          await sink.reply(result.text, { reply_markup: planConfirmedKeyboard });
+
+          // Build a rich post-confirmation message if post-confirm data is available
+          if (result.postConfirmData) {
+            const { firstCookDay, cookBatches } = result.postConfirmData;
+            const weekStart = result.state.weekStart;
+            const weekEnd = result.state.weekDays[6]!;
+            // Resolve batch slugs to BatchViews
+            const cookBatchViews: BatchView[] = cookBatches.flatMap(b => {
+              const recipe = recipes.getBySlug(b.recipeSlug);
+              if (!recipe) { log.warn('CORE', `no recipe for slug ${b.recipeSlug}`); return []; }
+              return [{ batch: b, recipe }];
+            });
+            const text = formatPostConfirmation(weekStart, weekEnd, firstCookDay, cookBatchViews);
+            await sink.reply(text, { reply_markup: postConfirmationKeyboard(), parse_mode: 'MarkdownV2' });
+          } else {
+            await sink.reply(result.text, { reply_markup: planConfirmedKeyboard });
+          }
         } catch (err) {
           stopTyping();
           throw err;
@@ -713,6 +744,149 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       await sink.reply(report, { parse_mode: 'Markdown' });
       return;
     }
+
+    // ─── Plan view callbacks (Phase 3) ─────────────────────────────────
+    if (action === 'na_show' || action === 'wo_show' || action.startsWith('dd_')) {
+      const today = toLocalISODate(new Date());
+      const lifecycle = await getPlanLifecycle(session, store, today);
+      const planSession = await store.getRunningPlanSession(today);
+      if (!planSession) {
+        await sink.reply('No active plan.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
+        return;
+      }
+
+      const { batchViews, allBatches } = await loadPlanBatches(planSession, recipes);
+      session.surfaceContext = 'plan';
+
+      if (action === 'na_show') {
+        const text = formatNextAction(batchViews, planSession.events, planSession.flexSlots, today);
+        const nextCook = getNextCookDay(allBatches, today);
+        const nextCookBatchViews = nextCook
+          ? batchViews.filter(bv => bv.batch.eatingDays[0] === nextCook.date)
+          : [];
+        await sink.reply(text, { reply_markup: nextActionKeyboard(nextCookBatchViews, lifecycle), parse_mode: 'MarkdownV2' });
+        return;
+      }
+
+      if (action === 'wo_show') {
+        const breakfastRecipe = recipes.getBySlug(planSession.breakfast.recipeSlug);
+        const text = formatWeekOverview(planSession, batchViews, planSession.events, planSession.flexSlots, breakfastRecipe);
+        // Build 7-day array from horizon
+        const weekDays: string[] = [];
+        const d = new Date(planSession.horizonStart + 'T00:00:00');
+        for (let i = 0; i < 7; i++) {
+          weekDays.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+          d.setDate(d.getDate() + 1);
+        }
+        await sink.reply(text, { reply_markup: weekOverviewKeyboard(weekDays), parse_mode: 'MarkdownV2' });
+        return;
+      }
+
+      if (action.startsWith('dd_')) {
+        const date = action.slice(3);
+        // Validate ISO date and within horizon
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < planSession.horizonStart || date > planSession.horizonEnd) {
+          await sink.reply('Invalid or expired date.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
+          return;
+        }
+        const text = formatDayDetail(date, batchViews, planSession.events, planSession.flexSlots);
+        const cookBatchViews = batchViews.filter(bv => bv.batch.eatingDays[0] === date);
+        await sink.reply(text, { reply_markup: dayDetailKeyboard(date, cookBatchViews, today), parse_mode: 'MarkdownV2' });
+        return;
+      }
+    }
+
+    // ─── Cook view callback (Phase 4) ─────────────────────────────────
+    if (action.startsWith('cv_')) {
+      const batchId = action.slice(3);
+      const batch = await store.getBatch(batchId);
+      if (!batch) {
+        const today = toLocalISODate(new Date());
+        const lifecycle = await getPlanLifecycle(session, store, today);
+        await sink.reply('Batch not found.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
+        return;
+      }
+      const recipe = recipes.getBySlug(batch.recipeSlug);
+      if (!recipe) {
+        const today = toLocalISODate(new Date());
+        const lifecycle = await getPlanLifecycle(session, store, today);
+        await sink.reply('Recipe not found.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
+        return;
+      }
+      session.surfaceContext = 'cooking';
+      session.lastRecipeSlug = batch.recipeSlug;
+      await sink.reply(
+        renderCookView(recipe, batch),
+        { reply_markup: cookViewKeyboard(batch.recipeSlug), parse_mode: 'MarkdownV2' },
+      );
+      return;
+    }
+
+    // ─── Shopping list callbacks (Phase 5) ─────────────────────────────
+    if (action.startsWith('sl_')) {
+      const param = action.slice(3); // "next" or ISO date
+      const today = toLocalISODate(new Date());
+      const lifecycle = await getPlanLifecycle(session, store, today);
+      const planSession = await store.getRunningPlanSession(today);
+      if (!planSession) {
+        await sink.reply('No plan for this week.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
+        return;
+      }
+
+      const { allBatches } = await loadPlanBatches(planSession, recipes);
+      const plannedBatches = allBatches.filter(b => b.status === 'planned');
+
+      let targetDate: string;
+      if (param === 'next') {
+        const nextCook = getNextCookDay(plannedBatches, today);
+        if (!nextCook) {
+          await sink.reply('All meals are prepped — no shopping needed\\!', { parse_mode: 'MarkdownV2' });
+          return;
+        }
+        targetDate = nextCook.date;
+      } else {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(param) || param < today || param < planSession.horizonStart || param > planSession.horizonEnd) {
+          await sink.reply('This shopping list is from a different plan week.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
+          return;
+        }
+        targetDate = param;
+      }
+
+      const cookBatchesForDay = plannedBatches.filter(b => b.eatingDays[0] === targetDate);
+      if (cookBatchesForDay.length === 0 && param !== 'next') {
+        await sink.reply('No cooking scheduled for that day.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
+        return;
+      }
+
+      const breakfastRecipe = recipes.getBySlug(planSession.breakfast.recipeSlug);
+      if (!breakfastRecipe) {
+        log.warn('CORE', `breakfast recipe not found: ${planSession.breakfast.recipeSlug}`);
+      }
+
+      // Compute remaining days inclusive
+      const horizonEnd = new Date(planSession.horizonEnd + 'T12:00:00');
+      const target = new Date(targetDate + 'T12:00:00');
+      const remainingDays = Math.round((horizonEnd.getTime() - target.getTime()) / 86400000) + 1;
+
+      const list = generateShoppingList(plannedBatches, breakfastRecipe ?? undefined, {
+        targetDate,
+        remainingDays,
+      });
+
+      // Build scope description
+      const scopeParts = cookBatchesForDay.map(b => {
+        const recipe = recipes.getBySlug(b.recipeSlug);
+        return `${recipe?.name ?? b.recipeSlug} (${b.servings} servings)`;
+      });
+      if (breakfastRecipe) scopeParts.push('Breakfast');
+
+      session.surfaceContext = 'shopping';
+      await sink.reply(
+        formatShoppingList(list, targetDate, scopeParts.join(' + ')),
+        { reply_markup: buildShoppingListKeyboard(), parse_mode: 'MarkdownV2' },
+      );
+      return;
+    }
   }
 
   // ─── Main-menu reply-button handling ───────────────────────────────────
@@ -847,6 +1021,27 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     // explicitly confirms the plan or cancels via /cancel.
 
     switch (action) {
+      case 'my_plan': {
+        // "📋 My Plan" tapped with active plan → show Next Action view
+        session.surfaceContext = 'plan';
+        session.lastRecipeSlug = undefined;
+        const today = toLocalISODate(new Date());
+        const lifecycle = await getPlanLifecycle(session, store, today);
+        const planSession = await store.getRunningPlanSession(today);
+        if (planSession && lifecycle.startsWith('active_')) {
+          const { batchViews, allBatches } = await loadPlanBatches(planSession, recipes);
+          const text = formatNextAction(batchViews, planSession.events, planSession.flexSlots, today);
+          const nextCook = getNextCookDay(allBatches, today);
+          const nextCookBatchViews = nextCook
+            ? batchViews.filter(bv => bv.batch.eatingDays[0] === nextCook.date)
+            : [];
+          await sink.reply(text, { reply_markup: nextActionKeyboard(nextCookBatchViews, lifecycle), parse_mode: 'MarkdownV2' });
+          return;
+        }
+        // Fallback: no active plan — treat as plan_week
+        await handleMenu('plan_week', sink);
+        return;
+      }
       case 'my_recipes': {
         session.surfaceContext = 'recipes';
         session.lastRecipeSlug = undefined;
@@ -878,14 +1073,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           return;
         }
 
-        // Active plan → stub placeholder for Next Action (Agent A will implement)
-        if (lifecycle.startsWith('active_')) {
-          await sink.reply(
-            'Your plan is active. Next Action view is coming soon!',
-            { reply_markup: await getMenuKeyboard() },
-          );
-          return;
-        }
+        // Active plan + "📋 Plan Week" text → fall through to computeNextHorizonStart.
+        // "📋 My Plan" text routes to 'my_plan' case above which shows Next Action.
 
         // no_plan → check recipe gate, then start new plan
         const lunchDinnerRecipes = recipes
@@ -918,11 +1107,19 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         await doStartPlanFlow(horizon, undefined, sink);
         return;
       }
-      case 'shopping_list':
+      case 'shopping_list': {
         session.surfaceContext = 'shopping';
         session.lastRecipeSlug = undefined;
-        await sink.reply('No plan for this week. Tap Plan Week to get started.', { reply_markup: await getMenuKeyboard() });
+        const today = toLocalISODate(new Date());
+        const lifecycle = await getPlanLifecycle(session, store, today);
+        if (lifecycle === 'no_plan' || lifecycle === 'planning') {
+          await sink.reply('No plan yet — plan your week first to see what you\'ll need.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
+          return;
+        }
+        // Active plan → delegate to sl_next handler by dispatching a callback
+        await handleCallback('sl_next', sink);
         return;
+      }
       case 'progress': {
         session.surfaceContext = 'progress';
         session.lastRecipeSlug = undefined;
@@ -962,12 +1159,67 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     }
   }
 
+  // ─── Plan data loading helper ─────────────────────────────────────────
+  /**
+   * Load all batches for a plan session, deduplicated, with recipe resolution.
+   * Combines own batches + carry-over overlapping batches.
+   */
+  async function loadPlanBatches(planSession: import('../models/types.js').PlanSession, recipeDb: RecipeDatabase): Promise<{
+    batchViews: BatchView[];
+    allBatches: import('../models/types.js').Batch[];
+  }> {
+    const ownBatches = await store.getBatchesByPlanSessionId(planSession.id);
+    const overlapBatches = await store.getBatchesOverlapping({
+      horizonStart: planSession.horizonStart,
+      horizonEnd: planSession.horizonEnd,
+      statuses: ['planned'],
+    });
+    // Deduplicate by id
+    const seen = new Set<string>();
+    const allBatches = [...ownBatches, ...overlapBatches]
+      .filter(b => seen.has(b.id) ? false : (seen.add(b.id), true))
+      .filter(b => b.status === 'planned');
+
+    const batchViews: BatchView[] = allBatches.flatMap(b => {
+      const recipe = recipeDb.getBySlug(b.recipeSlug);
+      if (!recipe) { log.warn('CORE', `no recipe for slug ${b.recipeSlug}`); return []; }
+      return [{ batch: b, recipe }];
+    });
+
+    return { batchViews, allBatches };
+  }
+
   // ─── Paginated recipe list ─────────────────────────────────────────────
   async function showRecipeList(sink: OutputSink): Promise<void> {
     const all = recipes.getAll();
     const pageSize = 5;
-    await sink.reply(`Your recipes (${all.length}):`, {
-      reply_markup: recipeListKeyboard(all, session.recipeListPage, pageSize),
+
+    // Check if there's an active plan with upcoming cook batches
+    const today = toLocalISODate(new Date());
+    const lifecycle = await getPlanLifecycle(session, store, today);
+    let cookingSoonBatchViews: BatchView[] | undefined;
+
+    if (lifecycle.startsWith('active_')) {
+      const planSession = await store.getRunningPlanSession(today);
+      if (planSession) {
+        const { batchViews } = await loadPlanBatches(planSession, recipes);
+        // Filter to upcoming cook-day batches (cook day >= today), sort soonest first
+        cookingSoonBatchViews = batchViews
+          .filter(bv => bv.batch.eatingDays.length > 0 && bv.batch.eatingDays[0]! >= today)
+          .sort((a, b) => a.batch.eatingDays[0]!.localeCompare(b.batch.eatingDays[0]!));
+      }
+    }
+
+    // Build the message text with section headers
+    let msg: string;
+    if (cookingSoonBatchViews && cookingSoonBatchViews.length > 0) {
+      msg = `COOKING SOON\n\nALL RECIPES (${all.length}):`;
+    } else {
+      msg = `Your recipes (${all.length}):`;
+    }
+
+    await sink.reply(msg, {
+      reply_markup: recipeListKeyboard(all, session.recipeListPage, pageSize, cookingSoonBatchViews),
     });
   }
 
@@ -1238,7 +1490,7 @@ function matchMainMenu(text: string): string | null {
   const menuMap: Record<string, string> = {
     '📋 Plan Week': 'plan_week',
     '📋 Resume Plan': 'plan_week',
-    '📋 My Plan': 'plan_week',
+    '📋 My Plan': 'my_plan',
     '🛒 Shopping List': 'shopping_list',
     '📖 My Recipes': 'my_recipes',
     '📊 Progress': 'progress',

@@ -39,7 +39,7 @@ const batchesA: Batch[] = [
     servings: 2,
     targetPerServing: { calories: 800, protein: 55 },
     actualPerServing: { calories: 792, protein: 57, fat: 27, carbs: 80 },
-    scaledIngredients: [{ name: 'chicken breast', amount: 190, unit: 'g', totalForBatch: 380 }],
+    scaledIngredients: [{ name: 'chicken breast', amount: 190, unit: 'g', totalForBatch: 380, role: 'protein' as const }],
     status: 'planned',
     createdInPlanSessionId: sessionA.id,
   },
