@@ -1,4 +1,4 @@
-# Plan 016: Coordinated Group — Plan-Aware UI System
+# Plan 016: Plan-Aware UI System
 
 **Status:** Active
 **Date:** 2026-04-07
@@ -13,22 +13,22 @@ There is no way to:
 - View a recipe in cook-time mode (batch totals, inline amounts, storage instructions).
 - Get a shopping list scoped to the next cook day with breakfast prorated and ingredients intelligently tiered.
 
-Three agents must work in parallel on interconnected surfaces — plan views (A), recipe display (B), and shopping list (C) — sharing `core.ts` dispatch, `keyboards.ts`, `formatters.ts`, and plan data structures. This plan defines the shared contract, per-agent scope, file ownership, cross-agent integration points, and implementation order.
+This plan implements three surfaces — plan views, recipe display, and shopping list — executed sequentially to avoid file conflicts in shared files (`core.ts`, `keyboards.ts`, `formatters.ts`). Steps are grouped into phases with a clear execution order.
 
 **Dependencies:**
-- **Phase 0 (plan 012):** Lifecycle detection (`getPlanLifecycle(session, store, today)`), dynamic `buildMainMenuKeyboard()`, `matchMainMenu()` update, `handleMenu()` fix (no longer destroys `planFlow` on every tap), `surfaceContext` on `BotCoreSession`, plan data helpers (`getNextCookDay()`, `getBatchForMeal()`, `isReheat()`, `getServingNumber()`, `getDayRange()`, `getCookDaysForWeek()`), `getBatch(id)` on `StateStoreLike`, `toLocalISODate` moved to `src/plan/helpers.ts`, callback prefix registry. ALL THREE AGENTS depend on Phase 0.
-- **Plan 015 (copy-messaging-pass):** Plan 015 depends on ALL v0.0.4 tasks (including 016) landing first — it is a formatting pass that comes after. Therefore: **all formatters in plan 016 MUST produce plain text only** (no bold, no italic, no monospace). Markdown examples in this plan are documentation-only descriptions of intent; actual implementation uses plain strings. Plan 015 applies the MarkdownV2 pass after 016 is complete.
-- **Isolated Task 2 (plan 014):** Recipe Format Evolution — `shortName` field, `{placeholder}` support in recipe body, step-by-step timing, grouped seasonings in prose. Agent B depends on this for placeholder resolution and `shortName` button labels. Agent B can start library redesign work before Task 2 lands but cannot implement cook-time placeholder resolution until it ships.
+- **Phase 0 (plan 012):** Lifecycle detection (`getPlanLifecycle(session, store, today)`), dynamic `buildMainMenuKeyboard()`, `matchMainMenu()` update, `handleMenu()` fix (no longer destroys `planFlow` on every tap), `surfaceContext` on `BotCoreSession`, plan data helpers (`getNextCookDay()`, `getBatchForMeal()`, `isReheat()`, `getServingNumber()`, `getDayRange()`, `getCookDaysForWeek()`), `getBatch(id)` on `StateStoreLike`, `toLocalISODate` moved to `src/plan/helpers.ts`, callback prefix registry. All phases depend on Phase 0.
+- **Plan 015 (copy-messaging-pass):** Plan 015 is **already complete**. The codebase uses MarkdownV2 formatting throughout (bold, italic, monospace). All formatters in plan 016 MUST use MarkdownV2, following the existing patterns in `renderRecipe()`, `formatBudgetReview()`, and plan-flow messages. Use `esc()` and `escapeRecipeBody()` from `src/utils/telegram-markdown.ts`. Pass `parseMode: 'MarkdownV2'` in handler replies.
+- **Isolated Task 2 (plan 014):** Recipe Format Evolution — `shortName` field, `{placeholder}` support in recipe body, step-by-step timing, grouped seasonings in prose. Phase 4 depends on this for placeholder resolution and `shortName` button labels. Phase 4 can start library redesign work before Task 2 lands but cannot implement cook-time placeholder resolution until it ships.
 
 ---
 
 ## Shared contract
 
-Phase 0 delivers the plan data helpers and callback prefix registry. The three agents additionally agree on these integration protocols before starting implementation.
+Phase 0 delivers the plan data helpers and callback prefix registry. All phases share these integration protocols.
 
 ### 0. Shared view model: `BatchView`
 
-All three agents share a view model that joins a persisted `Batch` with its loaded `Recipe`. Define and **export** this from `src/models/types.ts`:
+All phases share a view model that joins a persisted `Batch` with its loaded `Recipe`. Define and **export** this from `src/models/types.ts`:
 
 ```typescript
 /**
@@ -53,23 +53,23 @@ const batchViews: BatchView[] = allBatches.flatMap(b => {
 
 **Import path:** `import type { BatchView } from '../models/types.js';`
 
-### 1. Cook view entry protocol (Agent B defines, Agent A calls)
+### 1. Cook view entry protocol (Phase 4 defines, Phase 3 calls)
 
 - **Callback format:** `cv_{batchId}` where `batchId` is the batch UUID (36 chars). Total callback data: `cv_` prefix (3 chars) + UUID (36 chars) = 39 bytes, within Telegram's 64-byte limit.
 - **Why batch ID, not recipe slug:** After Plan 009 re-batching, the same `(recipeSlug, mealType)` pair can appear in multiple batches (see plan-flow.ts:1570-1576 where `days[0]` disambiguates). The batch UUID uniquely identifies which batch to render.
-- **Agent B's handler contract:** Receive `cv_{batchId}` callback in `handleCallback()` (core.ts) -> call `store.getBatch(batchId)` (Phase 0) -> load recipe via `recipes.getBySlug(batch.recipeSlug)` -> render cook view with `batch.scaledIngredients`, `batch.eatingDays.length` servings, recipe body with resolved placeholders. Set `surfaceContext = 'cooking'` and `lastRecipeSlug = batch.recipeSlug`.
+- **Handler contract (Phase 4):** Receive `cv_{batchId}` callback in `handleCallback()` (core.ts) -> call `store.getBatch(batchId)` (Phase 0) -> load recipe via `recipes.getBySlug(batch.recipeSlug)` -> render cook view with `batch.scaledIngredients`, `batch.eatingDays.length` servings, recipe body with resolved placeholders. Set `surfaceContext = 'cooking'` and `lastRecipeSlug = batch.recipeSlug`.
 - **Returns:** Formatted cook-time message + cook view keyboard (`[<- Back to plan]`, `[Edit this recipe]`, `[View in my recipes]`).
 
-### 2. Shopping list entry protocol (Agent C defines, Agent A calls)
+### 2. Shopping list entry protocol (Phase 5 defines, Phase 3 calls)
 
 - **Callback formats:**
-  - `sl_next` — Agent C computes the next cook day via `getNextCookDay()` (Phase 0 helper).
-  - `sl_{ISO date}` — Agent C scopes to that specific day's cook session (e.g., `sl_2026-04-10`).
-  - Main menu `[Shopping List]` with active plan -> equivalent to `sl_next` (Agent A delegates to Agent C's handler).
-- **Agent C's handler contract:** Receive `sl_*` callback -> resolve target date (or compute next cook day) -> get batches for that day from store -> load breakfast recipe from plan session -> generate three-tiered, category-grouped shopping list scoped to that day + prorated breakfast. Set `surfaceContext = 'shopping'`.
+  - `sl_next` — computes the next cook day via `getNextCookDay()` (Phase 0 helper).
+  - `sl_{ISO date}` — scopes to that specific day's cook session (e.g., `sl_2026-04-10`).
+  - Main menu `[Shopping List]` with active plan -> equivalent to `sl_next` (menu handler delegates to `sl_*` handler).
+- **Handler contract (Phase 5):** Receive `sl_*` callback -> resolve target date (or compute next cook day) -> get batches for that day from store -> load breakfast recipe from plan session -> generate three-tiered, category-grouped shopping list scoped to that day + prorated breakfast. Set `surfaceContext = 'shopping'`.
 - **Returns:** Formatted shopping list message + shopping keyboard (`[<- Back to plan]`).
 
-### 3. Ingredient role propagation (Agent C owns, all agents benefit)
+### 3. Ingredient role propagation (Phase 2, unblocks all later phases)
 
 - **Current problem:** `ScaledIngredient` (types.ts:146-152) has only `name`, `amount`, `unit`, `totalForBatch` — no `role`. The shopping generator (generator.ts:58-60) hardcodes all batch ingredients to `'PANTRY'` because it has no role data.
 - **Fix:** Add `role: IngredientRole` to `ScaledIngredient` interface. Update three code paths:
@@ -77,47 +77,51 @@ const batchViews: BatchView[] = allBatches.flatMap(b => {
   2. `plan-flow.ts` scaler fallback (line 1602): include `role: ing.role` in manual `ScaledIngredient[]` construction.
   3. Test scenario seeds (`test/scenarios/*/spec.ts`): add `role` to every seeded `scaledIngredients` entry.
 
-### 4. File conflict resolution
+### 4. File organization
 
-- `core.ts` and `keyboards.ts` are touched by all three agents. Strategy:
-  - Each agent adds handlers in clearly separated, comment-delimited sections.
-  - Agent A owns the top-level dispatch routing structure and plan view handlers. Agent A also owns `handleMenu()` — the lifecycle-aware routing for `plan_week` and `shopping_list` menu cases is Agent A's responsibility (Steps A8/A9). Other agents do not modify `handleMenu()`.
-  - Agent B adds `cv_` callback handling and recipe list modifications in its own section.
-  - Agent C adds `sl_` callback handling in its own section.
+- `core.ts` and `keyboards.ts` are touched by multiple phases. Strategy:
+  - Handlers are added in clearly separated, comment-delimited sections.
+  - Phase 3 owns the top-level dispatch routing structure, plan view handlers (`na_show`, `wo_show`, `dd_*`), and `handleMenu()` lifecycle-aware routing.
+  - Phase 4 adds `cv_` callback handling and recipe list modifications in its own section.
+  - Phase 5 adds `sl_` callback handling in its own section.
   - Keyboard functions are separate exported functions (e.g., `nextActionKeyboard()`, `cookViewKeyboard()`, `shoppingListKeyboard()`), not modifications to the same function.
 
 ### 5. Line number references
 
-Line numbers cited in this plan (e.g., `plan-flow.ts:722`, `core.ts:382`) reflect the codebase state at plan-writing time. Phase 0 (plan 012) will land before these agents run and will shift line numbers. Implementing agents must use function and variable names to locate code, not line numbers. Line numbers are provided as approximate orientation only.
+Line numbers cited in this plan (e.g., `plan-flow.ts:722`, `core.ts:382`) reflect the codebase state at plan-writing time. Phase 0 (plan 012) will land before implementation and will shift line numbers. Use function and variable names to locate code, not line numbers. Line numbers are provided as approximate orientation only.
 
 ---
 
 ## Plan of work
 
-### Agent C — ScaledIngredient role enrichment (do first, unblocks all agents)
+Execution is strictly sequential: Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6. Each phase completes (including `npm test`) before the next begins.
 
-Agent C's role enrichment work is a prerequisite for all three agents because it changes the `ScaledIngredient` interface and every scenario seed. This sub-task must land first.
+### Phase 1 — Pre-work
 
-#### Step C0.0: Normalize `fromBatchRow` in store.ts for existing production rows
+Export `BatchView` interface from `src/models/types.ts` (shared contract section above).
+
+### Phase 2 — ScaledIngredient role enrichment (unblocks all later phases)
+
+This changes the `ScaledIngredient` interface and every scenario seed. Must land before any UI work.
+
+#### Step 2.0: Normalize `fromBatchRow` in store.ts for existing production rows
 
 **File:** `src/state/store.ts` — `fromBatchRow()` function (line 368-380)
 
 Existing Supabase batch rows do not have a `role` field in their `scaled_ingredients` JSON (they were persisted before this migration). Without normalization, old rows will produce `ScaledIngredient` objects with `role: undefined`, which will cause type errors and wrong behavior in the shopping generator and renderer.
 
-Add a safe default in `fromBatchRow`:
+The current code is a direct passthrough: `scaledIngredients: row.scaled_ingredients`. The stored JSON uses camelCase keys (`name`, `amount`, `unit`, `totalForBatch`) because the insert path writes `batch.scaledIngredients` directly. Add a safe `role` default without breaking the existing passthrough:
+
 ```typescript
-scaledIngredients: (row.scaled_ingredients ?? []).map((i: Record<string, unknown>) => ({
-  name: i.name as string,
-  amount: i.amount as number,
-  unit: i.unit as string,
-  totalForBatch: i.total_for_batch as number,
-  role: (i.role as IngredientRole) ?? 'base',  // 'base' is the safest default for old rows
+scaledIngredients: (row.scaled_ingredients ?? []).map((i: any) => ({
+  ...i,
+  role: i.role ?? 'base',  // 'base' is the safest default for old rows without role
 })),
 ```
 
 This ensures old persisted rows load correctly without requiring a Supabase migration or data backfill.
 
-#### Step C0.1: Add `role` to `ScaledIngredient` interface
+#### Step 2.1: Add `role` to `ScaledIngredient` interface
 
 **File:** `src/models/types.ts` (line 146-152)
 
@@ -142,7 +146,7 @@ export interface ScaledIngredient {
 
 `IngredientRole` is already defined at types.ts:96.
 
-#### Step C0.2: Update recipe-scaler.ts output mapping
+#### Step 2.2: Update recipe-scaler.ts output mapping
 
 **File:** `src/agents/recipe-scaler.ts` (line 176-184)
 
@@ -183,7 +187,7 @@ scaledIngredients: parsed.scaled_ingredients.map((ing: Record<string, unknown>) 
 
 The `recipe` parameter is already in scope (line 58: `const { recipe, ... } = input;`). The `log` import exists at line 26.
 
-#### Step C0.3: Update plan-flow.ts scaler fallback
+#### Step 2.3: Update plan-flow.ts scaler fallback
 
 **File:** `src/agents/plan-flow.ts` (line 1602-1607)
 
@@ -208,7 +212,7 @@ scaledIngredients = recipe.ingredients.map((ing) => ({
 }));
 ```
 
-#### Step C0.4: Update test scenario seeds
+#### Step 2.4: Update test scenario seeds
 
 **Spec files with seeded `scaledIngredients` (require manual role annotation):**
 - `test/scenarios/005-rolling-continuous/spec.ts` — 6 batches
@@ -224,13 +228,13 @@ scaledIngredients: [{ name: 'chicken breast', amount: 190, unit: 'g', totalForBa
 
 **`test/unit/test-store.test.ts`:** This file seeds `scaledIngredients: []` (empty arrays). No entries to annotate — just verify the file still type-checks after the interface change; no mechanical edits required.
 
-#### Step C0.5: Regenerate affected scenario recordings
+#### Step 2.5: Regenerate affected scenario recordings
 
 `ScaledIngredient` is a **required** field change — any recording that persisted batches will fail type-checking or deepStrictEqual comparisons until regenerated. More scenarios are affected than just those with seeded spec data.
 
 **Two categories of affected recordings:**
 
-1. **Scenarios with seeded carry-over batches (spec seeds):** These specs pre-populate store state with batches containing `scaledIngredients`. After C0.1-C0.3, the in-flight scaler calls will add `role` to all newly scaled results. Re-run these five:
+1. **Scenarios with seeded carry-over batches (spec seeds):** These specs pre-populate store state with batches containing `scaledIngredients`. After 2.1-2.3, the in-flight scaler calls will add `role` to all newly scaled results. Re-run these five:
    - `npm run test:generate -- 005-rolling-continuous --regenerate`
    - `npm run test:generate -- 009-rolling-swap-recipe-with-carryover --regenerate`
    - `npm run test:generate -- 010-rolling-events-with-carryover --regenerate`
@@ -247,11 +251,11 @@ Then run `npm test` to confirm all scenarios pass.
 
 ---
 
-### Agent A — Plan View Screens + Navigation
+### Phase 3 — Plan View Screens + Navigation
 
-**Depends on:** Phase 0 (plan 012) for `getPlanLifecycle()`, `buildMainMenuKeyboard()`, `surfaceContext`, plan data helpers, `getBatch(id)`. Also depends on Agent C's Step C0 (role enrichment) only if running `npm test` — the plan view code itself doesn't read `role`.
+**Depends on:** Phase 0 (plan 012) for `getPlanLifecycle()`, `buildMainMenuKeyboard()`, `surfaceContext`, plan data helpers, `getBatch(id)`. Also depends on Phase 2 (role enrichment) for `npm test` — the plan view code itself doesn't read `role`.
 
-#### Step A1: Next Action screen formatter
+#### Step 3.1: Next Action screen formatter
 
 **File:** `src/telegram/formatters.ts`
 
@@ -259,7 +263,7 @@ Then run `npm test` to confirm all scenarios pass.
 
 Resolve via `recipes.getBySlug(batch.recipeSlug)` in the handler, filter out any batches with no matching recipe (warn in log), then pass `BatchView[]` to the formatter.
 
-**Plain text only** — no markdown in this formatter (see dependency note on plan 015).
+**MarkdownV2** — use `esc()` from `src/utils/telegram-markdown.ts` for all dynamic text. Follow existing patterns in `formatBudgetReview()`.
 
 Add `formatNextAction(batchViews: BatchView[], events: MealEvent[], flexSlots: FlexSlot[], today: string)` function:
 - Takes: resolved `BatchView[]`, `MealEvent[]`, `FlexSlot[]`, and today's ISO date.
@@ -276,7 +280,7 @@ Add `formatNextAction(batchViews: BatchView[], events: MealEvent[], flexSlots: F
 
 Reference mock from ui-architecture.md lines 160-171.
 
-#### Step A2: Next Action keyboard
+#### Step 3.2: Next Action keyboard
 
 **File:** `src/telegram/keyboards.ts`
 
@@ -287,24 +291,24 @@ Add `nextActionKeyboard(nextCookBatchViews: BatchView[], lifecycle: PlanLifecycl
 - Recipe button labels use `bv.recipe.shortName ?? bv.recipe.name` (where `bv: BatchView`; depends on Task 2 for `shortName` — fall back to `name` initially).
 - The keyboard function receives pre-resolved `BatchView[]`, not raw `Batch[]`.
 
-#### Step A3: Week Overview formatter
+#### Step 3.3: Week Overview formatter
 
 **File:** `src/telegram/formatters.ts`
 
-**Pre-requisite:** Same recipe resolution requirement as A1 — pass `BatchView[]` (pre-resolved), not raw `Batch[]`. Also pass the resolved breakfast recipe, since `PlanSession.breakfast` only stores `recipeSlug` — no name.
+**Pre-requisite:** Same recipe resolution requirement as 3.1 — pass `BatchView[]` (pre-resolved), not raw `Batch[]`. Also pass the resolved breakfast recipe, since `PlanSession.breakfast` only stores `recipeSlug` — no name.
 
-**Plain text only** — no markdown in this formatter (see dependency note on plan 015).
+**MarkdownV2** — use `esc()` for dynamic text. Follow existing formatter patterns.
 
 Add `formatWeekOverview(session: PlanSession, batchViews: BatchView[], events: MealEvent[], flexSlots: FlexSlot[], breakfastRecipe: Recipe | undefined)` function:
 - Header: `**Your week:** Mon Apr 6 – Sun Apr 12`
-- Breakfast line: `Breakfast: {breakfastRecipe?.name ?? 'Breakfast'} (daily)` — use the `breakfastRecipe` param passed from the handler (plain text; italic pass is plan 015)
+- Breakfast line: `Breakfast: {breakfastRecipe?.name ?? 'Breakfast'} (daily)` — use the `breakfastRecipe` param passed from the handler.
 - For each day: compact format per ui-architecture.md line 208-228:
   - `**Mon** 🔪` (if any cook that day)
   - `L: {name} · D: {name}` with markers (🔪 for cook, 🍽️ for event, **Flex** bold text).
 - Footer: `**Weekly target: on track ✓**` (simple status, no calorie numbers).
 - Prompt: `_Tap a day for details:_`
 
-#### Step A4: Week Overview keyboard
+#### Step 3.4: Week Overview keyboard
 
 **File:** `src/telegram/keyboards.ts`
 
@@ -312,13 +316,13 @@ Add `weekOverviewKeyboard(weekDays: string[])` function — receives an array of
 - Day buttons derived from `weekDays`: `[Mon] [Tue] [Wed] [Thu]` row, `[Fri] [Sat] [Sun]` row. Display label is abbreviated day name (e.g., `'Mon'`), derived from the ISO date.
 - Callback data: `dd_{ISO date}` (e.g., `dd_2026-04-06`). The `dd_` prefix is 3 chars + 10-char ISO date = 13 bytes, well within 64-byte limit.
 - `[<- Back]` button with callback `na_show` (returns to Next Action).
-- The handler (A8) passes the 7 days of the active session's horizon.
+- The handler (3.8) passes the 7 days of the active session's horizon.
 
-#### Step A5: Day Detail formatter
+#### Step 3.5: Day Detail formatter
 
 **File:** `src/telegram/formatters.ts`
 
-**Pre-requisite:** Same recipe resolution requirement as A1 — pass `BatchView[]` (pre-resolved), not raw `Batch[]`.
+**Pre-requisite:** Same recipe resolution requirement as 3.1 — pass `BatchView[]` (pre-resolved), not raw `Batch[]`.
 
 Add `formatDayDetail(date: string, batchViews: BatchView[], events: MealEvent[], flexSlots: FlexSlot[])` function:
 - Header: `**Thursday, Apr 10**`
@@ -328,17 +332,17 @@ Add `formatDayDetail(date: string, batchViews: BatchView[], events: MealEvent[],
   - Uses Phase 0 helpers: `getServingNumber()`, `getDayRange()`, `isReheat()`.
 - Reference: ui-architecture.md lines 258-267.
 
-#### Step A6: Day Detail keyboard
+#### Step 3.6: Day Detail keyboard
 
 **File:** `src/telegram/keyboards.ts`
 
 Add `dayDetailKeyboard(date: string, cookBatchViews: BatchView[], today: string)` function:
 - For each cook-day meal: `[🔪 {recipeName} — N servings]` with `cv_{batchId}` callback.
-- `[Get shopping list]` with `sl_{ISO date}` callback — only show this button if `date >= today` (future or current cook days only). Past cook days should not show the shopping button, to avoid routing users to the rejected-date path in C8.
+- `[Get shopping list]` with `sl_{ISO date}` callback — only show this button if `date >= today` (future or current cook days only). Past cook days should not show the shopping button, to avoid routing users to the rejected-date path in 5.8.
 - `[<- Back to week]` with `wo_show` callback.
 - Receives pre-resolved `BatchView[]` for recipe name display.
 
-#### Step A7: Post-confirmation bridge
+#### Step 3.7: Post-confirmation bridge
 
 **File:** `src/agents/plan-flow.ts` (line 720-724) — modify `handleApprove()` return message.
 
@@ -378,14 +382,14 @@ Add `postConfirmationKeyboard()` function (replaces `planConfirmedKeyboard`):
 - After `handleApprove()` returns, call the new formatter with the post-confirmation data.
 - Use `postConfirmationKeyboard()` instead of `planConfirmedKeyboard`.
 
-#### Step A8: Dispatch routing in core.ts
+#### Step 3.8: Dispatch routing in core.ts
 
 **File:** `src/telegram/core.ts`
 
 Add new callback handlers in `handleCallback()` (after existing recipe/plan blocks):
 
 ```typescript
-// ─── Plan view callbacks (Agent A) ─────────────────────────
+// ─── Plan view callbacks (Phase 3) ─────────────────────────
 if (action === 'na_show') {
   // ... load plan session, batches, format Next Action, reply
 }
@@ -431,27 +435,27 @@ Each handler:
 
 **Note on error-path keyboards:** Use `buildMainMenuKeyboard(lifecycle)` (Phase 0 API) in error replies, not the pre-Phase-0 `mainMenuKeyboard` static const. `lifecycle` is computed in step 2 above.
 
-#### Step A9: Menu routing updates
+#### Step 3.9: Menu routing updates
 
 **File:** `src/telegram/core.ts` — `handleMenu()` (line 642-698)
 
 Update the `plan_week` case to be lifecycle-aware:
 - Uses `getPlanLifecycle()` (Phase 0).
 - `no_plan` -> existing plan-start behavior (line 660-689).
-- `planning` -> resume flow. Phase 0 fixes the `handleMenu()` destruction bug; this agent verifies resume works by re-displaying the current phase's prompt/keyboard instead of restarting.
+- `planning` -> resume flow. Phase 0 fixes the `handleMenu()` destruction bug; verify resume works by re-displaying the current phase's prompt/keyboard instead of restarting.
 - `active_*` -> call the Next Action handler (same logic as `na_show` callback).
 
 Update the `shopping_list` case (line 692-694):
 - `no_plan` -> "No plan yet — plan your week first to see what you'll need."
-- `active_*` -> delegate to Agent C's shopping list handler with `sl_next` scope.
+- `active_*` -> delegate to Phase 5's shopping list handler with `sl_next` scope.
 
 ---
 
-### Agent B — Recipe Display Contexts
+### Phase 4 — Recipe Display Contexts
 
 **Depends on:** Phase 0 (plan 012) for `getBatch(id)`, `surfaceContext`, `lastRecipeSlug`. Isolated Task 2 (plan 014) for `shortName` and `{placeholder}` support.
 
-#### Step B1: Cook-time recipe renderer
+#### Step 4.1: Cook-time recipe renderer
 
 **File:** `src/recipes/renderer.ts`
 
@@ -465,10 +469,10 @@ Add new function `renderCookView(recipe, batch)`:
   - Requires Task 2 to have landed (recipes must use `{placeholder}` format in body).
   - Until Task 2 lands, the body renders as-is (existing behavior from `renderRecipe()`).
 - **Storage instructions:** At bottom: `_Storage: Fridge {fridgeDays} days. {reheat}_` from `recipe.storage` field.
-- **Formatting:** Plain text in v0.0.4 (see plan 015 dependency). Plan 015 will apply bold headers, monospace amounts, italic secondary info as a post-pass.
+- **Formatting:** Use MarkdownV2, following the existing `renderRecipe()` patterns (bold headers via `*...*`, italic secondary info via `_..._`, monospace amounts via `` `...` ``). Use `esc()` and `escapeRecipeBody()` from `src/utils/telegram-markdown.ts`.
 - Keep existing `renderRecipe()` unchanged — it serves the library view. `renderCookView()` is a separate function.
 
-#### Step B2: Cook view keyboard
+#### Step 4.2: Cook view keyboard
 
 **File:** `src/telegram/keyboards.ts`
 
@@ -477,14 +481,14 @@ Add `cookViewKeyboard(recipeSlug)` function:
 - `[Edit this recipe]` with callback `re_{slug}` (reuses existing recipe edit callback prefix).
 - `[View in my recipes]` with callback `rv_{slug}` (reuses existing recipe view callback prefix).
 
-#### Step B3: Cook view callback handler
+#### Step 4.3: Cook view callback handler
 
 **File:** `src/telegram/core.ts`
 
 Add `cv_` callback handler in `handleCallback()`:
 
 ```typescript
-// ─── Cook view callback (Agent B) ─────────────────────────
+// ─── Cook view callback (Phase 4) ─────────────────────────
 if (action.startsWith('cv_')) {
   const batchId = action.slice(3);
   const batch = await store.getBatch(batchId);  // Phase 0 method
@@ -513,7 +517,7 @@ if (action.startsWith('cv_')) {
 }
 ```
 
-#### Step B4: Recipe library — plan-aware Cooking Soon section
+#### Step 4.4: Recipe library — plan-aware Cooking Soon section
 
 **File:** `src/telegram/core.ts` — `showRecipeList()` (line 702-708)
 
@@ -548,27 +552,23 @@ The live recipe-list path builds its reply inline inside `showRecipeList()` — 
 
 **Important scope note on Plan 014 and existing recipes:** Plan 014 adds `{placeholder}` support to newly generated recipes only — it explicitly does NOT backfill existing recipe bodies with placeholders. This means cook view steps for existing (pre-014) recipes will not have inline amounts in the step text, and `renderCookView()` will render their bodies unchanged. The ingredient list at the top of the cook view (using `batch.scaledIngredients`) remains the authoritative amount reference for all recipes. This is acceptable for v0.0.4.
 
-#### Step B5: Library view placeholder resolution
+#### Step 4.5: Library view placeholder resolution
 
-**File:** `src/recipes/renderer.ts` — update existing `renderRecipe()`
+**File:** `src/recipes/renderer.ts`
 
-If `{placeholder}` patterns are present in `recipe.body` (after Task 2 lands), resolve them to per-serving amounts from `recipe.ingredients`. This is the library context, so amounts are per-serving (not batch totals).
+**NOTE:** `renderRecipe()` already has a `resolvePlaceholders()` function (renderer.ts:113) that resolves `{ingredient_name}` patterns using `recipe.ingredients` (per-serving amounts). This was implemented as part of plan 014/015. **This step is a no-op for the library view** — verify that the existing implementation produces the correct format and move on.
 
-**Replacement format:** `{ingredient_name}` → `` `{amount}{unit}` {ingredient_name} `` — preserve the ingredient name alongside the amount. Example: `{penne pasta}` → `` `225g` penne pasta ``. This matches the ui-architecture.md cook view mock (line 306: `Cook \`225g\` penne until al dente`). Do NOT drop the ingredient name; replacing with only amount+unit would produce malformed sentences.
-
-**Same rule applies in `renderCookView()`** (Step B1): batch placeholder resolution also uses `{totalForBatch}{unit} {name}` format (batch totals, not per-serving).
-
-Match `{ingredient_name}` -> find matching ingredient (case-insensitive) -> replace with `` `{amount}{unit}` {ingredient_name} ``.
+**For `renderCookView()`** (Step 4.1): the cook view needs a different resolution path because it uses `batch.scaledIngredients` (batch totals, not per-serving). Either call `resolvePlaceholders()` with adapted input, or write a parallel resolver that matches `{ingredient_name}` against `ScaledIngredient[]` by name (case-insensitive) and substitutes `{totalForBatch}{unit} {name}`.
 
 This step can only be done after Isolated Task 2 (plan 014) ships.
 
 ---
 
-### Agent C — Shopping List Overhaul
+### Phase 5 — Shopping List Overhaul
 
-**Depends on:** Phase 0 (plan 012) for `getNextCookDay()`, `getPlanLifecycle()`. Also depends on its own Step C0 (role enrichment) completing first.
+**Depends on:** Phase 0 (plan 012) for `getNextCookDay()`, `getPlanLifecycle()`. Also depends on Phase 2 (role enrichment).
 
-#### Step C1: Three-tier ingredient intelligence
+#### Step 5.1: Three-tier ingredient intelligence
 
 **File:** `src/shopping/generator.ts` — major rewrite
 
@@ -597,7 +597,7 @@ Tier assignment logic:
 2. If `role === 'seasoning'` OR `name.toLowerCase()` is in `TIER_2_PANTRY` -> tier 2 ("check you have").
 3. Everything else -> tier 3 (main buy list).
 
-#### Step C2: Category grouping
+#### Step 5.2: Category grouping
 
 **File:** `src/shopping/generator.ts`
 
@@ -630,7 +630,7 @@ Category assignment applies **keyword classification first, then role as fallbac
 
 This ensures DAIRY & EGGS is populated correctly regardless of the `role` field assigned by the scaler.
 
-#### Step C3: Scope to next cook day
+#### Step 5.3: Scope to next cook day
 
 **File:** `src/shopping/generator.ts`
 
@@ -661,7 +661,7 @@ The caller (core.ts handler) is responsible for:
 - Computing `remainingDays` from target date to `session.horizonEnd`.
 - Loading the breakfast recipe from `session.breakfast.recipeSlug`.
 
-#### Step C4: Aggregation with role-aware merging
+#### Step 5.4: Aggregation with role-aware merging
 
 **File:** `src/shopping/generator.ts`
 
@@ -672,7 +672,7 @@ Update `addIngredient()` helper (line 106-124):
 - **Display name preservation:** Use the lowercased name as the dedup key only; store the original-case name from the first occurrence as the display name. Do not lowercase the output `name` field. Example: key `'chicken breast'`, display name `'Chicken breast'` (as given by the recipe).
 - **Unit mismatch handling:** If two ingredients match by name but have different units (e.g., `200g salmon` and `2 fillets salmon`), do NOT merge amounts. Keep them as separate line items and log a warning. Merging across units would corrupt totals.
 
-#### Step C5: New shopping list data model
+#### Step 5.5: New shopping list data model
 
 **File:** `src/models/types.ts`
 
@@ -704,11 +704,11 @@ export interface ShoppingItem {
 }
 ```
 
-**Breakfast annotation logic (in `generateShoppingList()`):** When aggregating breakfast ingredients, set `note: \`(breakfast, ${remainingDays} days)\`` on the resulting `ShoppingItem`. If a breakfast ingredient name matches a cook-day ingredient (same name, case-insensitive), merge the amounts and keep the breakfast note to indicate it has a dual source. The formatter (C6) renders the note as italic text after the amount (plain parenthetical if MarkdownV2 is not active).
+**Breakfast annotation logic (in `generateShoppingList()`):** When aggregating breakfast ingredients, set `note: \`(breakfast, ${remainingDays} days)\`` on the resulting `ShoppingItem`. If a breakfast ingredient name matches a cook-day ingredient (same name, case-insensitive), merge the amounts and keep the breakfast note to indicate it has a dual source. The formatter (5.6) renders the note as italic text after the amount (plain parenthetical if MarkdownV2 is not active).
 
-Note: `formatShoppingList()` in formatters.ts uses the current `ShoppingList` shape. This must be updated in Step C6. The `customItems` field is intentionally preserved but will always be `[]` in v0.0.4. The formatter in Step C6 can render it if non-empty (forward-compatible) or simply skip it — both are acceptable.
+Note: `formatShoppingList()` in formatters.ts uses the current `ShoppingList` shape. This must be updated in Step 5.6. The `customItems` field is intentionally preserved but will always be `[]` in v0.0.4. The formatter in Step 5.6 can render it if non-empty (forward-compatible) or simply skip it — both are acceptable.
 
-#### Step C5b: Update shopping-list QA validator
+#### Step 5.5b: Update shopping-list QA validator
 
 **File:** `src/qa/validators/shopping-list.ts` (line 54)
 
@@ -721,7 +721,7 @@ Update the validator to:
 
 This is a required step — without it, the QA validator will reject all new shopping lists.
 
-#### Step C6: Shopping list formatter
+#### Step 5.6: Shopping list formatter
 
 **File:** `src/telegram/formatters.ts`
 
@@ -742,9 +742,9 @@ Format per ui-architecture.md lines 354-378:
 - Tier 2 at bottom: `_Check you have:\n{comma-separated list}_`
 - Footer: `_Long-press to copy. Paste into Notes,\nthen remove what you already have._`
 
-Breakfast items in produce/dairy get a `(breakfast, N days)` annotation (using the `ShoppingItem.note` field added in C5). Render the note as italic text if MarkdownV2 is active (plan 015), otherwise render as plain parenthetical: `Avocado — 4 (breakfast, 4 days)`.
+Breakfast items in produce/dairy get a `(breakfast, N days)` annotation (using the `ShoppingItem.note` field added in 5.5). Render the note as italic text if MarkdownV2 is active (plan 015), otherwise render as plain parenthetical: `Avocado — 4 (breakfast, 4 days)`.
 
-#### Step C7: Shopping list keyboard
+#### Step 5.7: Shopping list keyboard
 
 **File:** `src/telegram/keyboards.ts`
 
@@ -752,16 +752,16 @@ Add `buildShoppingListKeyboard()` function (replacing the existing `shoppingList
 - `[<- Back to plan]` with callback `na_show`.
 - **Rename note:** Any import of the old `shoppingListKeyboard` const must be updated to call `buildShoppingListKeyboard()`. Search core.ts for all usages before removing the old const.
 
-#### Step C8: Callback handlers
+#### Step 5.8: Callback handlers
 
 **File:** `src/telegram/core.ts`
 
 Add `sl_` callback handlers in `handleCallback()`.
 
-**Note on `getNextCookDay()` signature (Phase 0, plan 012):** The helper must accept a `today: string` parameter (ISO date) rather than calling `new Date()` internally. This keeps it pure and testable — the harness can inject a fixed date via `store.getToday()`. Production callers pass `new Date().toISOString().slice(0, 10)`. If plan 012 defines the helper differently, align to this interface before implementing C8.
+**Note on `getNextCookDay()` signature (Phase 0, plan 012):** The helper must accept a `today: string` parameter (ISO date) rather than calling `new Date()` internally. This keeps it pure and testable — the harness can inject a fixed date via `store.getToday()`. Production callers pass `new Date().toISOString().slice(0, 10)`. If plan 012 defines the helper differently, align to this interface before implementing 5.8.
 
 ```typescript
-// ─── Shopping list callbacks (Agent C) ──────────────────────
+// ─── Shopping list callbacks (Phase 5) ──────────────────────
 if (action.startsWith('sl_')) {
   const param = action.slice(3);  // "next" or ISO date
   // toLocalISODate is in src/plan/helpers.ts after Phase 0 (plan 012) relocates it:
@@ -859,53 +859,53 @@ if (action.startsWith('sl_')) {
 
 ## Progress
 
-### Pre-work (do before all agents)
+### Phase 1 — Pre-work
 - [ ] Export `BatchView` interface from `src/models/types.ts`
 
-### Agent C — ScaledIngredient role enrichment (Step C0 — do first)
-- [ ] C0.0: Normalize `fromBatchRow` in store.ts with `role ?? 'base'` fallback for old Supabase rows
-- [ ] C0.1: Add `role: IngredientRole` to `ScaledIngredient` interface in types.ts
-- [ ] C0.2: Update recipe-scaler.ts output mapping with post-hoc name matching
-- [ ] C0.3: Update plan-flow.ts scaler fallback path to include `role`
-- [ ] C0.4: Add `role` to all seeded `scaledIngredients` in scenario spec files
-- [ ] C0.5: Regenerate affected scenario recordings and verify diffs
-- [ ] C0.6: `npm test` passes
+### Phase 2 — ScaledIngredient role enrichment
+- [ ] 2.0: Normalize `fromBatchRow` in store.ts with `role ?? 'base'` fallback for old Supabase rows
+- [ ] 2.1: Add `role: IngredientRole` to `ScaledIngredient` interface in types.ts
+- [ ] 2.2: Update recipe-scaler.ts output mapping with post-hoc name matching
+- [ ] 2.3: Update plan-flow.ts scaler fallback path to include `role`
+- [ ] 2.4: Add `role` to all seeded `scaledIngredients` in scenario spec files
+- [ ] 2.5: Regenerate affected scenario recordings and verify diffs
+- [ ] 2.6: `npm test` passes
 
-### Agent A — Plan View Screens + Navigation
-- [ ] A1: Next Action formatter in formatters.ts
-- [ ] A2: Next Action keyboard in keyboards.ts
-- [ ] A3: Week Overview formatter in formatters.ts
-- [ ] A4: Week Overview keyboard in keyboards.ts
-- [ ] A5: Day Detail formatter in formatters.ts
-- [ ] A6: Day Detail keyboard in keyboards.ts
-- [ ] A7: Post-confirmation bridge (plan-flow.ts return data + formatter + keyboard)
-- [ ] A8: Plan view callback handlers in core.ts (`na_show`, `wo_show`, `dd_*`)
-- [ ] A9: Menu routing updates (lifecycle-aware `plan_week` + `shopping_list` cases)
+### Phase 3 — Plan View Screens + Navigation
+- [ ] 3.1: Next Action formatter in formatters.ts
+- [ ] 3.2: Next Action keyboard in keyboards.ts
+- [ ] 3.3: Week Overview formatter in formatters.ts
+- [ ] 3.4: Week Overview keyboard in keyboards.ts
+- [ ] 3.5: Day Detail formatter in formatters.ts
+- [ ] 3.6: Day Detail keyboard in keyboards.ts
+- [ ] 3.7: Post-confirmation bridge (plan-flow.ts return data + formatter + keyboard)
+- [ ] 3.8: Plan view callback handlers in core.ts (`na_show`, `wo_show`, `dd_*`)
+- [ ] 3.9: Menu routing updates (lifecycle-aware `plan_week` + `shopping_list` cases)
 
-### Agent B — Recipe Display Contexts
-- [ ] B1: Cook-time recipe renderer (`renderCookView()`) in renderer.ts
-- [ ] B2: Cook view keyboard in keyboards.ts
-- [ ] B3: Cook view callback handler (`cv_*`) in core.ts
-- [ ] B4: Recipe library plan-aware redesign (Cooking Soon section in `showRecipeList()` + keyboard)
-- [ ] B5: Library view placeholder resolution in `renderRecipe()` (blocked on Task 2)
+### Phase 4 — Recipe Display Contexts
+- [ ] 4.1: Cook-time recipe renderer (`renderCookView()`) in renderer.ts
+- [ ] 4.2: Cook view keyboard in keyboards.ts
+- [ ] 4.3: Cook view callback handler (`cv_*`) in core.ts
+- [ ] 4.4: Recipe library plan-aware redesign (Cooking Soon section in `showRecipeList()` + keyboard)
+- [ ] 4.5: Library view placeholder resolution in `renderRecipe()` (blocked on Task 2)
 
-### Agent C — Shopping List Overhaul
-- [ ] C1: Three-tier ingredient intelligence (tier definitions + classification)
-- [ ] C2: Category grouping (PRODUCE, FISH, MEAT, DAIRY & EGGS, PANTRY, OILS & FATS)
-- [ ] C3: Scope to next cook day (rewrite `generateShoppingList()` signature + filtering)
-- [ ] C4: Aggregation with role-aware merging
-- [ ] C5: Update `ShoppingList` interface with `checkYouHave` field + add `note?` to `ShoppingItem`
-- [ ] C5b: Update shopping-list QA validator for three-tier structure
-- [ ] C6: Shopping list formatter (replace `formatShoppingList()`)
-- [ ] C7: Shopping list keyboard (rename to `buildShoppingListKeyboard()`, update all call sites)
-- [ ] C8: `sl_*` callback handlers in core.ts
+### Phase 5 — Shopping List Overhaul
+- [ ] 5.1: Three-tier ingredient intelligence (tier definitions + classification)
+- [ ] 5.2: Category grouping (PRODUCE, FISH, MEAT, DAIRY & EGGS, PANTRY, OILS & FATS)
+- [ ] 5.3: Scope to next cook day (rewrite `generateShoppingList()` signature + filtering)
+- [ ] 5.4: Aggregation with role-aware merging
+- [ ] 5.5: Update `ShoppingList` interface with `checkYouHave` field + add `note?` to `ShoppingItem`
+- [ ] 5.5b: Update shopping-list QA validator for three-tier structure
+- [ ] 5.6: Shopping list formatter (replace `formatShoppingList()`)
+- [ ] 5.7: Shopping list keyboard (rename to `buildShoppingListKeyboard()`, update all call sites)
+- [ ] 5.8: `sl_*` callback handlers in core.ts
 
-### New scenarios
-- [ ] Author `test/scenarios/018-plan-view-navigation/spec.ts` (seed + events per Validation § Phase 3)
+### Phase 6 — New scenarios + final validation
+- [ ] Author `test/scenarios/018-plan-view-navigation/spec.ts` (seed + events per Validation § V3)
 - [ ] `npm run test:generate -- 018-plan-view-navigation` + verify recorded outputs
 - [ ] Author `test/scenarios/019-shopping-list-tiered/spec.ts`
 - [ ] `npm run test:generate -- 019-shopping-list-tiered` + verify tier-1/2/3 + breakfast annotation in recorded outputs
-- [ ] Regenerate `001-plan-week-happy-path` after A7 (post-confirm message changes)
+- [ ] Regenerate `001-plan-week-happy-path` after 3.7 (post-confirm message changes)
 - [ ] `npm test` passes — all scenarios green
 - [ ] Update `test/scenarios/index.md` with rows for 018 and 019
 
@@ -929,8 +929,8 @@ if (action.startsWith('sl_')) {
   **Rationale:** `handleApprove()` in plan-flow.ts is a pure flow handler — it persists the plan and returns text. Building Telegram-specific formatted messages inside it would couple the flow handler to the UI layer. By returning structured data (first cook day + batches), the core.ts handler calls the formatter. This preserves the three-layer architecture (ui / agent / store).
   **Date:** 2026-04-07
 
-- **Decision:** Agent C does the `ScaledIngredient` role enrichment before the main shopping list work, and before Agents A and B start.
-  **Rationale:** The interface change to `ScaledIngredient` is a breaking change that affects scenario seeds, the scaler, and plan-flow. Landing it first as an isolated sub-task avoids merge conflicts and ensures `npm test` stays green for all three agents. Agent C is the primary consumer of role data, so it owns the enrichment.
+- **Decision:** `ScaledIngredient` role enrichment (Phase 2) must land before any UI work (Phases 3–5).
+  **Rationale:** The interface change to `ScaledIngredient` is a breaking change that affects scenario seeds, the scaler, and plan-flow. Landing it first as an isolated phase avoids type errors and ensures `npm test` stays green for all subsequent phases.
   **Date:** 2026-04-07
 
 - **Decision:** Shopping list breakfast proration uses remaining plan days (not full week).
@@ -945,17 +945,17 @@ if (action.startsWith('sl_')) {
 
 ## Validation
 
-### Phase 1 — Baseline before any work starts
+### V1 — Baseline before any work starts
 
 Run `npm test` and confirm it is green. If it is not, stop and fix the existing failure before starting.
 
 ---
 
-### Phase 2 — After Step C0 (role enrichment)
+### V2 — After Phase 2 (role enrichment)
 
-Steps C0.0–C0.5 change `ScaledIngredient` (interface + store normalization + scaler output) and update every scenario spec seed. After these steps:
+Steps 2.0–2.5 change `ScaledIngredient` (interface + store normalization + scaler output) and update every scenario spec seed. After these steps:
 
-1. Update the 5 spec files listed in C0.4 with `role` on every seeded `scaledIngredients` entry.
+1. Update the 5 spec files listed in 2.4 with `role` on every seeded `scaledIngredients` entry.
 2. Run regeneration for ALL scenarios that persist batches (the scaler now emits `role` in new recordings):
    ```bash
    npm run test:generate -- 001-plan-week-happy-path --regenerate
@@ -972,13 +972,13 @@ Steps C0.0–C0.5 change `ScaledIngredient` (interface + store normalization + s
    npm run test:generate -- 013-flex-move-rebatch-carryover --regenerate
    npm run test:generate -- 014-proposer-orphan-fill --regenerate
    ```
-   **Apply fixture edits for 014** after regeneration (see `test/scenarios/014-proposer-orphan-fill/fixture-edits.md`), then regenerate once more.
+   **Apply fixture edits for 014** after regeneration (see `test/scenarios/014-proposer-orphan-fill/fixture-edits.md`), then run `npm run test:replay -- 014-proposer-orphan-fill` (NOT `--regenerate` — regenerating after fixture edits would destroy them; see CLAUDE.md).
 3. For each regenerated recording, verify via `git diff recorded.json` that only `scaledIngredients` arrays changed (added `role` fields). If any message text, keyboard shapes, or non-ingredient store fields changed, stop and investigate.
 4. Run `npm test` — all scenarios must pass.
 
 ---
 
-### Phase 3 — New scenarios (one per new code surface)
+### V3 — New scenarios (one per new code surface)
 
 The new plan view, cook view, and shopping list handlers are pure callback handlers (no LLM calls). These scenarios run at no cost in generate mode and need only seeded store state to exercise the new code.
 
@@ -1013,7 +1013,7 @@ const activeSession: PlanSession = {
 };
 ```
 
-**Batches** — 4 batches covering Mon–Sat (Sun covered by flex + event). Cook days: Mon Apr 6 (past) and Thu Apr 9 (upcoming from clock's perspective of Wed Apr 8). Seeded ingredients must include `role` on every entry per the C0 interface change:
+**Batches** — 4 batches covering Mon–Sat (Sun covered by flex + event). Cook days: Mon Apr 6 (past) and Thu Apr 9 (upcoming from clock's perspective of Wed Apr 8). Seeded ingredients must include `role` on every entry per the Phase 2 interface change:
 
 ```typescript
 const activeBatches: Batch[] = [
@@ -1103,7 +1103,7 @@ const activeBatches: Batch[] = [
 
 #### Scenario 018: `018-plan-view-navigation`
 
-**Purpose:** Exercises Agent A screens (Next Action, Week Overview, Day Detail) and Agent B cook view, connected through the natural navigation flow.
+**Purpose:** Exercises plan view screens (Next Action, Week Overview, Day Detail) and cook view, connected through the natural navigation flow.
 
 **Clock:** `2026-04-08T10:00:00Z` (Wednesday — `active_mid` lifecycle, next cook day = Thu Apr 9)
 
@@ -1134,7 +1134,7 @@ events: [
 
 #### Scenario 019: `019-shopping-list-tiered`
 
-**Purpose:** Exercises Agent C shopping list — `sl_next` path from main menu and `sl_{date}` path from a direct callback — verifying three-tier ingredient output and breakfast annotation.
+**Purpose:** Exercises shopping list — `sl_next` path from main menu and `sl_{date}` path from a direct callback — verifying three-tier ingredient output and breakfast annotation.
 
 **Clock:** `2026-04-08T10:00:00Z`
 
@@ -1165,9 +1165,9 @@ events: [
 
 ---
 
-#### Scenario 001 regeneration after Step A7
+#### Scenario 001 regeneration after Step 3.7
 
-Step A7 changes the post-confirmation message (currently "Plan locked for ... Shopping list ready." with two stub buttons). After A7 is implemented, the output of `click('plan_approve')` in scenario 001 changes. Regenerate:
+Step 3.7 changes the post-confirmation message (currently "Plan locked for ... Shopping list ready." with two stub buttons). After 3.7 is implemented, the output of `click('plan_approve')` in scenario 001 changes. Regenerate:
 
 ```bash
 npm run test:generate -- 001-plan-week-happy-path --regenerate
@@ -1177,9 +1177,9 @@ Verify that only the post-confirmation reply changed (text + keyboard). All prio
 
 ---
 
-### Phase 4 — Full npm test after all agents complete
+### V4 — Full npm test after all phases complete
 
-After all three agents finish their steps:
+After all phases finish:
 
 ```bash
 npm test
@@ -1189,7 +1189,7 @@ All scenarios must pass, including the two new 018 and 019 scenarios.
 
 ---
 
-### Phase 5 — Manual Telegram verification (`npm run dev`)
+### V5 — Manual Telegram verification (`npm run dev`)
 
 Reserve for the final UX sanity check — not the primary feedback loop:
 
@@ -1207,5 +1207,5 @@ After scenarios 018 and 019 are authored, add them to the table:
 
 | # | Name | What it tests |
 |---|------|---------------|
-| 018 | plan-view-navigation | Active-plan navigation: My Plan → Next Action → Week Overview → Day Detail → Cook view → back to plan. Exercises Agent A screens and Agent B cook view handler. |
+| 018 | plan-view-navigation | Active-plan navigation: My Plan → Next Action → Week Overview → Day Detail → Cook view → back to plan. Exercises plan view screens and cook view handler. |
 | 019 | shopping-list-tiered | Three-tier shopping list: sl_next + sl_{date} with role-enriched ingredients. Verifies tier-1 exclusion, tier-2 checkYouHave, tier-3 category grouping, and breakfast annotation. |
