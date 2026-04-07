@@ -67,7 +67,7 @@ export interface StateStoreLike {
   ): Promise<PlanSession>;
 
   /** Session whose horizon contains today. At most one (D15 sequential invariant). */
-  getRunningPlanSession(): Promise<PlanSession | null>;
+  getRunningPlanSession(today?: string): Promise<PlanSession | null>;
 
   /** Sessions with horizon_start > today, earliest first. NOT superseded. */
   getFuturePlanSessions(): Promise<PlanSession[]>;
@@ -90,6 +90,9 @@ export interface StateStoreLike {
 
   /** All batches created in a given plan session. */
   getBatchesByPlanSessionId(id: string): Promise<Batch[]>;
+
+  /** Retrieve a single batch by ID. */
+  getBatch(id: string): Promise<Batch | null>;
 
   /** Retrieve a single plan session by ID. */
   getPlanSession(id: string): Promise<PlanSession | null>;
@@ -188,15 +191,15 @@ export class StateStore implements StateStoreLike {
     return fromPlanSessionRow(data);
   }
 
-  async getRunningPlanSession(): Promise<PlanSession | null> {
-    const today = new Date().toISOString().slice(0, 10);
+  async getRunningPlanSession(today?: string): Promise<PlanSession | null> {
+    const effectiveToday = today ?? new Date().toISOString().slice(0, 10);
     const { data, error } = await this.client
       .from('plan_sessions')
       .select('*')
       .eq('user_id', SINGLE_USER_ID)
       .eq('superseded', false)
-      .lte('horizon_start', today)
-      .gte('horizon_end', today)
+      .lte('horizon_start', effectiveToday)
+      .gte('horizon_end', effectiveToday)
       .limit(1)
       .single();
     if (error) return null;
@@ -267,6 +270,16 @@ export class StateStore implements StateStoreLike {
       .eq('created_in_plan_session_id', id);
     if (error || !data) return [];
     return data.map(fromBatchRow);
+  }
+
+  async getBatch(id: string): Promise<Batch | null> {
+    const { data, error } = await this.client
+      .from('batches')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return null;
+    return fromBatchRow(data);
   }
 
   // ─── Session State ───────────────────────────────────────────────────────

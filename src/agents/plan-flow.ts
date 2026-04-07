@@ -86,6 +86,8 @@ export interface PlanFlowState {
   recipeGenMessages?: ChatMessage[];
   /** Recipe being reviewed within the flow (for gap resolution) */
   currentRecipe?: Recipe;
+  /** The formatted proposal text, stored for resume view reconstruction. */
+  proposalText?: string;
 
   // ─── Plan 007: rolling-horizon fields (strangler-fig — coexist with weekStart/weekDays) ───
 
@@ -1903,7 +1905,9 @@ function formatPlanProposal(state: PlanFlowState): string {
     }
   }
 
-  return parts.join('\n');
+  const text = parts.join('\n');
+  state.proposalText = text;
+  return text;
 }
 
 // ─── Formatting helpers ─────────────────────────────────────────────────────────

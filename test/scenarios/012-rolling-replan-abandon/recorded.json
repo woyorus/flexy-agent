@@ -10,12 +10,12 @@
           "kind": "reply",
           "buttons": [
             [
-              "📋 Plan Week",
+              "📋 My Plan",
               "🛒 Shopping List"
             ],
             [
               "📖 My Recipes",
-              "📊 Weekly Budget"
+              "📊 Progress"
             ]
           ],
           "persistent": true,
@@ -23,39 +23,39 @@
         }
       },
       {
-        "text": "You already have a plan for Mon, Apr 13 – Sun, Apr 19. Replan it?",
+        "text": "Your plan is active. Next Action view is coming soon!",
         "keyboard": {
-          "kind": "inline",
+          "kind": "reply",
           "buttons": [
             [
-              {
-                "label": "Replan it",
-                "callback": "plan_replan_confirm"
-              },
-              {
-                "label": "Keep current plan",
-                "callback": "plan_replan_cancel"
-              }
+              "📋 My Plan",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Progress"
             ]
-          ]
+          ],
+          "persistent": true,
+          "resized": true
         }
       },
       {
-        "text": "Planning Mon, Apr 13 – Sun, Apr 19.\n\nBreakfast: keep Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt (658 cal/day)?",
+        "text": "No pending replan. Tap Plan Week again.",
         "keyboard": {
-          "kind": "inline",
+          "kind": "reply",
           "buttons": [
             [
-              {
-                "label": "Keep it",
-                "callback": "plan_keep_breakfast"
-              },
-              {
-                "label": "Change this week",
-                "callback": "plan_change_breakfast"
-              }
+              "📋 My Plan",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Progress"
             ]
-          ]
+          ],
+          "persistent": true,
+          "resized": true
         }
       },
       {
@@ -64,12 +64,12 @@
           "kind": "reply",
           "buttons": [
             [
-              "📋 Plan Week",
+              "📋 My Plan",
               "🛒 Shopping List"
             ],
             [
               "📖 My Recipes",
-              "📊 Weekly Budget"
+              "📊 Progress"
             ]
           ],
           "persistent": true,
@@ -79,38 +79,9 @@
     ],
     "finalSession": {
       "recipeFlow": null,
-      "planFlow": {
-        "phase": "context",
-        "weekStart": "2026-04-13",
-        "weekDays": [
-          "2026-04-13",
-          "2026-04-14",
-          "2026-04-15",
-          "2026-04-16",
-          "2026-04-17",
-          "2026-04-18",
-          "2026-04-19"
-        ],
-        "horizonStart": "2026-04-13",
-        "horizonDays": [
-          "2026-04-13",
-          "2026-04-14",
-          "2026-04-15",
-          "2026-04-16",
-          "2026-04-17",
-          "2026-04-18",
-          "2026-04-19"
-        ],
-        "breakfast": {
-          "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
-          "name": "Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt",
-          "caloriesPerDay": 658,
-          "proteinPerDay": 41
-        },
-        "events": [],
-        "replacingSessionId": "session-b-future-00000000-0000-0000-0000-000000000002"
-      },
-      "recipeListPage": 0
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "plan"
     },
     "finalStore": {
       "session": null,

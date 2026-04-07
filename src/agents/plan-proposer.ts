@@ -605,16 +605,14 @@ export function getWeekDays(weekStart: string): string[] {
 }
 
 /**
- * Format a Date as an ISO date string (YYYY-MM-DD) using LOCAL time, not UTC.
- * Using toISOString() would shift dates back by one day in positive-offset
- * timezones (e.g., Europe/Madrid: midnight local = 22:00 previous day UTC).
+ * Re-export from canonical location (`src/plan/helpers.ts`).
+ * Kept here for backward compatibility — existing imports from plan-flow.ts
+ * and plan-utils.ts continue to work without churn.
+ *
+ * Also used internally by `getWeekDays()` above, so the import is load-bearing.
  */
-export function toLocalISODate(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
+import { toLocalISODate } from '../plan/helpers.js';
+export { toLocalISODate };
 
 /**
  * Map the raw LLM JSON response to a typed PlanProposal.

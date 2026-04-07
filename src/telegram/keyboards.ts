@@ -12,7 +12,29 @@
  * transitions via callback data strings.
  */
 
+/**
+ * Callback data prefix registry.
+ *
+ * Telegram limits callback data to 64 bytes. All inline keyboard callbacks
+ * use short prefixes to maximize space for payload (slugs, IDs, indices).
+ *
+ * Existing:
+ *   rv_  — recipe view (payload: slug)
+ *   rd_  — recipe delete (payload: slug)
+ *   re_  — recipe edit (payload: slug)
+ *   rp_  — recipe page (payload: page number)
+ *
+ * New (v0.0.4):
+ *   na_  — next action (payload: action type)
+ *   wo_  — week overview (payload: varies)
+ *   dd_  — day detail (payload: ISO date, e.g. dd_2026-04-06)
+ *   cv_  — cook view (payload: batch ID)
+ *   sl_  — shopping list (payload: varies)
+ *   pg_  — progress (payload: varies)
+ */
+
 import { Keyboard, InlineKeyboard } from 'grammy';
+import type { PlanLifecycle } from '../plan/helpers.js';
 
 /**
  * Telegram limits callback data to 64 bytes. With a 3-char prefix (rv_, rd_, re_),
@@ -27,15 +49,28 @@ export function truncateSlug(slug: string): string {
 // ─── Reply keyboard (persistent main menu) ───────────────────────────────────
 
 /**
- * The persistent reply keyboard shown at the bottom of the chat.
- * Four core actions (see docs/product-specs/ui.md).
+ * Build the persistent reply keyboard for the main menu.
+ *
+ * The top-left label changes based on the user's plan lifecycle:
+ * - `no_plan` → "Plan Week" (start a new plan)
+ * - `planning` → "Resume Plan" (continue in-progress planning)
+ * - `active_*` → "My Plan" (view the active plan)
+ *
+ * Bottom-right is always "Progress" (renamed from "Weekly Budget" in v0.0.4).
  */
-export const mainMenuKeyboard = new Keyboard()
-  .text('📋 Plan Week').text('🛒 Shopping List')
-  .row()
-  .text('📖 My Recipes').text('📊 Weekly Budget')
-  .resized()
-  .persistent();
+export function buildMainMenuKeyboard(lifecycle: PlanLifecycle): Keyboard {
+  const planLabel =
+    lifecycle === 'planning' ? '📋 Resume Plan' :
+    lifecycle === 'no_plan' ? '📋 Plan Week' :
+    '📋 My Plan';
+
+  return new Keyboard()
+    .text(planLabel).text('🛒 Shopping List')
+    .row()
+    .text('📖 My Recipes').text('📊 Progress')
+    .resized()
+    .persistent();
+}
 
 // ─── Inline keyboards (flow-specific) ────────────────────────────────────────
 

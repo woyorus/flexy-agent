@@ -164,10 +164,10 @@ export class TestStateStore implements StateStoreLike {
    * Session whose horizon contains today. At most one by D15 invariant.
    * Mirrors StateStore.getRunningPlanSession.
    */
-  async getRunningPlanSession(): Promise<PlanSession | null> {
-    const today = this.getToday();
+  async getRunningPlanSession(today?: string): Promise<PlanSession | null> {
+    const effectiveToday = today ?? this.getToday();
     const candidates = [...this.planSessionsById.values()].filter(
-      (ps) => !ps.superseded && ps.horizonStart <= today && ps.horizonEnd >= today,
+      (ps) => !ps.superseded && ps.horizonStart <= effectiveToday && ps.horizonEnd >= effectiveToday,
     );
     return candidates.length > 0 ? cloneDeep(candidates[0]!) : null;
   }
@@ -235,6 +235,11 @@ export class TestStateStore implements StateStoreLike {
       if (b.createdInPlanSessionId === id) result.push(cloneDeep(b));
     }
     return result;
+  }
+
+  async getBatch(id: string): Promise<Batch | null> {
+    const b = this.batchesById.get(id);
+    return b ? cloneDeep(b) : null;
   }
 
   // ─── Harness introspection ─────────────────────────────────────────────

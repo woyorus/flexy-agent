@@ -67,7 +67,7 @@ import type { Keyboard, InlineKeyboard } from 'grammy';
 import { config } from '../config.js';
 import { log } from '../debug/logger.js';
 import {
-  mainMenuKeyboard,
+  buildMainMenuKeyboard,
   mealTypeKeyboard,
   recipeReviewKeyboard,
   recipeListKeyboard,
@@ -81,6 +81,8 @@ import {
   planGapRecipeReviewKeyboard,
   planConfirmedKeyboard,
 } from './keyboards.js';
+import { getPlanLifecycle, toLocalISODate } from '../plan/helpers.js';
+import type { PlanLifecycle } from '../plan/helpers.js';
 import type { LLMProvider } from '../ai/provider.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import type { Recipe } from '../models/types.js';
@@ -170,6 +172,10 @@ export interface BotCoreSession {
   recipeListPage: number;
   /** D27: pending replan confirmation — set when Plan Week detects a future session */
   pendingReplan?: { replacingSession: import('../models/types.js').PlanSession };
+  /** Which screen the user is currently looking at. Used by free-text fallback and back-button nav. */
+  surfaceContext: 'plan' | 'cooking' | 'shopping' | 'recipes' | 'progress' | null;
+  /** Slug of the last recipe viewed — for contextual back navigation. */
+  lastRecipeSlug?: string;
 }
 
 /**
@@ -201,7 +207,19 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     recipeFlow: null,
     planFlow: null,
     recipeListPage: 0,
+    surfaceContext: null,
   };
+
+  // ─── Lifecycle-aware menu keyboard ─────────────────────────────────────
+  /**
+   * Build the main menu keyboard with lifecycle-aware labels.
+   * Calls getPlanLifecycle() which hits the store (single-row lookup).
+   */
+  async function getMenuKeyboard(): Promise<import('grammy').Keyboard> {
+    const today = toLocalISODate(new Date());
+    const lifecycle = await getPlanLifecycle(session, store, today);
+    return buildMainMenuKeyboard(lifecycle);
+  }
 
   // ─── Dispatch ──────────────────────────────────────────────────────────
   //
@@ -245,14 +263,20 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
   async function handleCommand(command: string, sink: OutputSink): Promise<void> {
     if (command === 'start') {
       session.recipeFlow = null;
+      session.planFlow = null;
+      session.pendingReplan = undefined;
+      session.surfaceContext = null;
+      session.lastRecipeSlug = undefined;
       await sink.reply('Welcome to Flexie! Use the menu below to get started.', {
-        reply_markup: mainMenuKeyboard,
+        reply_markup: await getMenuKeyboard(),
       });
       return;
     }
     if (command === 'cancel') {
       session.recipeFlow = null;
-      await sink.reply('Cancelled.', { reply_markup: mainMenuKeyboard });
+      session.planFlow = null;
+      session.pendingReplan = undefined;
+      await sink.reply('Cancelled.', { reply_markup: await getMenuKeyboard() });
       return;
     }
   }
@@ -278,7 +302,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         const result = await handleSave(session.recipeFlow, recipes);
         log.debug('FLOW', `recipe saved: ${session.recipeFlow.currentRecipe.name}`);
         session.recipeFlow = null;
-        await sink.reply(result.text, { reply_markup: mainMenuKeyboard });
+        await sink.reply(result.text, { reply_markup: await getMenuKeyboard() });
       }
       return;
     }
@@ -302,7 +326,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     if (action === 'discard_recipe') {
       session.recipeFlow = null;
       log.debug('FLOW', 'recipe discarded');
-      await sink.reply('Discarded.', { reply_markup: mainMenuKeyboard });
+      await sink.reply('Discarded.', { reply_markup: await getMenuKeyboard() });
       return;
     }
 
@@ -319,10 +343,12 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       const slug = action.slice(3);
       const recipe = recipes.getBySlug(slug) ?? findBySlugPrefix(recipes, slug);
       if (recipe) {
+        session.surfaceContext = 'recipes';
+        session.lastRecipeSlug = recipe.slug;
         log.debug('FLOW', `recipe view: ${slug}`);
         await sink.reply(renderRecipe(recipe), { reply_markup: recipeViewKeyboard(slug) });
       } else {
-        await sink.reply('Recipe not found.', { reply_markup: mainMenuKeyboard });
+        await sink.reply('Recipe not found.', { reply_markup: await getMenuKeyboard() });
       }
       return;
     }
@@ -338,7 +364,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         session.recipeListPage = 0;
         await showRecipeList(sink);
       } else {
-        await sink.reply('Recipe not found.', { reply_markup: mainMenuKeyboard });
+        await sink.reply('Recipe not found.', { reply_markup: await getMenuKeyboard() });
       }
       return;
     }
@@ -353,7 +379,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         log.debug('FLOW', `editing recipe: ${slug}`);
         await sink.reply('What would you like to change? (e.g., "swap beef for chicken", "less oil", "add a side salad")');
       } else {
-        await sink.reply('Recipe not found.', { reply_markup: mainMenuKeyboard });
+        await sink.reply('Recipe not found.', { reply_markup: await getMenuKeyboard() });
       }
       return;
     }
@@ -379,11 +405,15 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     // Post-plan-confirmation actions
     if (action === 'view_shopping_list') {
       session.planFlow = null;
-      await sink.reply('Shopping list generation is coming soon!', { reply_markup: mainMenuKeyboard });
+      session.surfaceContext = 'shopping';
+      session.lastRecipeSlug = undefined;
+      await sink.reply('Shopping list generation is coming soon!', { reply_markup: await getMenuKeyboard() });
       return;
     }
     if (action === 'view_plan_recipes') {
       session.planFlow = null;
+      session.surfaceContext = 'recipes';
+      session.lastRecipeSlug = undefined;
       session.recipeListPage = 0;
       await showRecipeList(sink);
       return;
@@ -393,7 +423,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     if (action === 'plan_replan_confirm') {
       const pending = session.pendingReplan;
       if (!pending) {
-        await sink.reply('No pending replan. Tap Plan Week again.', { reply_markup: mainMenuKeyboard });
+        await sink.reply('No pending replan. Tap Plan Week again.', { reply_markup: await getMenuKeyboard() });
         return;
       }
       session.pendingReplan = undefined;
@@ -407,7 +437,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
     if (action === 'plan_replan_cancel') {
       session.pendingReplan = undefined;
-      await sink.reply('Plan kept. Tap Plan Week again to plan the week after.', { reply_markup: mainMenuKeyboard });
+      await sink.reply('Plan kept. Tap Plan Week again to plan the week after.', { reply_markup: await getMenuKeyboard() });
       return;
     }
 
@@ -485,7 +515,9 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         const stopTyping = sink.startTyping();
         try {
           const result = await handleApprove(session.planFlow, store, recipes, llm);
-          session.planFlow = result.state;
+          // Plan is persisted — clear the in-progress flow state.
+          // getPlanLifecycle() will now return active_* based on the persisted session.
+          session.planFlow = null;
           stopTyping();
           await sink.reply(result.text, { reply_markup: planConfirmedKeyboard });
         } catch (err) {
@@ -504,7 +536,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
       if (action === 'plan_cancel') {
         session.planFlow = null;
-        await sink.reply('Planning cancelled.', { reply_markup: mainMenuKeyboard });
+        await sink.reply('Planning cancelled.', { reply_markup: await getMenuKeyboard() });
         return;
       }
 
@@ -639,12 +671,79 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     );
   }
 
+  /**
+   * Build a resume view for an in-progress planning flow.
+   * Shows the user where they left off and re-displays the appropriate keyboard.
+   */
+  function getPlanFlowResumeView(state: PlanFlowState): {
+    text: string;
+    replyMarkup?: InlineKeyboard | Keyboard;
+  } {
+    switch (state.phase) {
+      case 'context': {
+        const weekEnd = state.weekDays[6]!;
+        return {
+          text: `Planning ${formatDateForMessage(state.weekStart)} – ${formatDateForMessage(weekEnd)}. Breakfast: keep ${state.breakfast.name}?`,
+          replyMarkup: planBreakfastKeyboard,
+        };
+      }
+      case 'awaiting_events': {
+        const kb = state.events.length === 0 ? planEventsKeyboard : planMoreEventsKeyboard;
+        return {
+          text: "You're adding events for the week. Send another event or tap Done.",
+          replyMarkup: kb,
+        };
+      }
+      case 'generating_proposal':
+      case 'generating_recipe':
+        return { text: 'Still working on it…' };
+      case 'recipe_suggestion': {
+        const gap = state.pendingGaps?.[state.activeGapIndex ?? 0];
+        const gapText = gap
+          ? `Need a recipe for ${gap.mealType} on ${gap.days.map(formatDateForMessage).join(', ')}. What would you like?`
+          : 'Resolving recipe gaps…';
+        return {
+          text: gapText,
+          replyMarkup: planRecipeGapKeyboard(state.activeGapIndex ?? 0),
+        };
+      }
+      case 'awaiting_recipe_prefs':
+        return { text: 'What kind of recipe do you want?' };
+      case 'reviewing_recipe': {
+        if (state.currentRecipe) {
+          return {
+            text: renderRecipe(state.currentRecipe),
+            replyMarkup: planGapRecipeReviewKeyboard,
+          };
+        }
+        // Edge case: no currentRecipe — fall through to recipe_suggestion behavior
+        return {
+          text: 'Resolving recipe gaps…',
+          replyMarkup: planRecipeGapKeyboard(state.activeGapIndex ?? 0),
+        };
+      }
+      case 'proposal':
+        return {
+          text: state.proposalText ?? 'Your plan is ready for review.',
+          replyMarkup: planProposalKeyboard,
+        };
+      case 'awaiting_swap':
+        return { text: 'Tell me what you\'d like to swap.' };
+      case 'confirmed':
+        // Should not reach here (handled by lifecycle guard)
+        return { text: 'Plan already confirmed.' };
+    }
+  }
+
   async function handleMenu(action: string, sink: OutputSink): Promise<void> {
-    session.recipeFlow = null; // exit any active flow
-    session.planFlow = null;
+    session.recipeFlow = null; // exit any recipe flow
+    // planFlow is NOT cleared here. It persists until the user
+    // explicitly confirms the plan or cancels via /cancel.
 
     switch (action) {
       case 'my_recipes': {
+        session.surfaceContext = 'recipes';
+        session.lastRecipeSlug = undefined;
         const all = recipes.getAll();
         if (all.length === 0) {
           session.recipeFlow = createRecipeFlowState();
@@ -658,14 +757,37 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
       case 'plan_week': {
-        // Check if we have lunch/dinner recipes to plan with
+        session.surfaceContext = 'plan';
+        session.lastRecipeSlug = undefined;
+        const today = toLocalISODate(new Date());
+        const lifecycle = await getPlanLifecycle(session, store, today);
+
+        // Planning in progress → resume where they left off
+        if (lifecycle === 'planning' && session.planFlow) {
+          const resumeView = getPlanFlowResumeView(session.planFlow);
+          await sink.reply(resumeView.text, resumeView.replyMarkup
+            ? { reply_markup: resumeView.replyMarkup }
+            : undefined);
+          return;
+        }
+
+        // Active plan → stub placeholder for Next Action (Agent A will implement)
+        if (lifecycle.startsWith('active_')) {
+          await sink.reply(
+            'Your plan is active. Next Action view is coming soon!',
+            { reply_markup: await getMenuKeyboard() },
+          );
+          return;
+        }
+
+        // no_plan → check recipe gate, then start new plan
         const lunchDinnerRecipes = recipes
           .getAll()
           .filter((r) => r.mealTypes.includes('lunch') || r.mealTypes.includes('dinner'));
         if (lunchDinnerRecipes.length === 0) {
           await sink.reply(
             'You need some lunch/dinner recipes first. Add a few, then come back to plan your week!',
-            { reply_markup: mainMenuKeyboard },
+            { reply_markup: await getMenuKeyboard() },
           );
           return;
         }
@@ -690,10 +812,19 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
       case 'shopping_list':
-        await sink.reply('No active plan yet. Plan your week first!', { reply_markup: mainMenuKeyboard });
+        session.surfaceContext = 'shopping';
+        session.lastRecipeSlug = undefined;
+        await sink.reply('No active plan yet. Plan your week first!', { reply_markup: await getMenuKeyboard() });
+        return;
+      case 'progress':
+        session.surfaceContext = 'progress';
+        session.lastRecipeSlug = undefined;
+        await sink.reply('Progress is coming soon.', { reply_markup: await getMenuKeyboard() });
         return;
       case 'weekly_budget':
-        await sink.reply('No active plan yet.', { reply_markup: mainMenuKeyboard });
+        session.surfaceContext = 'progress';
+        session.lastRecipeSlug = undefined;
+        await sink.reply('No active plan yet.', { reply_markup: await getMenuKeyboard() });
         return;
     }
   }
@@ -709,7 +840,77 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
   // ─── Free-form text / voice routing ────────────────────────────────────
   async function handleTextInput(text: string, sink: OutputSink): Promise<void> {
-    // If in plan flow, route there first
+    // Recipe flow checked first: when both planFlow and recipeFlow are active
+    // (user started recipe creation during a planning side trip), text must
+    // reach recipeFlow. planFlow's non-text phases would silently swallow it.
+    if (session.recipeFlow) {
+      if (session.recipeFlow.phase === 'awaiting_preferences') {
+        await sink.reply('Generating your recipe — this usually takes a minute or two...');
+        const stopTyping = sink.startTyping();
+        try {
+          const result = await handlePreferencesAndGenerate(session.recipeFlow, text, llm);
+          session.recipeFlow = result.state;
+          stopTyping();
+          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard });
+        } catch (err) {
+          stopTyping();
+          throw err;
+        }
+        return;
+      }
+
+      if (session.recipeFlow.phase === 'awaiting_refinement') {
+        await sink.reply('Refining your recipe...');
+        const stopTyping = sink.startTyping();
+        try {
+          const result = await handleRefinement(session.recipeFlow, text, llm);
+          session.recipeFlow = result.state;
+          stopTyping();
+          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard });
+        } catch (err) {
+          stopTyping();
+          throw err;
+        }
+        return;
+      }
+
+      if (session.recipeFlow.phase === 'reviewing') {
+        // Classify intent: is this a question or a refinement request?
+        const stopTyping = sink.startTyping();
+        const intent = await classifyReviewIntent(text, llm);
+        log.debug('FLOW', `review intent: ${intent}`);
+
+        if (intent === 'question') {
+          try {
+            const result = await handleRecipeQuestion(session.recipeFlow, text, llm);
+            session.recipeFlow = result.state;
+            stopTyping();
+            await sink.reply(result.text);
+          } catch (err) {
+            stopTyping();
+            throw err;
+          }
+          return;
+        }
+
+        // It's a refinement — generate updated recipe
+        stopTyping();
+        await sink.reply('Refining your recipe...');
+        const stopTyping2 = sink.startTyping();
+        try {
+          const result = await handleRefinement(session.recipeFlow, text, llm);
+          session.recipeFlow = result.state;
+          stopTyping2();
+          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard });
+        } catch (err) {
+          stopTyping2();
+          throw err;
+        }
+        return;
+      }
+    }
+
+    // If in plan flow, route there
     if (session.planFlow) {
       if (session.planFlow.phase === 'awaiting_events') {
         const stopTyping = sink.startTyping();
@@ -780,74 +981,6 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       return;
     }
 
-    // If in recipe flow, route there
-    if (session.recipeFlow) {
-      if (session.recipeFlow.phase === 'awaiting_preferences') {
-        await sink.reply('Generating your recipe — this usually takes a minute or two...');
-        const stopTyping = sink.startTyping();
-        try {
-          const result = await handlePreferencesAndGenerate(session.recipeFlow, text, llm);
-          session.recipeFlow = result.state;
-          stopTyping();
-          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard });
-        } catch (err) {
-          stopTyping();
-          throw err;
-        }
-        return;
-      }
-
-      if (session.recipeFlow.phase === 'awaiting_refinement') {
-        await sink.reply('Refining your recipe...');
-        const stopTyping = sink.startTyping();
-        try {
-          const result = await handleRefinement(session.recipeFlow, text, llm);
-          session.recipeFlow = result.state;
-          stopTyping();
-          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard });
-        } catch (err) {
-          stopTyping();
-          throw err;
-        }
-        return;
-      }
-
-      if (session.recipeFlow.phase === 'reviewing') {
-        // Classify intent: is this a question or a refinement request?
-        const stopTyping = sink.startTyping();
-        const intent = await classifyReviewIntent(text, llm);
-        log.debug('FLOW', `review intent: ${intent}`);
-
-        if (intent === 'question') {
-          try {
-            const result = await handleRecipeQuestion(session.recipeFlow, text, llm);
-            session.recipeFlow = result.state;
-            stopTyping();
-            await sink.reply(result.text);
-          } catch (err) {
-            stopTyping();
-            throw err;
-          }
-          return;
-        }
-
-        // It's a refinement — generate updated recipe
-        stopTyping();
-        await sink.reply('Refining your recipe...');
-        const stopTyping2 = sink.startTyping();
-        try {
-          const result = await handleRefinement(session.recipeFlow, text, llm);
-          session.recipeFlow = result.state;
-          stopTyping2();
-          await sink.reply(result.text, { reply_markup: recipeReviewKeyboard });
-        } catch (err) {
-          stopTyping2();
-          throw err;
-        }
-        return;
-      }
-    }
-
     // Not in a flow — check if they want to view a specific recipe
     const recipe = recipes
       .getAll()
@@ -862,7 +995,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       return;
     }
 
-    await sink.reply('Use the menu buttons below to get started.', { reply_markup: mainMenuKeyboard });
+    await sink.reply('Use the menu buttons below to get started.', { reply_markup: await getMenuKeyboard() });
   }
 
   // ─── Reset (for harness scenarios) ─────────────────────────────────────
@@ -870,6 +1003,9 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     session.recipeFlow = null;
     session.planFlow = null;
     session.recipeListPage = 0;
+    session.surfaceContext = null;
+    session.lastRecipeSlug = undefined;
+    session.pendingReplan = undefined;
   }
 
   return { session, dispatch, reset };
@@ -885,9 +1021,12 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 function matchMainMenu(text: string): string | null {
   const menuMap: Record<string, string> = {
     '📋 Plan Week': 'plan_week',
+    '📋 Resume Plan': 'plan_week',
+    '📋 My Plan': 'plan_week',
     '🛒 Shopping List': 'shopping_list',
     '📖 My Recipes': 'my_recipes',
-    '📊 Weekly Budget': 'weekly_budget',
+    '📊 Progress': 'progress',
+    '📊 Weekly Budget': 'weekly_budget', // fallback alias during transition
   };
   return menuMap[text] ?? null;
 }

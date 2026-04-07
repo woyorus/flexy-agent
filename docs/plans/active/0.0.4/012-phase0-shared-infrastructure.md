@@ -1,6 +1,6 @@
 # Plan 012: Phase 0 — Shared Infrastructure
 
-**Status:** Active
+**Status:** Complete
 **Date:** 2026-04-07
 **Affects:** `src/plan/helpers.ts` (NEW), `src/telegram/keyboards.ts`, `src/telegram/core.ts`, `src/agents/plan-flow.ts`, `src/models/types.ts`, `src/state/store.ts`, `src/harness/test-store.ts`
 
@@ -370,19 +370,19 @@ Add a comment block at the top of `src/telegram/keyboards.ts` (after the file do
 
 ## Progress
 
-- [ ] Step 1: Create `src/plan/helpers.ts` with lifecycle detection + plan data helpers
-- [ ] Step 2: Add `surfaceContext` and `lastRecipeSlug` to `BotCoreSession`
-- [ ] Step 3: Replace static `mainMenuKeyboard` with `buildMainMenuKeyboard(lifecycle)`
-- [ ] Step 4: Update `matchMainMenu()` + add `progress` case in `handleMenu()`
-- [ ] Step 5a: Remove unconditional planFlow destruction in `handleMenu()`
-- [ ] Step 5b: Clear planFlow on plan confirmation
-- [ ] Step 5c: Clear planFlow on `/cancel`
-- [ ] Step 5d: Add resume path for `plan_week` action
-- [ ] Step 5e: Add `getPlanFlowResumeView()` to `core.ts` + `proposalText` field to `PlanFlowState`
-- [ ] Step 6: Update all 15 `mainMenuKeyboard` call sites in core.ts
-- [ ] Step 7: Add `getBatch(id)` + update `getRunningPlanSession(today?)` signature
-- [ ] Step 8: Add callback prefix registry comment block to keyboards.ts
-- [ ] Final: Run `npm test`, verify existing scenarios pass
+- [x] Step 1: Create `src/plan/helpers.ts` with lifecycle detection + plan data helpers
+- [x] Step 2: Add `surfaceContext` and `lastRecipeSlug` to `BotCoreSession`
+- [x] Step 3: Replace static `mainMenuKeyboard` with `buildMainMenuKeyboard(lifecycle)`
+- [x] Step 4: Update `matchMainMenu()` + add `progress` case in `handleMenu()`
+- [x] Step 5a: Remove unconditional planFlow destruction in `handleMenu()`
+- [x] Step 5b: Clear planFlow on plan confirmation
+- [x] Step 5c: Clear planFlow on `/cancel` and `/start`
+- [x] Step 5d: Add resume path for `plan_week` action
+- [x] Step 5e: Add `getPlanFlowResumeView()` to `core.ts` + `proposalText` field to `PlanFlowState`
+- [x] Step 6: Update all `mainMenuKeyboard` call sites in core.ts
+- [x] Step 7: Add `getBatch(id)` + update `getRunningPlanSession(today?)` signature
+- [x] Step 8: Add callback prefix registry comment block to keyboards.ts
+- [x] Final: Run `npm test`, 60/60 pass. All 13 plan scenarios regenerated. Diffs verified: menu labels, surfaceContext, planFlow null after confirm.
 
 ## Decision log
 

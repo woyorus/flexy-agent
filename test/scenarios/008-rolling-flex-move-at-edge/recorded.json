@@ -18,10 +18,10 @@
           "content": "## THIS WEEK: 2026-04-06 to 2026-04-12\nDays: Mon 2026-04-06, Tue 2026-04-07, Wed 2026-04-08, Thu 2026-04-09, Fri 2026-04-10, Sat 2026-04-11, Sun 2026-04-12\n\n## EVENTS: None this week\n\n## AVAILABLE RECIPES\n- chicken-black-bean-avocado-rice-bowl: \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" | lunch | Mexican-inspired | chicken | 893 cal, 56g P | tags: meal-prep, high-protein, microwave-friendly, gluten-free, rice-bowl, latin-inspired\n- creamy-salmon-and-shrimp-linguine: \"Creamy Salmon and Shrimp Linguine\" | dinner | Spanish-inspired Mediterranean | salmon | 867 cal, 56g P | tags: seafood, pasta, creamy, high-protein, meal-prep, easy, dinner\n- ground-beef-rigatoni-bolognese: \"Ground Beef Rigatoni Bolognese\" | dinner | Italian-inspired | beef | 888 cal, 55g P | tags: meal-prep, high-protein, pasta, beef, macro-friendly\n- mediterranean-tuna-chickpea-feta-rice-bowl: \"Mediterranean Tuna, Chickpea and Feta Rice Bowl\" | lunch | Mediterranean | tuna | 886 cal, 54.3g P | tags: meal-prep, high-protein, tuna, rice-bowl, microwave-friendly, one-container, mediterranean\n- moroccan-beef-tagine-style-skillet-with-lemon-couscous: \"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\" | dinner | Moroccan-inspired | beef | 908 cal, 56g P | tags: moroccan, beef, tagine-style, couscous, meal-prep, high-protein, dinner\n- soy-ginger-pork-rice-bowls-broccoli-carrots-scallions: \"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\" | lunch | Asian-inspired | pork | 889 cal, 57g P | tags: meal-prep, high-protein, microwave-friendly, one-container, soy-ginger, rice-bowl\n\n## RECENT PLANS: None (first week — no repeat constraints)\n\n## SLOT MATH (do this arithmetic carefully)\n- Total non-breakfast slots: 14 (7 lunches + 7 dinners)\n- Event slots taken: 0\n- Flex slots to propose (required): 1\n- Meal prep slots to cover with batches: 13\n- Available recipes: 6\n- Max coverage if all batches are 3-serving: 18\n- ✓ Existing recipes CAN cover all slots — mix 2 and 3 serving batches to hit exactly 13. Do NOT generate new recipes.\n\nCreate the best plan for this week. Use existing recipes with a mix of 2 and 3 serving batches to cover exactly 13 meal prep slots + 1 flex slot(s). Prefer 3-serving batches where possible."
         }
       ],
-      "response": "{\n  \"batches\": [\n    {\n      \"recipe_slug\": \"chicken-black-bean-avocado-rice-bowl\",\n      \"recipe_name\": \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\"2026-04-06\", \"2026-04-07\", \"2026-04-08\"],\n      \"servings\": 3\n    },\n    {\n      \"recipe_slug\": \"mediterranean-tuna-chickpea-feta-rice-bowl\",\n      \"recipe_name\": \"Mediterranean Tuna, Chickpea and Feta Rice Bowl\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\"2026-04-09\", \"2026-04-10\"],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"soy-ginger-pork-rice-bowls-broccoli-carrots-scallions\",\n      \"recipe_name\": \"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\"2026-04-11\", \"2026-04-12\"],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"creamy-salmon-and-shrimp-linguine\",\n      \"recipe_name\": \"Creamy Salmon and Shrimp Linguine\",\n      \"meal_type\": \"dinner\",\n      \"days\": [\"2026-04-06\", \"2026-04-07\"],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"ground-beef-rigatoni-bolognese\",\n      \"recipe_name\": \"Ground Beef Rigatoni Bolognese\",\n      \"meal_type\": \"dinner\",\n      \"days\": [\"2026-04-08\", \"2026-04-09\"],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"moroccan-beef-tagine-style-skillet-with-lemon-couscous\",\n      \"recipe_name\": \"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\",\n      \"meal_type\": \"dinner\",\n      \"days\": [\"2026-04-11\", \"2026-04-12\"],\n      \"servings\": 2\n    }\n  ],\n  \"flex_slots\": [\n    {\n      \"day\": \"2026-04-10\",\n      \"meal_time\": \"dinner\",\n      \"flex_bonus\": 350,\n      \"note\": \"fun Friday dinner night\"\n    }\n  ],\n  \"recipes_to_generate\": [],\n  \"reasoning\": \"All 13 meal-prep slots are covered with existing recipes using a mix of 3-serving and 2-serving batches. Lunches rotate chicken, tuna, and pork; dinners rotate seafood and beef, giving good protein and cuisine variety while keeping lunch and dinner proteins different on the same days. I placed the single flex meal on Friday dinner as the preferred social/weekend slot.\"\n}",
+      "response": "{\n  \"batches\": [\n    {\n      \"recipe_slug\": \"chicken-black-bean-avocado-rice-bowl\",\n      \"recipe_name\": \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-06\",\n        \"2026-04-07\",\n        \"2026-04-08\"\n      ],\n      \"servings\": 3\n    },\n    {\n      \"recipe_slug\": \"mediterranean-tuna-chickpea-feta-rice-bowl\",\n      \"recipe_name\": \"Mediterranean Tuna, Chickpea and Feta Rice Bowl\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-09\",\n        \"2026-04-10\"\n      ],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"soy-ginger-pork-rice-bowls-broccoli-carrots-scallions\",\n      \"recipe_name\": \"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\",\n      \"meal_type\": \"lunch\",\n      \"days\": [\n        \"2026-04-11\",\n        \"2026-04-12\"\n      ],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"creamy-salmon-and-shrimp-linguine\",\n      \"recipe_name\": \"Creamy Salmon and Shrimp Linguine\",\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-06\",\n        \"2026-04-07\"\n      ],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"ground-beef-rigatoni-bolognese\",\n      \"recipe_name\": \"Ground Beef Rigatoni Bolognese\",\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-08\",\n        \"2026-04-09\"\n      ],\n      \"servings\": 2\n    },\n    {\n      \"recipe_slug\": \"moroccan-beef-tagine-style-skillet-with-lemon-couscous\",\n      \"recipe_name\": \"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\",\n      \"meal_type\": \"dinner\",\n      \"days\": [\n        \"2026-04-11\",\n        \"2026-04-12\"\n      ],\n      \"servings\": 2\n    }\n  ],\n  \"flex_slots\": [\n    {\n      \"day\": \"2026-04-10\",\n      \"meal_time\": \"dinner\",\n      \"flex_bonus\": 350,\n      \"note\": \"fun Friday dinner night\"\n    }\n  ],\n  \"recipes_to_generate\": [],\n  \"reasoning\": \"This plan uses all 6 available recipes with exactly one 3-serving batch and five 2-serving batches to cover all 13 meal-prep slots. Friday dinner is the single flex slot, which keeps the dinner prep in clean 2-day blocks. Protein and cuisine variety are strong across the week: chicken, tuna, pork, salmon, and beef; plus Mexican, Mediterranean, Asian, Spanish/Mediterranean, Italian, and Moroccan styles. The salmon meal covers the fish/omega-3 target, and lunch/dinner protein sources stay different on overlapping days.\"\n}",
       "usage": {
         "inputTokens": 1888,
-        "outputTokens": 3736
+        "outputTokens": 5366
       }
     },
     {
@@ -62,10 +62,10 @@
           "content": "Scale this recipe:\n\n\"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" — currently 893 cal, 56g protein per serving.\n\nIngredients (per serving):\n- chicken breast, raw: 190g (role: protein)\n- black beans, canned, drained: 75g (role: carb)\n- sweetcorn kernels, frozen: 40g (role: carb)\n- small avocado: 1whole (role: fat)\n- olive oil: 22g (role: fat)\n- ground cumin: 2g (role: seasoning)\n- smoked paprika: 2g (role: seasoning)\n- salt: 2g (role: seasoning)\n- black pepper: 1g (role: seasoning)\n- basmati rice, dry: 38g (role: base)\n- large tomato: 1whole (role: vegetable)\n- small red onion: 0.5whole (role: vegetable)\n- lime, juiced: 1whole (role: seasoning)\n- fresh coriander (cilantro): 5g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"chicken breast, raw\", \"amount\": 190, \"unit\": \"g\", \"total_for_batch\": 570 },\n    { \"name\": \"black beans, canned, drained\", \"amount\": 70, \"unit\": \"g\", \"total_for_batch\": 210 },\n    { \"name\": \"sweetcorn kernels, frozen\", \"amount\": 35, \"unit\": \"g\", \"total_for_batch\": 105 },\n    { \"name\": \"small avocado\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 3 },\n    { \"name\": \"olive oil\", \"amount\": 15, \"unit\": \"g\", \"total_for_batch\": 45 },\n    { \"name\": \"ground cumin\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"smoked paprika\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"black pepper\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 35, \"unit\": \"g\", \"total_for_batch\": 105 },\n    { \"name\": \"large tomato\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 3 },\n    { \"name\": \"small red onion\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1.5 },\n    { \"name\": \"lime, juiced\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 3 },\n    { \"name\": \"fresh coriander (cilantro)\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 }\n  ],\n  \"actual_per_serving\": { \"calories\": 801, \"protein\": 55, \"fat\": 29, \"carbs\": 80 }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"chicken breast, raw\", \"amount\": 190, \"unit\": \"g\", \"total_for_batch\": 570 },\n    { \"name\": \"black beans, canned, drained\", \"amount\": 75, \"unit\": \"g\", \"total_for_batch\": 225 },\n    { \"name\": \"sweetcorn kernels, frozen\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"small avocado\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 3 },\n    { \"name\": \"olive oil\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 30 },\n    { \"name\": \"ground cumin\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"smoked paprika\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"black pepper\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 38, \"unit\": \"g\", \"total_for_batch\": 114 },\n    { \"name\": \"large tomato\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 3 },\n    { \"name\": \"small red onion\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 1.5 },\n    { \"name\": \"lime, juiced\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 3 },\n    { \"name\": \"fresh coriander (cilantro)\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 }\n  ],\n  \"actual_per_serving\": {\n    \"calories\": 799,\n    \"protein\": 56,\n    \"fat\": 31,\n    \"carbs\": 74\n  }\n}",
       "usage": {
         "inputTokens": 786,
-        "outputTokens": 2367
+        "outputTokens": 2207
       }
     },
     {
@@ -84,10 +84,10 @@
           "content": "Scale this recipe:\n\n\"Mediterranean Tuna, Chickpea and Feta Rice Bowl\" — currently 886 cal, 54.3g protein per serving.\n\nIngredients (per serving):\n- canned tuna in water, drained: 140g (role: protein)\n- canned chickpeas, drained: 60g (role: carb)\n- extra virgin olive oil: 25g (role: fat)\n- feta cheese: 50g (role: fat)\n- pitted green olives, drained: 35g (role: fat)\n- cherry tomatoes: 100g (role: vegetable)\n- red bell pepper: 100g (role: vegetable)\n- red onion: 30g (role: vegetable)\n- lemon juice: 15ml (role: seasoning)\n- parsley: 5g (role: seasoning)\n- basmati rice, dry: 50g (role: base)\n- fine salt: 1g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 2\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"canned tuna in water, drained\", \"amount\": 155, \"unit\": \"g\", \"total_for_batch\": 310 },\n    { \"name\": \"canned chickpeas, drained\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 100 },\n    { \"name\": \"extra virgin olive oil\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 40 },\n    { \"name\": \"feta cheese\", \"amount\": 45, \"unit\": \"g\", \"total_for_batch\": 90 },\n    { \"name\": \"pitted green olives, drained\", \"amount\": 30, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"cherry tomatoes\", \"amount\": 100, \"unit\": \"g\", \"total_for_batch\": 200 },\n    { \"name\": \"red bell pepper\", \"amount\": 100, \"unit\": \"g\", \"total_for_batch\": 200 },\n    { \"name\": \"red onion\", \"amount\": 30, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"lemon juice\", \"amount\": 15, \"unit\": \"ml\", \"total_for_batch\": 30 },\n    { \"name\": \"parsley\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 10 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 100 },\n    { \"name\": \"fine salt\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 2 }\n  ],\n  \"actual_per_serving\": { \"calories\": 803, \"protein\": 55, \"fat\": 39, \"carbs\": 58 }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"canned tuna in water, drained\", \"amount\": 140, \"unit\": \"g\", \"total_for_batch\": 280 },\n    { \"name\": \"canned chickpeas, drained\", \"amount\": 55, \"unit\": \"g\", \"total_for_batch\": 110 },\n    { \"name\": \"extra virgin olive oil\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 40 },\n    { \"name\": \"feta cheese\", \"amount\": 45, \"unit\": \"g\", \"total_for_batch\": 90 },\n    { \"name\": \"pitted green olives, drained\", \"amount\": 30, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"cherry tomatoes\", \"amount\": 100, \"unit\": \"g\", \"total_for_batch\": 200 },\n    { \"name\": \"red bell pepper\", \"amount\": 100, \"unit\": \"g\", \"total_for_batch\": 200 },\n    { \"name\": \"red onion\", \"amount\": 30, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"lemon juice\", \"amount\": 15, \"unit\": \"ml\", \"total_for_batch\": 30 },\n    { \"name\": \"parsley\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 10 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 100 },\n    { \"name\": \"fine salt\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 2 }\n  ],\n  \"actual_per_serving\": { \"calories\": 805, \"protein\": 55, \"fat\": 33, \"carbs\": 72 }\n}",
       "usage": {
         "inputTokens": 757,
-        "outputTokens": 1356
+        "outputTokens": 2410
       }
     },
     {
@@ -106,10 +106,10 @@
           "content": "Scale this recipe:\n\n\"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\" — currently 889 cal, 57g protein per serving.\n\nIngredients (per serving):\n- jasmine rice, uncooked: 55g (role: base)\n- pork loin, boneless, raw: 220g (role: protein)\n- broccoli florets, raw: 120g (role: vegetable)\n- carrots, raw: 80g (role: vegetable)\n- scallions, raw: 20g (role: vegetable)\n- soy sauce: 20ml (role: seasoning)\n- fresh ginger: 8g (role: seasoning)\n- garlic: 2cloves (role: seasoning)\n- sesame oil: 14g (role: fat)\n- toasted sesame seeds: 10g (role: fat)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 2\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"jasmine rice, uncooked\", \"amount\": 55, \"unit\": \"g\", \"total_for_batch\": 110 },\n    { \"name\": \"pork loin, boneless, raw\", \"amount\": 205, \"unit\": \"g\", \"total_for_batch\": 410 },\n    { \"name\": \"broccoli florets, raw\", \"amount\": 120, \"unit\": \"g\", \"total_for_batch\": 240 },\n    { \"name\": \"carrots, raw\", \"amount\": 80, \"unit\": \"g\", \"total_for_batch\": 160 },\n    { \"name\": \"scallions, raw\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 40 },\n    { \"name\": \"soy sauce\", \"amount\": 20, \"unit\": \"ml\", \"total_for_batch\": 40 },\n    { \"name\": \"fresh ginger\", \"amount\": 8, \"unit\": \"g\", \"total_for_batch\": 16 },\n    { \"name\": \"garlic\", \"amount\": 2, \"unit\": \"cloves\", \"total_for_batch\": 4 },\n    { \"name\": \"sesame oil\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 20 },\n    { \"name\": \"toasted sesame seeds\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 10 }\n  ],\n  \"actual_per_serving\": {\n    \"calories\": 804,\n    \"protein\": 55,\n    \"fat\": 24,\n    \"carbs\": 92\n  }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"jasmine rice, uncooked\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 100 },\n    { \"name\": \"pork loin, boneless, raw\", \"amount\": 220, \"unit\": \"g\", \"total_for_batch\": 440 },\n    { \"name\": \"broccoli florets, raw\", \"amount\": 120, \"unit\": \"g\", \"total_for_batch\": 240 },\n    { \"name\": \"carrots, raw\", \"amount\": 80, \"unit\": \"g\", \"total_for_batch\": 160 },\n    { \"name\": \"scallions, raw\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 40 },\n    { \"name\": \"soy sauce\", \"amount\": 20, \"unit\": \"ml\", \"total_for_batch\": 40 },\n    { \"name\": \"fresh ginger\", \"amount\": 8, \"unit\": \"g\", \"total_for_batch\": 16 },\n    { \"name\": \"garlic\", \"amount\": 2, \"unit\": \"cloves\", \"total_for_batch\": 4 },\n    { \"name\": \"sesame oil\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 20 },\n    { \"name\": \"toasted sesame seeds\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 10 }\n  ],\n  \"actual_per_serving\": { \"calories\": 800, \"protein\": 57, \"fat\": 32, \"carbs\": 71 }\n}",
       "usage": {
         "inputTokens": 735,
-        "outputTokens": 2270
+        "outputTokens": 1914
       }
     },
     {
@@ -128,10 +128,10 @@
           "content": "Scale this recipe:\n\n\"Creamy Salmon and Shrimp Linguine\" — currently 867 cal, 56g protein per serving.\n\nIngredients (per serving):\n- dry linguine: 61g (role: carb)\n- salmon fillet: 60g (role: protein)\n- raw shrimp, peeled: 125g (role: protein)\n- olive oil: 20g (role: fat)\n- onion and garlic: 56g (role: base)\n- water or fish stock: 30ml (role: base)\n- cooking cream (20% fat): 40g (role: fat)\n- baby spinach: 50g (role: vegetable)\n- lemon juice: 10ml (role: seasoning)\n- parmesan: 8g (role: seasoning)\n- sea salt and black pepper: 2.5g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 2\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    {\n      \"name\": \"dry linguine\",\n      \"amount\": 58,\n      \"unit\": \"g\",\n      \"total_for_batch\": 116\n    },\n    {\n      \"name\": \"salmon fillet\",\n      \"amount\": 60,\n      \"unit\": \"g\",\n      \"total_for_batch\": 120\n    },\n    {\n      \"name\": \"raw shrimp, peeled\",\n      \"amount\": 125,\n      \"unit\": \"g\",\n      \"total_for_batch\": 250\n    },\n    {\n      \"name\": \"olive oil\",\n      \"amount\": 18,\n      \"unit\": \"g\",\n      \"total_for_batch\": 36\n    },\n    {\n      \"name\": \"onion and garlic\",\n      \"amount\": 56,\n      \"unit\": \"g\",\n      \"total_for_batch\": 112\n    },\n    {\n      \"name\": \"water or fish stock\",\n      \"amount\": 30,\n      \"unit\": \"ml\",\n      \"total_for_batch\": 60\n    },\n    {\n      \"name\": \"cooking cream (20% fat)\",\n      \"amount\": 40,\n      \"unit\": \"g\",\n      \"total_for_batch\": 80\n    },\n    {\n      \"name\": \"baby spinach\",\n      \"amount\": 50,\n      \"unit\": \"g\",\n      \"total_for_batch\": 100\n    },\n    {\n      \"name\": \"lemon juice\",\n      \"amount\": 10,\n      \"unit\": \"ml\",\n      \"total_for_batch\": 20\n    },\n    {\n      \"name\": \"parmesan\",\n      \"amount\": 8,\n      \"unit\": \"g\",\n      \"total_for_batch\": 16\n    },\n    {\n      \"name\": \"sea salt and black pepper\",\n      \"amount\": 2.5,\n      \"unit\": \"g\",\n      \"total_for_batch\": 5\n    }\n  ],\n  \"actual_per_serving\": {\n    \"calories\": 811,\n    \"protein\": 56,\n    \"fat\": 43,\n    \"carbs\": 50\n  }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"dry linguine\", \"amount\": 61, \"unit\": \"g\", \"total_for_batch\": 122 },\n    { \"name\": \"salmon fillet\", \"amount\": 60, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"raw shrimp, peeled\", \"amount\": 125, \"unit\": \"g\", \"total_for_batch\": 250 },\n    { \"name\": \"olive oil\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 40 },\n    { \"name\": \"onion and garlic\", \"amount\": 56, \"unit\": \"g\", \"total_for_batch\": 112 },\n    { \"name\": \"water or fish stock\", \"amount\": 30, \"unit\": \"ml\", \"total_for_batch\": 60 },\n    { \"name\": \"cooking cream (20% fat)\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 80 },\n    { \"name\": \"baby spinach\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 100 },\n    { \"name\": \"lemon juice\", \"amount\": 10, \"unit\": \"ml\", \"total_for_batch\": 20 },\n    { \"name\": \"parmesan\", \"amount\": 8, \"unit\": \"g\", \"total_for_batch\": 16 },\n    { \"name\": \"sea salt and black pepper\", \"amount\": 2.5, \"unit\": \"g\", \"total_for_batch\": 5 }\n  ],\n  \"actual_per_serving\": { \"calories\": 796, \"protein\": 56, \"fat\": 40, \"carbs\": 48 }\n}",
       "usage": {
         "inputTokens": 738,
-        "outputTokens": 1213
+        "outputTokens": 909
       }
     },
     {
@@ -150,10 +150,10 @@
           "content": "Scale this recipe:\n\n\"Ground Beef Rigatoni Bolognese\" — currently 888 cal, 55g protein per serving.\n\nIngredients (per serving):\n- ground beef: 200g (role: protein)\n- olive oil: 18g (role: fat)\n- onion: 50g (role: vegetable)\n- carrot: 40g (role: vegetable)\n- garlic: 8g (role: seasoning)\n- ripe diced tomatoes: 180g (role: base)\n- dried oregano: 1g (role: seasoning)\n- parmesan: 5g (role: seasoning)\n- sea salt: 2g (role: seasoning)\n- black pepper: 0.5g (role: seasoning)\n- rigatoni or spaghetti: 65g (role: carb)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"ground beef\", \"amount\": 200, \"unit\": \"g\", \"total_for_batch\": 600 },\n    { \"name\": \"olive oil\", \"amount\": 15, \"unit\": \"g\", \"total_for_batch\": 45 },\n    { \"name\": \"onion\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 150 },\n    { \"name\": \"carrot\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"garlic\", \"amount\": 8, \"unit\": \"g\", \"total_for_batch\": 24 },\n    { \"name\": \"ripe diced tomatoes\", \"amount\": 180, \"unit\": \"g\", \"total_for_batch\": 540 },\n    { \"name\": \"dried oregano\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 },\n    { \"name\": \"parmesan\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"sea salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"black pepper\", \"amount\": 0.5, \"unit\": \"g\", \"total_for_batch\": 1.5 },\n    { \"name\": \"rigatoni or spaghetti\", \"amount\": 55, \"unit\": \"g\", \"total_for_batch\": 165 }\n  ],\n  \"actual_per_serving\": {\n    \"calories\": 804,\n    \"protein\": 55,\n    \"fat\": 40,\n    \"carbs\": 56\n  }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"ground beef\", \"amount\": 200, \"unit\": \"g\", \"total_for_batch\": 600 },\n    { \"name\": \"olive oil\", \"amount\": 12, \"unit\": \"g\", \"total_for_batch\": 36 },\n    { \"name\": \"onion\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 150 },\n    { \"name\": \"carrot\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 120 },\n    { \"name\": \"garlic\", \"amount\": 8, \"unit\": \"g\", \"total_for_batch\": 24 },\n    { \"name\": \"ripe diced tomatoes\", \"amount\": 180, \"unit\": \"g\", \"total_for_batch\": 540 },\n    { \"name\": \"dried oregano\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 },\n    { \"name\": \"parmesan\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"sea salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"black pepper\", \"amount\": 0.5, \"unit\": \"g\", \"total_for_batch\": 1.5 },\n    { \"name\": \"rigatoni or spaghetti\", \"amount\": 55, \"unit\": \"g\", \"total_for_batch\": 165 }\n  ],\n  \"actual_per_serving\": { \"calories\": 809, \"protein\": 57, \"fat\": 41, \"carbs\": 53 }\n}",
       "usage": {
         "inputTokens": 726,
-        "outputTokens": 1318
+        "outputTokens": 1110
       }
     },
     {
@@ -172,10 +172,10 @@
           "content": "Scale this recipe:\n\n\"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\" — currently 908 cal, 56g protein per serving.\n\nIngredients (per serving):\n- beef braising steak, trimmed: 225g (role: protein)\n- olive oil: 25g (role: fat)\n- brown onion: 60g (role: vegetable)\n- carrot: 70g (role: vegetable)\n- garlic: 5g (role: seasoning)\n- tomato paste: 15g (role: base)\n- dried apricots: 15g (role: carb)\n- ras el hanout: 4g (role: seasoning)\n- beef stock: 150ml (role: base)\n- salt and black pepper: 2g (role: seasoning)\n- couscous: 40g (role: carb)\n- olive oil: 10g (role: fat)\n- lemon juice: 10ml (role: seasoning)\n- fresh parsley: 5g (role: vegetable)\n\nNEW TARGET per serving:\n- Calories: 783–823 kcal (target 803, ±20)\n- Protein: 55g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
         }
       ],
-      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"beef braising steak, trimmed\", \"amount\": 225, \"unit\": \"g\", \"total_for_batch\": 675 },\n    { \"name\": \"olive oil\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"brown onion\", \"amount\": 60, \"unit\": \"g\", \"total_for_batch\": 180 },\n    { \"name\": \"carrot\", \"amount\": 70, \"unit\": \"g\", \"total_for_batch\": 210 },\n    { \"name\": \"garlic\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"tomato paste\", \"amount\": 15, \"unit\": \"g\", \"total_for_batch\": 45 },\n    { \"name\": \"dried apricots\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 30 },\n    { \"name\": \"ras el hanout\", \"amount\": 4, \"unit\": \"g\", \"total_for_batch\": 12 },\n    { \"name\": \"beef stock\", \"amount\": 150, \"unit\": \"ml\", \"total_for_batch\": 450 },\n    { \"name\": \"salt and black pepper\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"couscous\", \"amount\": 35, \"unit\": \"g\", \"total_for_batch\": 105 },\n    { \"name\": \"olive oil\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"lemon juice\", \"amount\": 10, \"unit\": \"ml\", \"total_for_batch\": 30 },\n    { \"name\": \"fresh parsley\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 }\n  ],\n  \"actual_per_serving\": { \"calories\": 812, \"protein\": 56, \"fat\": 40, \"carbs\": 57 }\n}",
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"beef braising steak, trimmed\", \"amount\": 225, \"unit\": \"g\", \"total_for_batch\": 675 },\n    { \"name\": \"olive oil\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"brown onion\", \"amount\": 60, \"unit\": \"g\", \"total_for_batch\": 180 },\n    { \"name\": \"carrot\", \"amount\": 70, \"unit\": \"g\", \"total_for_batch\": 210 },\n    { \"name\": \"garlic\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"tomato paste\", \"amount\": 15, \"unit\": \"g\", \"total_for_batch\": 45 },\n    { \"name\": \"dried apricots\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 30 },\n    { \"name\": \"ras el hanout\", \"amount\": 4, \"unit\": \"g\", \"total_for_batch\": 12 },\n    { \"name\": \"beef stock\", \"amount\": 150, \"unit\": \"ml\", \"total_for_batch\": 450 },\n    { \"name\": \"salt and black pepper\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 6 },\n    { \"name\": \"couscous\", \"amount\": 25, \"unit\": \"g\", \"total_for_batch\": 75 },\n    { \"name\": \"olive oil\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"lemon juice\", \"amount\": 10, \"unit\": \"ml\", \"total_for_batch\": 30 },\n    { \"name\": \"fresh parsley\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 }\n  ],\n  \"actual_per_serving\": { \"calories\": 813, \"protein\": 56, \"fat\": 49, \"carbs\": 37 }\n}",
       "usage": {
         "inputTokens": 774,
-        "outputTokens": 1823
+        "outputTokens": 1271
       }
     }
   ],
@@ -192,7 +192,7 @@
             ],
             [
               "📖 My Recipes",
-              "📊 Weekly Budget"
+              "📊 Progress"
             ]
           ],
           "persistent": true,
@@ -298,401 +298,9 @@
     ],
     "finalSession": {
       "recipeFlow": null,
-      "planFlow": {
-        "phase": "confirmed",
-        "weekStart": "2026-04-06",
-        "weekDays": [
-          "2026-04-06",
-          "2026-04-07",
-          "2026-04-08",
-          "2026-04-09",
-          "2026-04-10",
-          "2026-04-11",
-          "2026-04-12"
-        ],
-        "horizonStart": "2026-04-06",
-        "horizonDays": [
-          "2026-04-06",
-          "2026-04-07",
-          "2026-04-08",
-          "2026-04-09",
-          "2026-04-10",
-          "2026-04-11",
-          "2026-04-12"
-        ],
-        "breakfast": {
-          "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
-          "name": "Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt",
-          "caloriesPerDay": 658,
-          "proteinPerDay": 41
-        },
-        "events": [],
-        "proposal": {
-          "batches": [
-            {
-              "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
-              "recipeName": "Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa",
-              "mealType": "lunch",
-              "days": [
-                "2026-04-06",
-                "2026-04-07",
-                "2026-04-08"
-              ],
-              "servings": 3
-            },
-            {
-              "recipeSlug": "mediterranean-tuna-chickpea-feta-rice-bowl",
-              "recipeName": "Mediterranean Tuna, Chickpea and Feta Rice Bowl",
-              "mealType": "lunch",
-              "days": [
-                "2026-04-09",
-                "2026-04-10"
-              ],
-              "servings": 2
-            },
-            {
-              "recipeSlug": "soy-ginger-pork-rice-bowls-broccoli-carrots-scallions",
-              "recipeName": "Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions",
-              "mealType": "lunch",
-              "days": [
-                "2026-04-11",
-                "2026-04-12"
-              ],
-              "servings": 2
-            },
-            {
-              "recipeSlug": "creamy-salmon-and-shrimp-linguine",
-              "recipeName": "Creamy Salmon and Shrimp Linguine",
-              "mealType": "dinner",
-              "days": [
-                "2026-04-06",
-                "2026-04-07"
-              ],
-              "servings": 2
-            },
-            {
-              "recipeSlug": "ground-beef-rigatoni-bolognese",
-              "recipeName": "Ground Beef Rigatoni Bolognese",
-              "mealType": "dinner",
-              "days": [
-                "2026-04-08",
-                "2026-04-09",
-                "2026-04-10"
-              ],
-              "servings": 3
-            },
-            {
-              "recipeSlug": "moroccan-beef-tagine-style-skillet-with-lemon-couscous",
-              "recipeName": "Moroccan Beef Tagine-Style Skillet with Lemon Couscous",
-              "mealType": "dinner",
-              "days": [
-                "2026-04-12"
-              ],
-              "servings": 3,
-              "overflowDays": [
-                "2026-04-13",
-                "2026-04-14"
-              ]
-            }
-          ],
-          "flexSlots": [
-            {
-              "day": "2026-04-11",
-              "mealTime": "dinner",
-              "flexBonus": 350,
-              "note": "flex meal"
-            }
-          ],
-          "recipesToGenerate": [],
-          "solverOutput": {
-            "isValid": true,
-            "weeklyTotals": {
-              "calories": 17051,
-              "protein": 1057,
-              "treatBudget": 853,
-              "flexSlotCalories": 350
-            },
-            "dailyBreakdown": [
-              {
-                "day": "2026-04-06",
-                "totalCalories": 2264,
-                "totalProtein": 151,
-                "breakfast": {
-                  "calories": 658,
-                  "protein": 41
-                },
-                "lunch": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:0}}"
-                },
-                "dinner": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:1}}"
-                },
-                "flexSlots": [],
-                "events": []
-              },
-              {
-                "day": "2026-04-07",
-                "totalCalories": 2264,
-                "totalProtein": 151,
-                "breakfast": {
-                  "calories": 658,
-                  "protein": 41
-                },
-                "lunch": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:0}}"
-                },
-                "dinner": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:1}}"
-                },
-                "flexSlots": [],
-                "events": []
-              },
-              {
-                "day": "2026-04-08",
-                "totalCalories": 2264,
-                "totalProtein": 151,
-                "breakfast": {
-                  "calories": 658,
-                  "protein": 41
-                },
-                "lunch": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:0}}"
-                },
-                "dinner": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:2}}"
-                },
-                "flexSlots": [],
-                "events": []
-              },
-              {
-                "day": "2026-04-09",
-                "totalCalories": 2264,
-                "totalProtein": 151,
-                "breakfast": {
-                  "calories": 658,
-                  "protein": 41
-                },
-                "lunch": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:3}}"
-                },
-                "dinner": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:2}}"
-                },
-                "flexSlots": [],
-                "events": []
-              },
-              {
-                "day": "2026-04-10",
-                "totalCalories": 2264,
-                "totalProtein": 151,
-                "breakfast": {
-                  "calories": 658,
-                  "protein": 41
-                },
-                "lunch": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:3}}"
-                },
-                "dinner": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:2}}"
-                },
-                "flexSlots": [],
-                "events": []
-              },
-              {
-                "day": "2026-04-11",
-                "totalCalories": 2614,
-                "totalProtein": 151,
-                "breakfast": {
-                  "calories": 658,
-                  "protein": 41
-                },
-                "lunch": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:4}}"
-                },
-                "dinner": {
-                  "calories": 1153,
-                  "protein": 55,
-                  "flexBonus": 350
-                },
-                "flexSlots": [
-                  {
-                    "day": "2026-04-11",
-                    "mealTime": "dinner",
-                    "flexBonus": 350,
-                    "note": "flex meal"
-                  }
-                ],
-                "events": []
-              },
-              {
-                "day": "2026-04-12",
-                "totalCalories": 2264,
-                "totalProtein": 151,
-                "breakfast": {
-                  "calories": 658,
-                  "protein": 41
-                },
-                "lunch": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:4}}"
-                },
-                "dinner": {
-                  "calories": 803,
-                  "protein": 55,
-                  "batchId": "{{uuid:5}}"
-                },
-                "flexSlots": [],
-                "events": []
-              }
-            ],
-            "batchTargets": [
-              {
-                "id": "{{uuid:0}}",
-                "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
-                "mealType": "lunch",
-                "days": [
-                  "2026-04-06",
-                  "2026-04-07",
-                  "2026-04-08"
-                ],
-                "servings": 3,
-                "targetPerServing": {
-                  "calories": 803,
-                  "protein": 55
-                }
-              },
-              {
-                "id": "{{uuid:3}}",
-                "recipeSlug": "mediterranean-tuna-chickpea-feta-rice-bowl",
-                "mealType": "lunch",
-                "days": [
-                  "2026-04-09",
-                  "2026-04-10"
-                ],
-                "servings": 2,
-                "targetPerServing": {
-                  "calories": 803,
-                  "protein": 55
-                }
-              },
-              {
-                "id": "{{uuid:4}}",
-                "recipeSlug": "soy-ginger-pork-rice-bowls-broccoli-carrots-scallions",
-                "mealType": "lunch",
-                "days": [
-                  "2026-04-11",
-                  "2026-04-12"
-                ],
-                "servings": 2,
-                "targetPerServing": {
-                  "calories": 803,
-                  "protein": 55
-                }
-              },
-              {
-                "id": "{{uuid:1}}",
-                "recipeSlug": "creamy-salmon-and-shrimp-linguine",
-                "mealType": "dinner",
-                "days": [
-                  "2026-04-06",
-                  "2026-04-07"
-                ],
-                "servings": 2,
-                "targetPerServing": {
-                  "calories": 803,
-                  "protein": 55
-                }
-              },
-              {
-                "id": "{{uuid:2}}",
-                "recipeSlug": "ground-beef-rigatoni-bolognese",
-                "mealType": "dinner",
-                "days": [
-                  "2026-04-08",
-                  "2026-04-09",
-                  "2026-04-10"
-                ],
-                "servings": 3,
-                "targetPerServing": {
-                  "calories": 803,
-                  "protein": 55
-                }
-              },
-              {
-                "id": "{{uuid:5}}",
-                "recipeSlug": "moroccan-beef-tagine-style-skillet-with-lemon-couscous",
-                "mealType": "dinner",
-                "days": [
-                  "2026-04-12"
-                ],
-                "servings": 1,
-                "targetPerServing": {
-                  "calories": 803,
-                  "protein": 55
-                }
-              }
-            ],
-            "cookingSchedule": [
-              {
-                "day": "2026-04-06",
-                "batchIds": [
-                  "{{uuid:0}}",
-                  "{{uuid:1}}"
-                ]
-              },
-              {
-                "day": "2026-04-08",
-                "batchIds": [
-                  "{{uuid:2}}"
-                ]
-              },
-              {
-                "day": "2026-04-09",
-                "batchIds": [
-                  "{{uuid:3}}"
-                ]
-              },
-              {
-                "day": "2026-04-11",
-                "batchIds": [
-                  "{{uuid:4}}"
-                ]
-              },
-              {
-                "day": "2026-04-12",
-                "batchIds": [
-                  "{{uuid:5}}"
-                ]
-              }
-            ],
-            "warnings": []
-          }
-        }
-      },
-      "recipeListPage": 0
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "plan"
     },
     "finalStore": {
       "session": null,
@@ -739,10 +347,10 @@
             "protein": 55
           },
           "actualPerServing": {
-            "calories": 801,
-            "protein": 55,
-            "fat": 29,
-            "carbs": 80
+            "calories": 799,
+            "protein": 56,
+            "fat": 31,
+            "carbs": 74
           },
           "scaledIngredients": [
             {
@@ -753,15 +361,15 @@
             },
             {
               "name": "black beans, canned, drained",
-              "amount": 70,
+              "amount": 75,
               "unit": "g",
-              "totalForBatch": 210
+              "totalForBatch": 225
             },
             {
               "name": "sweetcorn kernels, frozen",
-              "amount": 35,
+              "amount": 40,
               "unit": "g",
-              "totalForBatch": 105
+              "totalForBatch": 120
             },
             {
               "name": "small avocado",
@@ -771,9 +379,9 @@
             },
             {
               "name": "olive oil",
-              "amount": 15,
+              "amount": 10,
               "unit": "g",
-              "totalForBatch": 45
+              "totalForBatch": 30
             },
             {
               "name": "ground cumin",
@@ -801,9 +409,9 @@
             },
             {
               "name": "basmati rice, dry",
-              "amount": 35,
+              "amount": 38,
               "unit": "g",
-              "totalForBatch": 105
+              "totalForBatch": 114
             },
             {
               "name": "large tomato",
@@ -847,23 +455,23 @@
             "protein": 55
           },
           "actualPerServing": {
-            "calories": 803,
+            "calories": 805,
             "protein": 55,
-            "fat": 39,
-            "carbs": 58
+            "fat": 33,
+            "carbs": 72
           },
           "scaledIngredients": [
             {
               "name": "canned tuna in water, drained",
-              "amount": 155,
+              "amount": 140,
               "unit": "g",
-              "totalForBatch": 310
+              "totalForBatch": 280
             },
             {
               "name": "canned chickpeas, drained",
-              "amount": 50,
+              "amount": 55,
               "unit": "g",
-              "totalForBatch": 100
+              "totalForBatch": 110
             },
             {
               "name": "extra virgin olive oil",
@@ -943,23 +551,23 @@
             "protein": 55
           },
           "actualPerServing": {
-            "calories": 804,
-            "protein": 55,
-            "fat": 24,
-            "carbs": 92
+            "calories": 800,
+            "protein": 57,
+            "fat": 32,
+            "carbs": 71
           },
           "scaledIngredients": [
             {
               "name": "jasmine rice, uncooked",
-              "amount": 55,
+              "amount": 50,
               "unit": "g",
-              "totalForBatch": 110
+              "totalForBatch": 100
             },
             {
               "name": "pork loin, boneless, raw",
-              "amount": 205,
+              "amount": 220,
               "unit": "g",
-              "totalForBatch": 410
+              "totalForBatch": 440
             },
             {
               "name": "broccoli florets, raw",
@@ -1027,17 +635,17 @@
             "protein": 55
           },
           "actualPerServing": {
-            "calories": 811,
+            "calories": 796,
             "protein": 56,
-            "fat": 43,
-            "carbs": 50
+            "fat": 40,
+            "carbs": 48
           },
           "scaledIngredients": [
             {
               "name": "dry linguine",
-              "amount": 58,
+              "amount": 61,
               "unit": "g",
-              "totalForBatch": 116
+              "totalForBatch": 122
             },
             {
               "name": "salmon fillet",
@@ -1053,9 +661,9 @@
             },
             {
               "name": "olive oil",
-              "amount": 18,
+              "amount": 20,
               "unit": "g",
-              "totalForBatch": 36
+              "totalForBatch": 40
             },
             {
               "name": "onion and garlic",
@@ -1118,10 +726,10 @@
             "protein": 55
           },
           "actualPerServing": {
-            "calories": 804,
-            "protein": 55,
-            "fat": 40,
-            "carbs": 56
+            "calories": 809,
+            "protein": 57,
+            "fat": 41,
+            "carbs": 53
           },
           "scaledIngredients": [
             {
@@ -1132,9 +740,9 @@
             },
             {
               "name": "olive oil",
-              "amount": 15,
+              "amount": 12,
               "unit": "g",
-              "totalForBatch": 45
+              "totalForBatch": 36
             },
             {
               "name": "onion",
@@ -1209,10 +817,10 @@
             "protein": 55
           },
           "actualPerServing": {
-            "calories": 812,
+            "calories": 813,
             "protein": 56,
-            "fat": 40,
-            "carbs": 57
+            "fat": 49,
+            "carbs": 37
           },
           "scaledIngredients": [
             {
@@ -1277,9 +885,9 @@
             },
             {
               "name": "couscous",
-              "amount": 35,
+              "amount": 25,
               "unit": "g",
-              "totalForBatch": 105
+              "totalForBatch": 75
             },
             {
               "name": "olive oil",
