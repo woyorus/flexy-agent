@@ -17,6 +17,7 @@ import { config } from '../config.js';
 import type { PlanSession, DraftPlanSession, Batch, Measurement } from '../models/types.js';
 import type { SessionState } from './machine.js';
 import { log } from '../debug/logger.js';
+import { toLocalISODate } from '../plan/helpers.js';
 
 const SINGLE_USER_ID = 'default';
 
@@ -206,7 +207,7 @@ export class StateStore implements StateStoreLike {
   }
 
   async getRunningPlanSession(today?: string): Promise<PlanSession | null> {
-    const effectiveToday = today ?? new Date().toISOString().slice(0, 10);
+    const effectiveToday = today ?? toLocalISODate(new Date());
     const { data, error } = await this.client
       .from('plan_sessions')
       .select('*')
@@ -221,7 +222,7 @@ export class StateStore implements StateStoreLike {
   }
 
   async getFuturePlanSessions(): Promise<PlanSession[]> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toLocalISODate(new Date());
     const { data, error } = await this.client
       .from('plan_sessions')
       .select('*')
@@ -234,7 +235,7 @@ export class StateStore implements StateStoreLike {
   }
 
   async getLatestHistoricalPlanSession(): Promise<PlanSession | null> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toLocalISODate(new Date());
     const { data, error } = await this.client
       .from('plan_sessions')
       .select('*')

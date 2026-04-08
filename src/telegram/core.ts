@@ -37,7 +37,7 @@
  *   - `log.telegramIn` / `log.telegramOut` / `log.startOperation`. These are
  *     adapter-level concerns: the grammY middleware logs inbound messages
  *     and starts the operation timer; the grammY sink logs outbound text.
- *     The harness sink never writes to `logs/debug.log`.
+ *     The harness sink never writes to `data/logs/debug.log`.
  *
  *   - Voice transcription. The grammY adapter downloads the audio and calls
  *     `llm.transcribe()`, then dispatches `{ type: 'voice', transcribedText }`.
@@ -1111,9 +1111,14 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       case 'shopping_list': {
         session.surfaceContext = 'shopping';
         session.lastRecipeSlug = undefined;
+        // If user was mid-planning for a future week, abandon that draft —
+        // they explicitly asked for the shopping list, which needs the current plan.
+        if (session.planFlow) {
+          session.planFlow = null;
+        }
         const today = toLocalISODate(new Date());
         const lifecycle = await getPlanLifecycle(session, store, today);
-        if (lifecycle === 'no_plan' || lifecycle === 'planning') {
+        if (lifecycle === 'no_plan') {
           await sink.reply('No plan yet — plan your week first to see what you\'ll need.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
           return;
         }

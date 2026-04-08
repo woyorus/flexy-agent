@@ -197,9 +197,10 @@ export async function computeNextHorizonStart(
   }
 
   const last = await store.getLatestHistoricalPlanSession();
-  // Fallback: tomorrow
-  const tomorrow = addDays(toLocalISODate(new Date()), 1);
-  return { start: tomorrow };
+  // TEMPORARY: start today instead of tomorrow so plans are immediately usable.
+  // Revisit when we add proper "plan starts on day X" user preference.
+  const today = toLocalISODate(new Date());
+  return { start: today };
 }
 
 /** Add N days to an ISO date string and return the result as ISO date. */
