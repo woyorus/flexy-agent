@@ -2,6 +2,7 @@
 
 > Status: draft
 > Date: 2026-04-08
+> **IMPORTANT:** This proposal MUST be reviewed carefully after Plan 021 (future plan visibility) is implemented — 021 changes how plans are displayed and navigated, which may affect the display section, mutation UX, and day-detail screens described here.
 > JTBD: B1 (Plan my week — anxiety to calm), A1 (Know my next action), C2 (Handle unplanned social meals)
 > PRODUCT_SENSE alignment: Flexibility is required (principle 4), real life is the main environment (principle 7), the system should bend without breaking.
 
@@ -125,23 +126,26 @@ If the result isn't quite right, the user sends another voice note: "Actually, I
 **What the re-proposer CANNOT change:**
 - Recipe slugs: it may not introduce, remove, or replace an approved recipe without surfacing it as a recipe gap for user approval. Moving an existing recipe's batch to different days is allowed; swapping it for a different recipe is not.
 - Events (user-provided, immutable unless the user says otherwise)
+- Pre-committed slots (carried over from prior plan sessions — fixed, cannot be moved or planned over)
 - Breakfast (fixed)
 - Total number of flex slots (stays at `config.planning.flexSlotsPerWeek`)
 
 **Constraint preservation:** The re-proposer receives the full mutation history as context — every swap the user has made in this session. This prevents undoing a previous user choice while fixing a new one (e.g., "I moved flex to Sunday, now swap the salmon recipe" should not move flex back to Wednesday).
 
-**Recipe gaps:** If re-arrangement means a meal type needs more coverage than existing recipes provide, the re-proposer flags a recipe gap. The existing inline gap resolution flow handles it — no change needed.
+**Recipe gaps:** If re-arrangement means a meal type needs more coverage than existing recipes provide, the re-proposer flags a recipe gap. The gap resolution flow needs updates (see "Implementation requirements" below) but the user-facing interaction stays the same: pick a recipe, confirm.
+
+**Mutation coverage:** Every mutation path routes through the re-proposer — including `event_remove`. The current `event_remove` handler uses `restoreMealSlot()` and can create 1-serving recipe gaps directly, which is the same class of dead-end as the flex_move orphan cascades. After this change, removing an event feeds into the re-proposer like any other mutation.
 
 **Rollback:** The draft/save-before-destroy pattern (D27) still applies. The re-proposer produces a draft proposal. The user reviews and approves. The old plan stays live until approval. If the user abandons, nothing changes.
 
 ### Proposal validator (deterministic QA gate)
 
-The proposer is agentic. But its output is validated deterministically before reaching the user — same pattern as the existing solver QA gate. The validator checks:
+The proposer is agentic. But its output is validated deterministically before reaching the user. **This is a new validator** — not an extension of the existing `validatePlan()` in `src/qa/validators/plan.ts`, which validates `SolverOutput` (calorie/macro constraints) and only logs errors before continuing. The proposal validator operates on `ProposedBatch[]` before the solver runs, and it is a **hard gate**: invalid proposals never reach the user or the solver. The validator checks:
 
 | Invariant | Rule |
 |---|---|
-| Slot coverage | Every day × meal type has exactly one source: batch, event, or flex |
-| No overlap | No day × meal type is claimed by two batches, or by a batch and an event/flex |
+| Slot coverage | Every day × meal type has exactly one source: batch, event, flex, or pre-committed slot |
+| No overlap | No day × meal type is claimed by two batches, or by a batch and an event/flex/pre-committed slot |
 | Eating days sorted | `eatingDays` is ascending ISO order |
 | Servings match | `servings === eatingDays.length` |
 | Servings range | `1 ≤ servings ≤ 3` (validator warns on 1-serving batches; valid but discouraged) |
@@ -150,10 +154,11 @@ The proposer is agentic. But its output is validated deterministically before re
 | Flex count | Exactly `config.planning.flexSlotsPerWeek` flex slots |
 | No orphan days | No meal slot left uncovered |
 
-**storagePlan validation** (when present):
+**storagePlan validation** (when present). Eating days are ordered; the first `freezeAfterServing` days are "fresh," the rest are "frozen":
 - `freezeAfterServing` is in range `[1, servings - 1]` (freeze at least 1, keep at least 1 fresh)
-- `defrostBeforeDay` is an ISO date that falls on or before one of the later eating days
-- All eating days after defrost are within `recipe.storage.fridgeDays` of the defrost day (post-defrost fridge window is safe)
+- Fresh serving days (eating days 1 through `freezeAfterServing`) are within `recipe.storage.fridgeDays` of the cook day
+- `defrostBeforeDay` is an ISO date that falls after the last fresh serving day and on or before the first frozen serving day
+- Frozen serving days (eating days after `freezeAfterServing`) are within `recipe.storage.fridgeDays` of `defrostBeforeDay` (post-defrost fridge window)
 
 **Validation target:** The validator runs on `ProposedBatch` (which uses `days` + `overflowDays`) before persistence. The invariant is: `servings === days.length + (overflowDays?.length ?? 0)`. After materialization to persisted `Batch`, the equivalent is `servings === eatingDays.length`. Both stages are validated.
 
@@ -311,5 +316,83 @@ The following deterministic mutation machinery becomes unnecessary:
 - `resolveOrphanPool()` and orphan grouping
 - `resolveSingletonOrphan()`
 - `absorbFreedDay()` and adjacent-batch extension
+- `restoreMealSlot()` in `event_remove` (replaced by re-proposer)
 
 These are replaced by a single re-proposer call.
+
+## Implementation requirements
+
+These are structural changes required to make the design enforceable. Without them, valid-by-design plans fail at persistence or lose data silently.
+
+### 1. DB migration: `batches.servings` constraint (1-serving batches)
+
+The design allows 1-serving batches (`1 ≤ servings ≤ 3`). The current schema rejects them: `servings int not null check (servings between 2 and 3)` (`001_create_plan_sessions_and_batches.sql:37`). A migration must widen the constraint to `between 1 and 3`. Store tests that assert on batch insertion need updating.
+
+### 2. DB migration + persistence: `storagePlan` column
+
+The design says `storagePlan` exists on both `ProposedBatch` and persisted `Batch`, and "persistence copies it through." Currently:
+- The `batches` table has no `storage_plan` column
+- `toBatchRow()` does not write it (`store.ts:423`)
+- `fromBatchRow()` does not read it (`store.ts:463`)
+
+A migration must add `storage_plan jsonb` (nullable) to the `batches` table. `toBatchRow()` and `fromBatchRow()` must map `storagePlan ↔ storage_plan`. Without this, freeze/defrost instructions are validated in-memory and then silently lost at confirm time.
+
+### 3. New proposal validator (not an extension of `validatePlan`)
+
+The existing `validatePlan()` (`src/qa/validators/plan.ts:39`) operates on `SolverOutput`, checks calorie/macro constraints, and only logs errors — it is not a gate. The proposal validator described in this design:
+- Operates on `ProposedBatch[]` (pre-solver)
+- Checks structural invariants: slot coverage, overlap, storage spans, servings-match, flex count
+- Is a **hard gate** — invalid proposals retry or fail, never reach the user
+
+This must be a new function (e.g., `validateProposal()`) in a new or adjacent file, called before solver input is built.
+
+### 4. `event_remove` routed through re-proposer
+
+`event_remove` (`plan-flow.ts:1010-1038`) still uses `restoreMealSlot()` and creates 1-serving recipe gaps directly. The implementation must route it through the re-proposer like all other mutations.
+
+### 5. Gap resolution updates for non-contiguous batches
+
+The gap resolution flow needs updates for non-contiguous batches:
+- `presentRecipeGap()` (`plan-flow.ts:1158`) formats `gap.days` by joining with `-`, implying a contiguous range. Non-contiguous gaps from the re-proposer need comma-separated or grouped formatting (same as the day-range formatter described in the Display section).
+- `addBatchFromGap()` (`plan-flow.ts:1207`) creates a plain batch with no `overflowDays` or `storagePlan`. If the re-proposer produces a gap that requires freezer-backed storage or non-contiguous days, the gap resolution must carry those fields through.
+
+### 6. Proposer prompt, output schema, and mapper: storage fields
+
+The design says the proposer respects `recipe.storage.fridgeDays`/`freezable` and produces `storagePlan`, but the current proposer boundary doesn't support this:
+- `RecipeSummary` (`plan-proposer.ts:37`) has no `fridgeDays`, `freezable`, or `reheat` fields
+- The recipe list prompt (`plan-proposer.ts:438`) omits storage metadata — the LLM has no visibility into fridge life
+- `mapToProposal()` (`plan-proposer.ts:633`) does not parse a `storage_plan` field from the LLM response
+
+The implementation must:
+- Add `fridgeDays: number`, `freezable: boolean` to `RecipeSummary` and populate them from recipe data
+- Include storage fields in the recipe list prompt (e.g., `| fridge 3d | freezable`)
+- Add `storage_plan` to the LLM output schema and parse it in `mapToProposal()` into `ProposedBatch.storagePlan`
+
+### 7. Validator and re-proposer must account for pre-committed slots
+
+`PreCommittedSlot` (`solver/types.ts:129`) is a fourth slot source in rolling-horizon planning. The implementation must:
+- Include pre-committed slots in the validator's slot-coverage and overlap checks (the design's validator table now lists them, matching what `validatePlan()` already does for the solver QA gate)
+- Pass pre-committed slots to the re-proposer as immutable context (the design's immutable list now includes them)
+
+### 8. Re-proposer: new prompt/API distinct from initial `proposePlan()`
+
+`proposePlan()` (`plan-proposer.ts:101`) takes initial-planning context — it has no concept of an existing approved draft, mutation constraints, or mutation history. The implementation must build a new `reProposePlan()` function with its own system prompt framed as "re-arrange this existing plan given this constraint."
+
+**Input:**
+- Current `ProposedBatch[]` with approved recipes
+- Recipe storage metadata (`fridgeDays`, `freezable`) for all approved recipes — needed to generate/validate `storagePlan` during re-arrangement (requirement #6 covers the initial proposer's `RecipeSummary`; the re-proposer needs equivalent storage visibility for the approved set, either via enriched batch metadata or a recipe lookup passed as context)
+- The user's change request (text/voice transcription)
+- Mutation history — ordered list of prior user-approved mutations in this session (see requirement #10)
+- Events, flex slots, pre-committed slots
+
+### 9. storagePlan validation: fresh vs. frozen serving boundaries
+
+The validator must enforce the fresh/frozen boundary rules now specified in the design's storagePlan validation section: fresh servings within cook-day fridge window, defrost between last fresh and first frozen serving, frozen servings within post-defrost fridge window.
+
+### 10. Mutation history: state field and lifecycle
+
+The re-proposer needs mutation history to avoid undoing prior user choices, but `PlanFlowState` (`plan-flow.ts:86`) has no such field. The implementation must:
+- Add a `mutationHistory` field to `PlanFlowState` — an ordered list of mutation descriptions (e.g., `{ constraint: "move flex to Sunday", appliedAt: "2026-04-08T..." }`)
+- Append to the list each time the user approves a re-proposed plan
+- On rollback (user rejects a re-proposal), do not append — the mutation was never applied
+- Pass the full history to `reProposePlan()` as context so the LLM knows which prior user choices are load-bearing
