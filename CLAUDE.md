@@ -30,8 +30,10 @@ Every file, class, and function must be documented. This is not optional.
 | `docs/product-specs/jtbd.md` | Jobs To Be Done — real-life user moments, motivations, priority ranking. | When making product/UX decisions or designing new screens. |
 | `docs/product-specs/ui-architecture.md` | Product states, screen inventory, navigation map, information hierarchy, copy tone. | When designing or modifying any UI surface. |
 | `docs/BACKLOG.md` | Current version scope + versioned feature roadmap. | When checking what's in/out of scope. |
+| `docs/FEATURE-LIFECYCLE.md` | Idea-to-production process: proposal → design doc → plan → code. | When starting any user-facing change. Read this FIRST. |
 | `docs/DOCS-GUIDE.md` | Rules for creating and managing docs, plans, design docs, specs. | When creating new docs or unsure where something belongs. |
 | `docs/design-docs/index.md` | Catalog of significant design decisions. | When making or reviewing architectural decisions. |
+| `docs/design-docs/proposals/` | Working drafts for product/UX changes. | When designing a new feature or changing existing UX. Start here. |
 | `docs/plans/active/` | Execution plans currently in progress or parked. | When planning or executing multi-step work. |
 | `docs/plans/tech-debt.md` | Known technical debt and deferred cleanup items. | When deferring cleanup or checking what debt exists. |
 
@@ -40,6 +42,12 @@ When adding new docs, update this table. An unlisted doc is invisible to the age
 ### Plans go to `docs/plans/active/`, NEVER to `~/.claude/plans/`
 
 All execution plans MUST be written to `docs/plans/active/NNN-topic.md` using the format in `docs/plans/README.md`. Never use `~/.claude/plans/` — that path is invisible to the project and to future agents. Check the highest plan number across `active/` and `completed/` before creating a new one.
+
+### Design before code for user-facing changes
+
+Any change that affects what the user sees or experiences MUST start with a design proposal (`docs/design-docs/proposals/`), not an implementation plan. The sequence is: design proposal → discussion → design doc → implementation plan → code. See `docs/FEATURE-LIFECYCLE.md`.
+
+Do NOT jump from "problem identified" to "here's the code fix." Design the experience first. Describe screens, messages, buttons, and emotional arc. Only after the design is approved, write an implementation plan.
 
 ### Never start implementing a plan without explicit user approval
 

@@ -6,8 +6,10 @@
 
 | What you have | Where it goes |
 |---|---|
+| Product/UX change idea | `design-docs/proposals/NNN-<topic>.md` — start here for anything that changes the user experience. See [FEATURE-LIFECYCLE.md](./FEATURE-LIFECYCLE.md). |
+| Approved product/UX design | `design-docs/<topic>.md` — promoted from proposals/ after discussion. |
+| Significant technical decision or tradeoff | `design-docs/<topic>.md` — directly, no proposal needed for non-UX changes. |
 | Current system behavior | `product-specs/<domain>.md` |
-| Significant design decision or tradeoff | `design-docs/<topic>.md` |
 | Multi-step change needing coordination | `plans/active/NNN-<topic>.md` |
 | Deferred cleanup or workaround | `plans/tech-debt.md` |
 | Future features or scope boundaries | `BACKLOG.md` |
@@ -22,8 +24,9 @@
 
 ## Lifecycle
 
+- **Design proposals** start in `design-docs/proposals/`. Lifecycle: draft → discussing → approved (promote to design doc) or rejected (keep file with rationale). See [FEATURE-LIFECYCLE.md](./FEATURE-LIFECYCLE.md).
+- **Design docs** are never deleted. Lifecycle: accepted → superseded.
 - **Product specs** reflect actual code. Update when code changes — same commit.
-- **Design docs** are never deleted. Lifecycle: proposed -> accepted -> superseded.
 - **Plans** start in `plans/active/`. Move to `plans/completed/` when done. Promote lasting decisions into specs or design docs.
 - **Tech debt** items that grow into multi-step work graduate into a plan.
 

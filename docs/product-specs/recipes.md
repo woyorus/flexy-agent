@@ -13,6 +13,7 @@ Recipes are markdown files with YAML frontmatter in the `recipes/` directory. Bo
 ```yaml
 ---
 name: Chicken Pepperonata Skillet
+short_name: Chicken Pepperonata          # optional; ~25 chars for compact UI
 slug: chicken-pepperonata-skillet        # max 50 chars
 meal_types: [lunch, dinner]
 cuisine: italian
@@ -48,7 +49,9 @@ storage:
 
 ### Markdown body
 
-Free-form text: description, steps, notes, tips. Steps reference ingredients **by name only, never by amount** — amounts come from YAML and are rendered dynamically (supports scaling).
+Free-form text: description, steps, notes, tips. Steps use `{ingredient_name}` placeholders for ingredient references — amounts come from YAML and are rendered dynamically at display time (supports scaling). Example: "Cook {penne pasta} until al dente, **10-11 min**." The placeholder name must exactly match an ingredient's `name` field in the YAML ingredients array.
+
+When rendered for cook-time display, placeholders are resolved to batch-total amounts (e.g., "Cook 225g penne"). When rendered for the recipe library per-serving view, placeholders resolve to per-serving amounts.
 
 ## Structure system
 

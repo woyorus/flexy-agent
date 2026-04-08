@@ -1,6 +1,6 @@
 # Plan 016: Plan-Aware UI System
 
-**Status:** Active
+**Status:** Complete
 **Date:** 2026-04-07
 **Affects:** `src/telegram/core.ts`, `src/telegram/keyboards.ts`, `src/telegram/formatters.ts`, `src/agents/plan-flow.ts`, `src/agents/recipe-scaler.ts`, `src/recipes/renderer.ts`, `src/shopping/generator.ts`, `src/models/types.ts`, `src/plan/helpers.ts`, `test/scenarios/*/spec.ts`
 

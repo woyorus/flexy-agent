@@ -6,12 +6,27 @@ Source: `src/telegram/bot.ts`, `src/telegram/keyboards.ts`, `src/telegram/format
 
 ## Main menu (persistent reply keyboard)
 
+Always visible at the bottom of the chat. Each button enters a flow or shows data. The top-left button label changes based on plan lifecycle:
+
+**No plan / expired:**
 ```
-[ Plan Week ]     [ Shopping List ]
-[ My Recipes ]    [ Weekly Budget ]
+[ Plan Week ]      [ Shopping List ]
+[ My Recipes ]     [ Progress ]
 ```
 
-Always visible at the bottom of the chat. Each button enters a flow or shows data.
+**Planning in progress:**
+```
+[ Resume Plan ]    [ Shopping List ]
+[ My Recipes ]     [ Progress ]
+```
+
+**Active plan:**
+```
+[ My Plan ]        [ Shopping List ]
+[ My Recipes ]     [ Progress ]
+```
+
+See [ui-architecture.md](./ui-architecture.md) § Main menu for full lifecycle-aware button behavior and design rationale.
 
 ## Interaction patterns
 
