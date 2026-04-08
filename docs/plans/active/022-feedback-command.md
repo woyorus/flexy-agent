@@ -2,7 +2,7 @@
 
 **Status:** Active
 **Date:** 2026-04-08
-**Affects:** `src/telegram/core.ts`, `src/telegram/bot.ts`, `feedback.md`, `feedback-assets/`
+**Affects:** `src/telegram/core.ts`, `src/telegram/bot.ts`, `data/feedback.md`, `data/feedback-assets/`
 
 ## Problem
 
@@ -22,13 +22,13 @@ When using Flexie day-to-day, product observations need to be captured in the mo
 3. User sends one of:
    - Free text → saved
    - Voice message → transcribed via existing Whisper path → saved
-   - Photo (with optional caption) → downloaded, saved to `feedback-assets/`, path recorded
+   - Photo (with optional caption) → downloaded, saved to `data/feedback-assets/`, path recorded
 
 Voice and photos are inherently two-step because Telegram can't combine a slash command with audio or photo attachments in a single message.
 
 ## Storage
 
-`feedback.md` at repo root. Created on first write with header. Screenshots go in `feedback-assets/` at repo root.
+`data/feedback.md`. Created on first write with header. Screenshots go in `data/feedback-assets/`.
 
 Each entry is separated by `---`. Reply context and photo are on their own lines below the feedback text. Reply context is truncated to 120 chars (first line only) to prevent long bot messages from dominating the file.
 
@@ -50,13 +50,13 @@ re: "Something went wrong. Please try again."
 **2026-04-08 15:45** — Layout broken on small screens
 
 re: "Here is your week plan. Tap a recipe to cook."
-📎 [screenshot](feedback-assets/2026-04-08-15-45-00.jpg)
+📎 [screenshot](data/feedback-assets/2026-04-08-15-45-00.jpg)
 
 ---
 
 **2026-04-08 16:10** — *(no caption)*
 
-📎 [screenshot](feedback-assets/2026-04-08-16-10-00.jpg)
+📎 [screenshot](data/feedback-assets/2026-04-08-16-10-00.jpg)
 ```
 
 ## Data structures
@@ -124,8 +124,8 @@ bot.on('message:photo', async (ctx) => {
     const response = await fetch(url);
     const buffer = Buffer.from(await response.arrayBuffer());
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
-    const localPath = `feedback-assets/${timestamp}.jpg`;
-    await fs.mkdir('feedback-assets', { recursive: true });
+    const localPath = `data/feedback-assets/${timestamp}.jpg`;
+    await fs.mkdir('data/feedback-assets', { recursive: true });
     await fs.writeFile(localPath, buffer);
     const replyContext =
       ctx.message.reply_to_message?.text ??
@@ -219,7 +219,7 @@ async function saveFeedback(entry: FeedbackEntry): Promise<void> {
   const parts = [textLine, replyLine, photoLine].filter(Boolean).join('\n');
   const block = `\n---\n\n${parts}\n`;
 
-  const filePath = new URL('../../../feedback.md', import.meta.url).pathname;
+  const filePath = new URL('../../../data/feedback.md', import.meta.url).pathname;
   const exists = await fsPromises.access(filePath).then(() => true).catch(() => false);
   if (!exists) {
     await fsPromises.writeFile(filePath, `# Product Feedback\n${block}`);
@@ -248,8 +248,8 @@ async function saveFeedback(entry: FeedbackEntry): Promise<void> {
   Rationale: No AI calls, no branching exercised by existing flows. If a bug surfaces, author one then.
   Date: 2026-04-08
 
-- Decision: feedback.md at repo root, feedback-assets/ at repo root.
-  Rationale: Operational output, not documentation. Easy to find and git-ignore if needed later.
+- Decision: data/feedback.md and data/feedback-assets/ under data/.
+  Rationale: Operational output, same category as recipes and logs. Consolidated under data/ per plan 023.
   Date: 2026-04-08
 
 - Decision: Always download photos in bot.ts; let core decide what to do.
@@ -266,6 +266,6 @@ async function saveFeedback(entry: FeedbackEntry): Promise<void> {
 2. `npm run dev` — `/feedback quick note` → entry in feedback.md.
 3. `npm run dev` — reply to a bot message with `/feedback note` → entry includes re: context.
 4. `npm run dev` — `/feedback` alone → prompt → voice message → transcription saved.
-5. `npm run dev` — `/feedback` → prompt → send a screenshot → photo saved to feedback-assets/, path in feedback.md.
+5. `npm run dev` — `/feedback` → prompt → send a screenshot → photo saved to data/feedback-assets/, path in data/feedback.md.
 6. `npm run dev` — reply to a bot message with `/feedback` → prompt → send screenshot → both context and photo captured.
 7. `npm run dev` — `/feedback` → `/cancel` → no orphaned state.

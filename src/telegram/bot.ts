@@ -11,7 +11,7 @@
  *      `core.dispatch(update, sink)`.
  *   3. Provide a `grammyOutputSink` that forwards `sink.reply` to
  *      `ctx.reply`, appends the DEBUG-mode timing footer, and logs the
- *      outbound message to `logs/debug.log`.
+ *      outbound message to `data/logs/debug.log`.
  *
  * Everything the core used to do directly — handling button taps, building
  * menu responses, routing free-form text to flows — now happens inside

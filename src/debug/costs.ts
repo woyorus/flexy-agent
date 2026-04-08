@@ -1,7 +1,7 @@
 /**
  * AI cost tracker.
  *
- * Records every AI API call with token usage and calculated cost to `logs/costs.jsonl`.
+ * Records every AI API call with token usage and calculated cost to `data/logs/costs.jsonl`.
  * The JSONL file is append-only across sessions, building a full cost history over time.
  * Maintains session-level totals in memory for console output.
  *
@@ -20,7 +20,7 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { log } from './logger.js';
 
-const LOGS_DIR = join(process.cwd(), 'logs');
+const LOGS_DIR = join(process.cwd(), 'data', 'logs');
 const COSTS_FILE = join(LOGS_DIR, 'costs.jsonl');
 
 /**

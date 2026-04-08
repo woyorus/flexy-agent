@@ -1,7 +1,7 @@
 /**
  * Recipe markdown parser.
  *
- * Parses recipe files from the `recipes/` directory. Each file has:
+ * Parses recipe files from the `data/recipes/` directory. Each file has:
  * - YAML frontmatter: structured data (macros, ingredients with roles/amounts/components, structure, storage)
  * - Markdown body: free-form recipe text (description, steps, notes — no amounts)
  *

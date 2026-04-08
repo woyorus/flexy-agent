@@ -76,4 +76,5 @@ discussion.
 
 ## Current proposals
 
-(none yet)
+- [001-upcoming-plan-visibility.md](001-upcoming-plan-visibility.md) — Future plan visibility during active plan period
+- [002-flexible-batch-model.md](002-flexible-batch-model.md) — Batches as physical food (serving-count + fridge-life), not calendar slots. Re-proposer replaces deterministic mutation handlers.

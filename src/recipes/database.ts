@@ -1,7 +1,7 @@
 /**
  * Recipe database — CRUD operations on markdown recipe files.
  *
- * Recipes live as markdown files in the `recipes/` directory at the project root.
+ * Recipes live as markdown files in the `data/recipes/` directory at the project root.
  * This module provides an in-memory cache that loads from disk on startup and
  * writes back on mutation. All other modules access recipes through this interface.
  *

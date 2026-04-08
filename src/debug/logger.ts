@@ -13,7 +13,7 @@
  * When DEBUG=1, also outputs verbose logs to console and appends a one-line
  * debug footer to Telegram messages showing AI models used and timing.
  *
- * Log file: logs/debug.log
+ * Log file: data/logs/debug.log
  *
  * Tags:
  * - BOOT    — startup sequence
@@ -32,7 +32,7 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-const LOGS_DIR = join(process.cwd(), 'logs');
+const LOGS_DIR = join(process.cwd(), 'data', 'logs');
 const LOG_FILE = join(LOGS_DIR, 'debug.log');
 
 let debugMode = false;

@@ -8,7 +8,7 @@
  *     footer is only appended inside the real grammY adapter (`bot.ts`).
  *     Keeping the harness sink footer-free is what makes captured
  *     transcripts deterministic regardless of DEBUG mode.
- *   - Write to `logs/debug.log`. Harness runs are silent by design;
+ *   - Write to `data/logs/debug.log`. Harness runs are silent by design;
  *     scenario failures surface through `deepStrictEqual` diffs, not log
  *     scraping.
  *

@@ -11,7 +11,7 @@
  * Reasoning modes map to the OpenAI API's reasoning_effort parameter.
  *
  * All AI calls are logged to the debug log with full prompt content, response,
- * token usage, and duration. Costs are calculated and recorded to `logs/costs.jsonl`
+ * token usage, and duration. Costs are calculated and recorded to `data/logs/costs.jsonl`
  * via the cost tracker.
  */
 

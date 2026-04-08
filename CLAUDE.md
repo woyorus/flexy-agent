@@ -95,7 +95,7 @@ Some scenarios (e.g., 014) have a `fixture-edits.md` that describes manual edits
 
 ### When the user reports an issue
 
-1. **Read the end of `logs/debug.log` first.** Append-only, can grow large. Start from the last ~200 lines. This is the authoritative record of what happened in the user's actual session — every Telegram message, AI call (full prompts/responses/tokens/duration), flow state transition, and QA validation result. Tags: `[TG:IN]` / `[TG:OUT]` / `[AI:REQ]` / `[AI:RES]` / `[FLOW]` / `[QA]`. The log tells you *what the user did* (the `[TG:IN]` events that become the scenario spec) and *what happened internally* (prompts, state, solver output).
+1. **Read the end of `data/logs/debug.log` first.** Append-only, can grow large. Start from the last ~200 lines. This is the authoritative record of what happened in the user's actual session — every Telegram message, AI call (full prompts/responses/tokens/duration), flow state transition, and QA validation result. Tags: `[TG:IN]` / `[TG:OUT]` / `[AI:REQ]` / `[AI:RES]` / `[FLOW]` / `[QA]`. The log tells you *what the user did* (the `[TG:IN]` events that become the scenario spec) and *what happened internally* (prompts, state, solver output).
 
 2. **Reproduce the bug as a scenario.** Author `test/scenarios/NNN-short-name/spec.ts` using the `[TG:IN]` entries from the log as the script: commands, reply-keyboard taps, inline button callbacks, transcribed voice. Pick a stable clock (anything in the current week) and the appropriate recipe fixture set. Run `npm run test:generate -- <name>` — this captures the current (still buggy) behavior as `recorded.json`. The scenario passes on the broken code because it locks in exactly what the code produces today.
 

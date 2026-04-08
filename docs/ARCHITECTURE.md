@@ -52,8 +52,8 @@ flexy-agent/
 │   │   └── database.ts                   In-memory recipe DB backed by markdown files
 │   │
 │   ├── debug/
-│   │   ├── logger.ts                     Centralized logging (console + logs/debug.log)
-│   │   └── costs.ts                      AI cost tracker (logs/costs.jsonl, session totals)
+│   │   ├── logger.ts                     Centralized logging (console + data/logs/debug.log)
+│   │   └── costs.ts                      AI cost tracker (data/logs/costs.jsonl, session totals)
 │   │
 │   ├── shopping/
 │   │   └── generator.ts                  Derive shopping lists from weekly plans
@@ -76,9 +76,11 @@ flexy-agent/
 │       ├── clock.ts                      Date-freeze utility for scenario replay
 │       └── normalize.ts                  UUID → {{uuid:N}} normalization
 │
-├── recipes/                              Recipe markdown files (YAML frontmatter + steps)
-│
-├── logs/                                 Debug logs (gitignored, overwritten each session)
+├── data/                                 Runtime output (gitignored except recipes)
+│   ├── recipes/                          Recipe markdown files (YAML frontmatter + steps)
+│   ├── logs/                             Debug logs (debug.log, costs.jsonl — gitignored)
+│   ├── feedback.md                       In-product feedback log (gitignored, plan 022)
+│   └── feedback-assets/                  Screenshot attachments (gitignored, plan 022)
 │
 ├── docs/                                 Product and architecture documentation
 │

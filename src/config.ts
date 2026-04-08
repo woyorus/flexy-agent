@@ -123,5 +123,5 @@ export const config = {
   },
 
   /** Recipe file storage path relative to project root */
-  recipesDir: "recipes",
+  recipesDir: "data/recipes",
 } as const;

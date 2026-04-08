@@ -2,4 +2,6 @@ node_modules/
 dist/
 .env
 .claude/
-logs/
+data/logs/
+data/feedback.md
+data/feedback-assets/
