@@ -5,3 +5,4 @@ dist/
 data/logs/
 data/feedback.md
 data/feedback-assets/
+.worktrees/
