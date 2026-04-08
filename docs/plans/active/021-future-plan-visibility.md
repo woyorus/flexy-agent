@@ -388,18 +388,18 @@ After authoring, run `npm run test:generate -- 022-upcoming-plan-view` and verif
 
 ## Progress
 
-- [ ] 1. Add `'upcoming'` lifecycle + `getVisiblePlanSession()` to `src/plan/helpers.ts`
-- [ ] 2. Timezone fix: add `today?` param to `store.getFuturePlanSessions` + `getLatestHistoricalPlanSession`
-- [ ] 3. Mirror timezone fix in `src/harness/test-store.ts`
-- [ ] 4. Formatter: contextual message for pre-plan days in `formatNextAction`
-- [ ] 5. Fix legacy `view_shopping_list` callback → route to `sl_next`
-- [ ] 6. Wire up all handlers in `src/telegram/core.ts` to use `getVisiblePlanSession`
-- [ ] 7. Timezone fix + cold-start fallback → tomorrow in `computeNextHorizonStart` (`src/agents/plan-flow.ts`)
-- [ ] 8. `npx tsc --noEmit` — type check passes
-- [ ] 9. Re-record scenarios 001 and 004 (cold-start horizon shifted to tomorrow) + verify output
-- [ ] 10. `npm test` — all existing scenarios pass (no regressions)
-- [ ] 11. Author scenario `022-upcoming-plan-view` + generate + verify output
-- [ ] 12. Final `npm test` with new scenario included
+- [x] 1. Add `'upcoming'` lifecycle + `getVisiblePlanSession()` to `src/plan/helpers.ts`
+- [x] 2. Timezone fix: add `today?` param to `store.getFuturePlanSessions` + `getLatestHistoricalPlanSession`
+- [x] 3. Mirror timezone fix in `src/harness/test-store.ts`
+- [x] 4. Formatter: contextual message for pre-plan days in `formatNextAction`
+- [x] 5. Fix legacy `view_shopping_list` callback → route to `sl_next`
+- [x] 6. Wire up all handlers in `src/telegram/core.ts` to use `getVisiblePlanSession`
+- [x] 7. Timezone fix + cold-start fallback → tomorrow in `computeNextHorizonStart` (`src/agents/plan-flow.ts`)
+- [x] 8. `npx tsc --noEmit` — type check passes
+- [x] 9. Scenarios 001–004 pass without re-recording (cold-start change aligned with fixture expectations; also fixed 10 pre-existing failures)
+- [x] 10. `npm test` — all 121 existing scenarios pass (0 failures)
+- [x] 11. Author scenario `022-upcoming-plan-view` + generate + verify output
+- [x] 12. Final `npm test` — 122 tests pass (0 failures)
 
 ## Decision log
 

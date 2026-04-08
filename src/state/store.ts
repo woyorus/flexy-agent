@@ -71,10 +71,10 @@ export interface StateStoreLike {
   getRunningPlanSession(today?: string): Promise<PlanSession | null>;
 
   /** Sessions with horizon_start > today, earliest first. NOT superseded. */
-  getFuturePlanSessions(): Promise<PlanSession[]>;
+  getFuturePlanSessions(today?: string): Promise<PlanSession[]>;
 
   /** Most recent session whose horizon has fully ended. NOT superseded. */
-  getLatestHistoricalPlanSession(): Promise<PlanSession | null>;
+  getLatestHistoricalPlanSession(today?: string): Promise<PlanSession | null>;
 
   /**
    * Up to `limit` recent sessions ordered by horizon_end DESC. NOT superseded.
@@ -221,27 +221,27 @@ export class StateStore implements StateStoreLike {
     return fromPlanSessionRow(data);
   }
 
-  async getFuturePlanSessions(): Promise<PlanSession[]> {
-    const today = toLocalISODate(new Date());
+  async getFuturePlanSessions(today?: string): Promise<PlanSession[]> {
+    const effectiveToday = today ?? toLocalISODate(new Date());
     const { data, error } = await this.client
       .from('plan_sessions')
       .select('*')
       .eq('user_id', SINGLE_USER_ID)
       .eq('superseded', false)
-      .gt('horizon_start', today)
+      .gt('horizon_start', effectiveToday)
       .order('horizon_start', { ascending: true });
     if (error || !data) return [];
     return data.map(fromPlanSessionRow);
   }
 
-  async getLatestHistoricalPlanSession(): Promise<PlanSession | null> {
-    const today = toLocalISODate(new Date());
+  async getLatestHistoricalPlanSession(today?: string): Promise<PlanSession | null> {
+    const effectiveToday = today ?? toLocalISODate(new Date());
     const { data, error } = await this.client
       .from('plan_sessions')
       .select('*')
       .eq('user_id', SINGLE_USER_ID)
       .eq('superseded', false)
-      .lt('horizon_end', today)
+      .lt('horizon_end', effectiveToday)
       .order('horizon_end', { ascending: false })
       .limit(1)
       .single();

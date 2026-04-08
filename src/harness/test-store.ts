@@ -182,10 +182,10 @@ export class TestStateStore implements StateStoreLike {
    * Sessions with horizon_start > today, earliest first. NOT superseded.
    * Mirrors StateStore.getFuturePlanSessions.
    */
-  async getFuturePlanSessions(): Promise<PlanSession[]> {
-    const today = this.getToday();
+  async getFuturePlanSessions(today?: string): Promise<PlanSession[]> {
+    const effectiveToday = today ?? this.getToday();
     const candidates = [...this.planSessionsById.values()].filter(
-      (ps) => !ps.superseded && ps.horizonStart > today,
+      (ps) => !ps.superseded && ps.horizonStart > effectiveToday,
     );
     candidates.sort((a, b) => (a.horizonStart < b.horizonStart ? -1 : a.horizonStart > b.horizonStart ? 1 : 0));
     return candidates.map(cloneDeep);
@@ -195,10 +195,10 @@ export class TestStateStore implements StateStoreLike {
    * Most recent session whose horizon has fully ended. NOT superseded.
    * Mirrors StateStore.getLatestHistoricalPlanSession.
    */
-  async getLatestHistoricalPlanSession(): Promise<PlanSession | null> {
-    const today = this.getToday();
+  async getLatestHistoricalPlanSession(today?: string): Promise<PlanSession | null> {
+    const effectiveToday = today ?? this.getToday();
     const candidates = [...this.planSessionsById.values()].filter(
-      (ps) => !ps.superseded && ps.horizonEnd < today,
+      (ps) => !ps.superseded && ps.horizonEnd < effectiveToday,
     );
     if (candidates.length === 0) return null;
     candidates.sort((a, b) => (a.horizonEnd < b.horizonEnd ? 1 : a.horizonEnd > b.horizonEnd ? -1 : 0));

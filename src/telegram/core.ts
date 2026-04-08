@@ -89,7 +89,7 @@ import {
   progressDisambiguationKeyboard,
   progressReportKeyboard,
 } from './keyboards.js';
-import { getPlanLifecycle, toLocalISODate, getNextCookDay } from '../plan/helpers.js';
+import { getPlanLifecycle, getVisiblePlanSession, toLocalISODate, getNextCookDay } from '../plan/helpers.js';
 import type { PlanLifecycle } from '../plan/helpers.js';
 import { getCalendarWeekBoundaries } from '../utils/dates.js';
 import { parseMeasurementInput, assignWeightWaist, formatDisambiguationPrompt } from '../agents/progress-flow.js';
@@ -468,12 +468,11 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       return;
     }
 
-    // Post-plan-confirmation actions
+    // Post-plan-confirmation actions (legacy keyboard)
     if (action === 'view_shopping_list') {
       session.planFlow = null;
-      session.surfaceContext = 'shopping';
-      session.lastRecipeSlug = undefined;
-      await sink.reply('Shopping list generation is coming soon.', { reply_markup: await getMenuKeyboard() });
+      // Route to sl_next which handles both active and upcoming plans
+      await handleCallback('sl_next', sink);
       return;
     }
     if (action === 'view_plan_recipes') {
@@ -503,7 +502,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
     if (action === 'plan_replan_cancel') {
       session.pendingReplan = undefined;
-      await sink.reply('Plan kept. Tap Plan Week again to plan the week after.', { reply_markup: await getMenuKeyboard() });
+      await sink.reply('Plan kept.', { reply_markup: await getMenuKeyboard() });
       return;
     }
 
@@ -750,7 +749,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     if (action === 'na_show' || action === 'wo_show' || action.startsWith('dd_')) {
       const today = toLocalISODate(new Date());
       const lifecycle = await getPlanLifecycle(session, store, today);
-      const planSession = await store.getRunningPlanSession(today);
+      const planSession = await getVisiblePlanSession(store, today);
       if (!planSession) {
         await sink.reply('No active plan.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
         return;
@@ -760,7 +759,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       session.surfaceContext = 'plan';
 
       if (action === 'na_show') {
-        const text = formatNextAction(batchViews, planSession.events, planSession.flexSlots, today);
+        const text = formatNextAction(batchViews, planSession.events, planSession.flexSlots, today, planSession.horizonStart);
         const nextCook = getNextCookDay(allBatches, today);
         const nextCookBatchViews = nextCook
           ? batchViews.filter(bv => bv.batch.eatingDays[0] === nextCook.date)
@@ -828,7 +827,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       const param = action.slice(3); // "next" or ISO date
       const today = toLocalISODate(new Date());
       const lifecycle = await getPlanLifecycle(session, store, today);
-      const planSession = await store.getRunningPlanSession(today);
+      const planSession = await getVisiblePlanSession(store, today);
       if (!planSession) {
         await sink.reply('No plan for this week.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
         return;
@@ -904,8 +903,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     if (replacingSession) {
       breakfastSource = replacingSession.breakfast;
     } else {
-      const running = await store.getRunningPlanSession();
-      const fallbackSession = running ?? (await store.getLatestHistoricalPlanSession());
+      const running = await store.getRunningPlanSession(toLocalISODate(new Date()));
+      const fallbackSession = running ?? (await store.getLatestHistoricalPlanSession(toLocalISODate(new Date())));
       if (fallbackSession) {
         breakfastSource = fallbackSession.breakfast;
       }
@@ -1023,15 +1022,15 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
     switch (action) {
       case 'my_plan': {
-        // "📋 My Plan" tapped with active plan → show Next Action view
+        // "📋 My Plan" tapped with active or upcoming plan → show Next Action view
         session.surfaceContext = 'plan';
         session.lastRecipeSlug = undefined;
         const today = toLocalISODate(new Date());
         const lifecycle = await getPlanLifecycle(session, store, today);
-        const planSession = await store.getRunningPlanSession(today);
-        if (planSession && lifecycle.startsWith('active_')) {
+        const planSession = await getVisiblePlanSession(store, today);
+        if (planSession && (lifecycle.startsWith('active_') || lifecycle === 'upcoming')) {
           const { batchViews, allBatches } = await loadPlanBatches(planSession, recipes);
-          const text = formatNextAction(batchViews, planSession.events, planSession.flexSlots, today);
+          const text = formatNextAction(batchViews, planSession.events, planSession.flexSlots, today, planSession.horizonStart);
           const nextCook = getNextCookDay(allBatches, today);
           const nextCookBatchViews = nextCook
             ? batchViews.filter(bv => bv.batch.eatingDays[0] === nextCook.date)
@@ -1039,7 +1038,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           await sink.reply(text, { reply_markup: nextActionKeyboard(nextCookBatchViews, lifecycle), parse_mode: 'MarkdownV2' });
           return;
         }
-        // Fallback: no active plan — treat as plan_week
+        // Fallback: no plan at all — treat as plan_week
         await handleMenu('plan_week', sink);
         return;
       }
@@ -1122,7 +1121,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           await sink.reply('No plan yet — plan your week first to see what you\'ll need.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
           return;
         }
-        // Active plan → delegate to sl_next handler by dispatching a callback
+        // Active or upcoming plan → delegate to sl_next handler by dispatching a callback
         await handleCallback('sl_next', sink);
         return;
       }
@@ -1205,11 +1204,10 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     const lifecycle = await getPlanLifecycle(session, store, today);
     let cookingSoonBatchViews: BatchView[] | undefined;
 
-    if (lifecycle.startsWith('active_')) {
-      const planSession = await store.getRunningPlanSession(today);
+    if (lifecycle.startsWith('active_') || lifecycle === 'upcoming') {
+      const planSession = await getVisiblePlanSession(store, today);
       if (planSession) {
         const { batchViews } = await loadPlanBatches(planSession, recipes);
-        // Filter to upcoming cook-day batches (cook day >= today), sort soonest first
         cookingSoonBatchViews = batchViews
           .filter(bv => bv.batch.eatingDays.length > 0 && bv.batch.eatingDays[0]! >= today)
           .sort((a, b) => a.batch.eatingDays[0]!.localeCompare(b.batch.eatingDays[0]!));

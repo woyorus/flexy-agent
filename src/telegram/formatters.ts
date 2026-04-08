@@ -194,6 +194,7 @@ export function formatCookingSchedule(
  * @param events - Meal events (restaurant outings, etc.)
  * @param flexSlots - Flex slots (user-decided meals)
  * @param today - ISO date string for "today"
+ * @param horizonStart - ISO date for plan start (when set, days before this show "No meals" instead of dashes)
  * @returns MarkdownV2 formatted string
  */
 export function formatNextAction(
@@ -201,6 +202,7 @@ export function formatNextAction(
   events: MealEvent[],
   flexSlots: FlexSlot[],
   today: string,
+  horizonStart?: string,
 ): string {
   const batches = batchViews.map(bv => bv.batch);
   const dates = getNextNDates(today, 3);
@@ -209,6 +211,14 @@ export function formatNextAction(
   for (const date of dates) {
     const dayLabel = formatDayMdV2Short(date);
     lines.push(`*${esc(dayLabel)}*`);
+
+    // Pre-plan day: show context instead of bare dashes
+    if (horizonStart && date < horizonStart) {
+      const startLabel = formatDayMdV2Short(horizonStart);
+      lines.push(`_No meals — your plan starts ${esc(startLabel)}_`);
+      lines.push('');
+      continue;
+    }
 
     for (const mealType of ['lunch', 'dinner'] as const) {
       const event = events.find(e => e.day === date && e.mealTime === mealType);

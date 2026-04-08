@@ -176,7 +176,7 @@ export function createPlanFlowStateFromHorizon(
  * Uses three explicit store queries in fallback order:
  * 1. Future sessions → replan the earliest one
  * 2. Running session → continuous rolling (day after horizonEnd)
- * 3. Historical/none → tomorrow
+ * 3. Historical/none → tomorrow (user plans today, shops today, cooks tomorrow)
  */
 export async function computeNextHorizonStart(
   store: StateStoreLike,
@@ -185,22 +185,22 @@ export async function computeNextHorizonStart(
   replacingSession?: import('../models/types.js').PlanSession;
   runningSession?: import('../models/types.js').PlanSession;
 }> {
-  const future = await store.getFuturePlanSessions();
+  const today = toLocalISODate(new Date());
+  const future = await store.getFuturePlanSessions(today);
   if (future.length > 0) {
     return { start: future[0]!.horizonStart, replacingSession: future[0]! };
   }
 
-  const running = await store.getRunningPlanSession();
+  const running = await store.getRunningPlanSession(today);
   if (running) {
     const nextDay = addDays(running.horizonEnd, 1);
     return { start: nextDay, runningSession: running };
   }
 
-  const last = await store.getLatestHistoricalPlanSession();
-  // TEMPORARY: start today instead of tomorrow so plans are immediately usable.
-  // Revisit when we add proper "plan starts on day X" user preference.
-  const today = toLocalISODate(new Date());
-  return { start: today };
+  await store.getLatestHistoricalPlanSession(today);
+  // Plan starts tomorrow: user plans today, shops today, cooks tomorrow.
+  // With upcoming plan visibility the plan is fully visible before it starts.
+  return { start: addDays(today, 1) };
 }
 
 /** Add N days to an ISO date string and return the result as ISO date. */

@@ -14,7 +14,7 @@
  * `src/agents/plan-proposer.ts` re-exports it for backward compatibility.
  */
 
-import type { Batch } from '../models/types.js';
+import type { Batch, PlanSession } from '../models/types.js';
 import type { StateStoreLike } from '../state/store.js';
 import type { BotCoreSession } from '../telegram/core.js';
 
@@ -39,13 +39,14 @@ export function toLocalISODate(d: Date): string {
 /**
  * Where the user is relative to their plan.
  *
- * - `no_plan`: No running plan session and no active planning flow.
+ * - `no_plan`: No running plan session, no future plan, and no active planning flow.
  * - `planning`: A `planFlow` is active and not yet confirmed.
+ * - `upcoming`: A confirmed plan exists but hasn't started yet (horizon_start > today).
  * - `active_early`: Day 0 or day 1 of the plan horizon.
  * - `active_mid`: Days 2-4 of a 7-day horizon (the default).
  * - `active_ending`: 1-2 days remaining in the horizon.
  */
-export type PlanLifecycle = 'no_plan' | 'planning' | 'active_early' | 'active_mid' | 'active_ending';
+export type PlanLifecycle = 'no_plan' | 'planning' | 'upcoming' | 'active_early' | 'active_mid' | 'active_ending';
 
 /**
  * Compute the user's plan lifecycle state.
@@ -71,7 +72,8 @@ export async function getPlanLifecycle(
 
   const runningSession = await store.getRunningPlanSession(today);
   if (!runningSession) {
-    return 'no_plan';
+    const future = await store.getFuturePlanSessions(today);
+    return future.length > 0 ? 'upcoming' : 'no_plan';
   }
 
   // Compute horizon position
@@ -90,6 +92,26 @@ export async function getPlanLifecycle(
 
   // Default: active_mid
   return 'active_mid';
+}
+
+/**
+ * Get the plan session the user should see right now.
+ *
+ * Priority: running plan (horizon contains today) > nearest future plan.
+ * Returns null if no confirmed plan exists at all.
+ *
+ * This is the visibility query — use it everywhere the user expects
+ * to "see their plan." Contrast with getRunningPlanSession which is
+ * strictly date-range-gated and used for budget/solver logic.
+ */
+export async function getVisiblePlanSession(
+  store: StateStoreLike,
+  today: string,
+): Promise<PlanSession | null> {
+  const running = await store.getRunningPlanSession(today);
+  if (running) return running;
+  const future = await store.getFuturePlanSessions(today);
+  return future.length > 0 ? future[0]! : null;
 }
 
 /**

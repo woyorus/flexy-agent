@@ -22,3 +22,4 @@
 | 019 | shopping-list-tiered | Three-tier shopping list: sl_next + sl_{date} with role-enriched ingredients. Verifies tier-1 exclusion, tier-2 checkYouHave, tier-3 category grouping, and breakfast annotation. |
 | 020 | planning-intents-from-text | Swap from proposal phase (no button tap), "start over" mid-flow resets planning, second attempt approves. Plan 019 intents. |
 | 021 | planning-cancel-intent | "Nevermind" during proposal exits planning cleanly — planFlow null, surfaceContext null, main menu shown. |
+| 022 | upcoming-plan-view | Upcoming plan visibility: My Plan, Week Overview, Shopping List work before plan starts. Contextual "No meals" for pre-plan days. Replan prompt when tapping Plan Week. |
