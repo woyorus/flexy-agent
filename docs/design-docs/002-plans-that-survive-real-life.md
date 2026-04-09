@@ -1,6 +1,6 @@
 # Plans That Survive Real Life
 
-> Status: draft
+> Status: landed (Plan 024 + Plan 025)
 > Date: 2026-04-09
 > Supersedes: 002-flexible-batch-model.md (reframed — flexible batches are a prerequisite, not the full problem)
 > JTBD: B1 (Plan my week — anxiety to calm), A1 (Know my next action), C2 (Handle unplanned social meals)
@@ -129,7 +129,7 @@ The clarification path is a safety valve, not the norm. Most mutations are unamb
 
 #### Mutation history
 
-Each time the user approves a re-proposed plan, the mutation is appended: `{ constraint: "move flex to Sunday", appliedAt: "2026-04-09T..." }`. The full history is passed to the re-proposer so it knows which prior choices are load-bearing. On rollback (user rejects), nothing is appended.
+Each time the re-proposer produces a new plan and it is shown to the user, the mutation is appended: `{ constraint: "move flex to Sunday", appliedAt: "2026-04-09T..." }`. The full history is passed to the re-proposer so it knows which prior choices are load-bearing. If the user explicitly undoes a change, the re-proposer adjusts the arrangement; history tracks intent, not outcome.
 
 **Lifecycle:** History is scoped to the planning session and clears when the plan is confirmed. This is correct for v0.0.4 where mutations only happen during planning. When v0.0.5 adds post-confirmation mutations, history will need to persist across confirmation boundaries — approved re-proposals become plan revisions with their own history.
 

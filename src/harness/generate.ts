@@ -41,6 +41,7 @@
 
 import { writeFile, readFile, stat, mkdir } from 'node:fs/promises';
 import { join, resolve, dirname } from 'node:path';
+import { copyRecipeSetToTmp } from './recipe-sandbox.js';
 import { pathToFileURL } from 'node:url';
 import { createBotCore, type BotCoreDeps, type HarnessUpdate } from '../telegram/core.js';
 import { RecipeDatabase } from '../recipes/database.js';
@@ -250,11 +251,15 @@ async function generateScenario(args: CliArgs): Promise<void> {
   // ─── Wire up the scenario ─────────────────────────────────────────────
   const clock = freezeClock(spec.clock);
   try {
-    const recipes = new RecipeDatabase(join(RECIPE_FIXTURES_ROOT, spec.recipeSet));
+    // Recipe database loaded from a temp copy so recipe generation
+    // during the scenario doesn't pollute the shared fixture set.
+    const fixtureRecipePath = join(RECIPE_FIXTURES_ROOT, spec.recipeSet);
+    const tmpRecipeDir = await copyRecipeSetToTmp(fixtureRecipePath);
+    const recipes = new RecipeDatabase(tmpRecipeDir);
     await recipes.load();
     if (recipes.size === 0) {
       throw new Error(
-        `Recipe set "${spec.recipeSet}" has no recipes at ${join(RECIPE_FIXTURES_ROOT, spec.recipeSet)}`,
+        `Recipe set "${spec.recipeSet}" has no recipes at ${fixtureRecipePath}`,
       );
     }
 

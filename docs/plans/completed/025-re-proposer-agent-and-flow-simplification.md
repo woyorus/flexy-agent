@@ -3,7 +3,7 @@
 **Status:** Active
 **Date:** 2026-04-09
 **Affects:** `src/agents/plan-reproposer.ts` (new), `src/agents/plan-flow.ts`, `src/agents/plan-utils.ts`, `src/agents/plan-proposer.ts`, `src/solver/types.ts`, `src/agents/plan-diff.ts` (new)
-**Design doc:** `docs/design-docs/proposals/002-plans-that-survive-real-life.md`
+**Design doc:** `docs/design-docs/002-plans-that-survive-real-life.md`
 **Depends on:** Plan 024 (flexible batch model, proposal validator, complete proposer).
 **Blocked by:** Plan 024 must be complete — this plan removes mutation handlers that Plan 024 keeps alive.
 
@@ -526,12 +526,12 @@ Same as Plan 024: every regenerated scenario gets the full behavioral review. Ad
 
 ## Progress
 
-- [ ] Phase 0: Update design doc mutation-history semantics (prerequisite — resolve divergence before coding)
-- [ ] Phase 1: Re-proposer function
-- [ ] Phase 2: Change summary generator
-- [ ] Phase 3: Flow simplification
-- [ ] Phase 4: Cleanup
-- [ ] Phase 5: Testing
+- [x] Phase 0: Update design doc mutation-history semantics (prerequisite — resolve divergence before coding)
+- [x] Phase 1: Re-proposer function
+- [x] Phase 2: Change summary generator
+- [x] Phase 3: Flow simplification
+- [x] Phase 4: Cleanup
+- [x] Phase 5: Testing (151/151 pass — 5 mutation specs reworked, 4 new scenarios: 023-026)
 
 ### Phase 0: Update design doc
 

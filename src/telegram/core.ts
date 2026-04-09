@@ -77,8 +77,6 @@ import {
   planEventsKeyboard,
   planMoreEventsKeyboard,
   planProposalKeyboard,
-  planRecipeGapKeyboard,
-  planGapRecipeReviewKeyboard,
   planConfirmedKeyboard,
   postConfirmationKeyboard,
   nextActionKeyboard,
@@ -129,13 +127,8 @@ import {
   handleEventText,
   handleEventsDone,
   handleGenerateProposal,
-  handleGapResponse,
-  handleGapRecipePrefs,
-  handleGapRecipeReview,
-  handleGapRecipeRefinement,
   handleApprove,
-  handleSwapRequest,
-  handleSwapText,
+  handleMutationText,
   matchPlanningMetaIntent,
 } from '../agents/plan-flow.js';
 
@@ -537,10 +530,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           const proposal = await handleGenerateProposal(session.planFlow, llm, recipes, store);
           session.planFlow = proposal.state;
           stopTyping();
-          const kb = session.planFlow.phase === 'recipe_suggestion'
-            ? planRecipeGapKeyboard(session.planFlow.activeGapIndex ?? 0)
-            : planProposalKeyboard;
-          await sink.reply(proposal.text, { reply_markup: kb });
+          await sink.reply(proposal.text, { reply_markup: planProposalKeyboard });
         } catch (err) {
           stopTyping();
           throw err;
@@ -564,10 +554,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           const proposal = await handleGenerateProposal(session.planFlow, llm, recipes, store);
           session.planFlow = proposal.state;
           stopTyping();
-          const kb = session.planFlow.phase === 'recipe_suggestion'
-            ? planRecipeGapKeyboard(session.planFlow.activeGapIndex ?? 0)
-            : planProposalKeyboard;
-          await sink.reply(proposal.text, { reply_markup: kb });
+          await sink.reply(proposal.text, { reply_markup: planProposalKeyboard });
         } catch (err) {
           stopTyping();
           throw err;
@@ -608,12 +595,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
 
-      if (action === 'plan_swap') {
-        const result = handleSwapRequest(session.planFlow);
-        session.planFlow = result.state;
-        await sink.reply(result.text);
-        return;
-      }
+      // plan_swap callback removed in Plan 025 — users type adjustments directly.
 
       if (action === 'plan_cancel') {
         session.planFlow = null;
@@ -621,75 +603,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
 
-      // Recipe gap actions
-      if (action.startsWith('plan_gen_gap_')) {
-        const gapIndex = parseInt(action.replace('plan_gen_gap_', ''), 10);
-        session.planFlow.activeGapIndex = gapIndex;
-        await sink.reply('Generating recipe...');
-        const stopTyping = sink.startTyping();
-        try {
-          const result = await handleGapResponse(session.planFlow, 'generate', llm, recipes);
-          session.planFlow = result.state;
-          stopTyping();
-          const kb = session.planFlow.phase === 'reviewing_recipe'
-            ? planGapRecipeReviewKeyboard
-            : session.planFlow.phase === 'recipe_suggestion'
-            ? planRecipeGapKeyboard(session.planFlow.activeGapIndex ?? 0)
-            : planProposalKeyboard;
-          await sink.reply(result.text, { reply_markup: kb, ...(result.parseMode && { parse_mode: result.parseMode }) });
-        } catch (err) {
-          stopTyping();
-          throw err;
-        }
-        return;
-      }
-
-      if (action.startsWith('plan_idea_gap_')) {
-        const gapIndex = parseInt(action.replace('plan_idea_gap_', ''), 10);
-        session.planFlow.activeGapIndex = gapIndex;
-        const result = await handleGapResponse(session.planFlow, 'idea', llm, recipes);
-        session.planFlow = result.state;
-        await sink.reply(result.text);
-        return;
-      }
-
-      if (action.startsWith('plan_skip_gap_')) {
-        const gapIndex = parseInt(action.replace('plan_skip_gap_', ''), 10);
-        session.planFlow.activeGapIndex = gapIndex;
-        const result = await handleGapResponse(session.planFlow, 'skip', llm, recipes);
-        session.planFlow = result.state;
-        const kb = session.planFlow.phase === 'recipe_suggestion'
-          ? planRecipeGapKeyboard(session.planFlow.activeGapIndex ?? 0)
-          : planProposalKeyboard;
-        await sink.reply(result.text, { reply_markup: kb });
-        return;
-      }
-
-      // Gap recipe review
-      if (action === 'plan_use_recipe') {
-        const result = await handleGapRecipeReview(session.planFlow, 'use', recipes, llm);
-        session.planFlow = result.state;
-        const kb = session.planFlow.phase === 'recipe_suggestion'
-          ? planRecipeGapKeyboard(session.planFlow.activeGapIndex ?? 0)
-          : planProposalKeyboard;
-        await sink.reply(result.text, { reply_markup: kb });
-        return;
-      }
-
-      if (action === 'plan_diff_recipe') {
-        await sink.reply('Generating a different recipe...');
-        const stopTyping = sink.startTyping();
-        try {
-          const result = await handleGapRecipeReview(session.planFlow, 'different', recipes, llm);
-          session.planFlow = result.state;
-          stopTyping();
-          await sink.reply(result.text, { reply_markup: planGapRecipeReviewKeyboard, ...(result.parseMode && { parse_mode: result.parseMode }) });
-        } catch (err) {
-          stopTyping();
-          throw err;
-        }
-        return;
-      }
+      // Gap resolution callbacks removed in Plan 025 — replaced by re-proposer agent.
     }
 
     // ─── Progress callbacks ──────────────────────────────────────────────
@@ -973,41 +887,12 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         };
       }
       case 'generating_proposal':
-      case 'generating_recipe':
         return { text: 'Still working on it…' };
-      case 'recipe_suggestion': {
-        const gap = state.pendingGaps?.[state.activeGapIndex ?? 0];
-        const gapText = gap
-          ? `Need a recipe for ${gap.mealType} on ${gap.days.map(formatDateForMessage).join(', ')}. What would you like?`
-          : 'Resolving recipe gaps…';
-        return {
-          text: gapText,
-          replyMarkup: planRecipeGapKeyboard(state.activeGapIndex ?? 0),
-        };
-      }
-      case 'awaiting_recipe_prefs':
-        return { text: 'What kind of recipe do you want?' };
-      case 'reviewing_recipe': {
-        if (state.currentRecipe) {
-          return {
-            text: renderRecipe(state.currentRecipe),
-            replyMarkup: planGapRecipeReviewKeyboard,
-            parseMode: 'MarkdownV2',
-          };
-        }
-        // Edge case: no currentRecipe — fall through to recipe_suggestion behavior
-        return {
-          text: 'Resolving recipe gaps…',
-          replyMarkup: planRecipeGapKeyboard(state.activeGapIndex ?? 0),
-        };
-      }
       case 'proposal':
         return {
           text: state.proposalText ?? 'Your plan is ready for review.',
           replyMarkup: planProposalKeyboard,
         };
-      case 'awaiting_swap':
-        return { text: 'Tell me what you\'d like to swap.' };
       case 'confirmed':
         // Should not reach here (handled by lifecycle guard)
         return { text: 'Plan already confirmed.' };
@@ -1417,52 +1302,14 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
 
-      if (session.planFlow.phase === 'awaiting_recipe_prefs') {
-        await sink.reply('Generating recipe...');
+      if (session.planFlow.phase === 'proposal') {
+        // Plan 025: all mutation text goes through the re-proposer agent.
         const stopTyping = sink.startTyping();
         try {
-          const result = await handleGapRecipePrefs(session.planFlow, text, llm);
+          const result = await handleMutationText(session.planFlow, text, llm, recipes);
           session.planFlow = result.state;
           stopTyping();
-          const kb = session.planFlow.phase === 'reviewing_recipe'
-            ? planGapRecipeReviewKeyboard
-            : planProposalKeyboard;
-          await sink.reply(result.text, { reply_markup: kb, ...(result.parseMode && { parse_mode: result.parseMode }) });
-        } catch (err) {
-          stopTyping();
-          throw err;
-        }
-        return;
-      }
-
-      if (session.planFlow.phase === 'awaiting_swap' || session.planFlow.phase === 'proposal') {
-        // Both phases route through the swap classifier.
-        // For 'proposal', this lets the user type changes without tapping [Swap something] first.
-        const stopTyping = sink.startTyping();
-        try {
-          const result = await handleSwapText(session.planFlow, text, llm, recipes, store);
-          session.planFlow = result.state;
-          stopTyping();
-          const kb = session.planFlow.phase === 'recipe_suggestion'
-            ? planRecipeGapKeyboard(session.planFlow.activeGapIndex ?? 0)
-            : planProposalKeyboard;
-          await sink.reply(result.text, { reply_markup: kb });
-        } catch (err) {
-          stopTyping();
-          throw err;
-        }
-        return;
-      }
-
-      if (session.planFlow.phase === 'reviewing_recipe') {
-        // User is typing a refinement for the gap recipe
-        await sink.reply('Refining recipe...');
-        const stopTyping = sink.startTyping();
-        try {
-          const result = await handleGapRecipeRefinement(session.planFlow, text, llm);
-          session.planFlow = result.state;
-          stopTyping();
-          await sink.reply(result.text, { reply_markup: planGapRecipeReviewKeyboard, ...(result.parseMode && { parse_mode: result.parseMode }) });
+          await sink.reply(result.text, { reply_markup: planProposalKeyboard });
         } catch (err) {
           stopTyping();
           throw err;

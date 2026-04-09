@@ -9,9 +9,7 @@ The main weekly ritual. Suggestive-first: the system proposes a complete plan, t
 ### Phases
 
 ```
-context → awaiting_events → generating_proposal →
-  [recipe_suggestion → awaiting_recipe_prefs → generating_recipe → reviewing_recipe →]
-  proposal → [awaiting_swap →] confirmed
+context → awaiting_events → generating_proposal → proposal → confirmed
 ```
 
 ### Phase details
@@ -26,30 +24,28 @@ Follow-up messages classify into: correction to last event, `reclassify_as_treat
 
 **generating_proposal** — Heavy async step:
 1. Load available recipes + recent plan history from DB/Supabase
-2. Call plan-proposer sub-agent — always returns a **complete** plan: every slot covered, exactly `config.planning.flexSlotsPerWeek` flex slots, batches fridge-life constrained (not required to be consecutive). `proposePlan()` returns a discriminated union: `{type:'proposal',...}` or `{type:'failure',...}`.
-3. `validateProposal()` gates the raw proposal (13 invariants: slot coverage, no overlap, fridge-life, flex count, recipe existence, event validity). On failure, the proposer retries once with correction feedback. Double failure → graceful abort: reset to `context`, tell user to adjust events or add more recipes.
+2. Call plan-proposer sub-agent — always returns a **complete** plan: every slot covered, exactly `config.planning.flexSlotsPerWeek` flex slots, batches fridge-life constrained (not required to be consecutive).
+3. `validateProposal()` gates the raw proposal (13 invariants: slot coverage, no overlap, fridge-life, flex count, recipe existence, event validity). On failure, the proposer retries once with correction feedback. Double failure → graceful abort.
 4. Run solver on validated proposal (protected treat budget upfront, uniform per-slot targets)
 5. Validate solver output via QA gate → show proposal.
 
-**recipe_suggestion**, **awaiting_recipe_prefs**, **generating_recipe**, **reviewing_recipe** — Gap-resolution sub-flow. **Not reachable from the proposer path** (Plan 024: proposer always returns complete plans). These phases remain alive for the swap/mutation path (flex_remove, event_remove) where orphan slots can arise. Plan 025 will remove this flow entirely.
+**proposal** — Full plan displayed with: breakfast, meal prep batches (uniform per-serving calorie shown once as a header, rounded to nearest 10 — e.g. "each ~800 cal/serving"), events, flex meal, treat budget, cooking schedule, weekly totals. User picks: [Looks good!] or types an adjustment.
 
-**proposal** — Full plan displayed with: breakfast, meal prep batches (uniform per-serving calorie shown once as a header, rounded to nearest 10 — e.g. "each ~800 cal/serving"), events, flex meal, treat budget, cooking schedule, weekly totals. User picks: [Looks good!] / [Swap something].
+When the user types text in this phase, it goes through `handleMutationText()` → the re-proposer agent (`plan-reproposer.ts`). The re-proposer receives the current plan + user message + mutation history and returns one of:
+- **proposal** — complete new plan. Validated, solver re-runs, `diffProposals()` generates a change summary, updated plan shown. User stays in `proposal` phase.
+- **clarification** — question for the user (e.g. "which meal do you mean?"). Stored in `pendingClarification`; user's next message combines original request + answer for a second re-proposer call.
+- **failure** — two validation failures. Prior plan kept, user asked to rephrase.
 
-**awaiting_swap** — User describes a swap via free-text. Nano LLM classifies into one of:
-- `flex_add` — add a new flex slot. If already at `flexSlotsPerWeek` capacity, automatically treated as a move (drops existing flex before adding).
-- `flex_remove` — remove an existing flex slot. Tries to extend an adjacent batch to absorb the freed day; falls back to creating a recipe gap.
-- `flex_move` — atomic move of the existing flex slot to a new day. `from` is optional (defaults to the only existing flex).
-- `recipe_swap` — change a specific batch's recipe. Picks from DB candidates matching the user's preference, or enters gap generation if nothing fits.
-- `unclear` — ask user to rephrase (will be replaced by a slow-path re-proposer in v0.0.5).
+If the user asks for a recipe not in the DB, the re-proposer returns a clarification with `recipeNeeded` set. User confirms → `generateRecipe()` runs → recipe persisted → re-proposer re-runs with the updated DB.
 
-After any swap, if the mutation created any recipe gaps (orphan days that couldn't be reabsorbed into adjacent batches), they are presented via the same inline gap-resolution flow as the initial proposal. Then the solver re-runs on the mutated proposal and the display is regenerated. `removeBatchDay` never leaves 1-serving batches — orphan days are absorbed via `absorbFreedDay` (extend adjacent batch or create gap).
+Mutation history accumulates per session (cleared on confirm). Each shown mutation appends to history so subsequent re-proposer calls respect prior changes.
 
 **confirmed** — Recipe scaler runs on each batch (adjusts ingredients to the solver's per-slot target within ±20 cal, preserving protein). Plan saved to Supabase. Any existing active plans are transitioned to completed first. Shows shopping list / view recipes buttons.
 
 ### Key behaviors
 
-- **No explicit fun food step.** Flex slots are auto-suggested by the plan-proposer and presented in the proposal. Users can add/remove flex meals via the swap mechanism.
-- **Inline recipe gap resolution (mutation path only).** The proposer never produces gaps. Gap resolution phases remain for the mutation path (swap/flex_remove operations that orphan slots). Plan 025 removes this flow.
+- **No explicit fun food step.** Flex slots are auto-suggested by the plan-proposer and presented in the proposal. Users can adjust flex placement by typing in the proposal phase.
+- **One-message mutations.** All plan adjustments (flex moves, recipe swaps, event add/remove) are handled by a single re-proposer LLM call. No separate swap phase, no intent classification, no deterministic mutation handlers.
 - **Event corrections.** During event collection, the system distinguishes corrections to the last event from new events using nano LLM classification.
 - **Multi-turn recipe refinement.** During gap recipe review, free-text messages refine the recipe via conversation history (not regeneration from scratch).
 

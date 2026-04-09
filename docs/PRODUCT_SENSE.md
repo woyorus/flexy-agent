@@ -372,3 +372,9 @@ It should handle cravings, restaurants, family meals, imperfect days, and real-l
 It is not another tracker.
 It is not another diet with more rules.
 It is a system designed to make weight loss actually livable.
+
+### Architectural corollary: agentic over deterministic
+
+Plan arrangement and mutations are LLM territory. Deterministic code is for math (solver budget allocation, recipe scaling) and validation (proposal invariants, macro checks). Everything that involves understanding real-life context — rearranging a week, handling "move flex to Sunday", adding a last-minute dinner event, swapping a recipe — goes through an LLM agent call with structured output and validation.
+
+This was validated in v0.0.4 (Plan 025): replacing ~800 lines of deterministic mutation handlers with a single re-proposer LLM call eliminated every edge-case dead end while making the product feel more natural to interact with. The code got smaller and the UX got better — simultaneously. This is the architectural direction for all future plan-adjustment work (v0.0.5 midweek mutations, restaurant handling, plan survivability).

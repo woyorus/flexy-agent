@@ -25,6 +25,7 @@
  */
 
 import { join } from 'node:path';
+import { copyRecipeSetToTmp } from './recipe-sandbox.js';
 import { createBotCore, type BotCoreDeps, type HarnessUpdate } from '../telegram/core.js';
 import { RecipeDatabase } from '../recipes/database.js';
 import { FixtureLLMProvider } from '../ai/fixture.js';
@@ -92,8 +93,12 @@ export async function runScenario(
 ): Promise<ScenarioResult> {
   const clock = freezeClock(spec.clock);
   try {
-    // Recipe database lives inside the scenario's fixture set.
-    const recipes = new RecipeDatabase(join(RECIPE_FIXTURES_ROOT, spec.recipeSet));
+    // Recipe database loaded from a temp copy so recipe generation
+    // during the scenario doesn't pollute the shared fixture set.
+    const tmpRecipeDir = await copyRecipeSetToTmp(
+      join(RECIPE_FIXTURES_ROOT, spec.recipeSet),
+    );
+    const recipes = new RecipeDatabase(tmpRecipeDir);
     await recipes.load();
 
     // Fixture LLM — every call is replayed from `recorded.llmFixtures`.

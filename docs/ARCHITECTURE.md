@@ -20,7 +20,7 @@ flexy-agent/
 │   │   └── types.ts                      Core data models (PlanSession, Batch, Recipe, FlexSlot, etc.)
 │   │
 │   ├── solver/
-│   │   ├── types.ts                      Solver I/O interfaces + PlanProposal, ProposedBatch, RecipeGap, PlanProposerOutput
+│   │   ├── types.ts                      Solver I/O interfaces + PlanProposal, ProposedBatch, PlanProposerOutput
 │   │   └── solver.ts                     Deterministic budget allocation algorithm
 │   │
 │   ├── qa/
@@ -38,6 +38,8 @@ flexy-agent/
 │   ├── agents/
 │   │   ├── plan-flow.ts                  Plan week flow handler (suggestive-first planning)
 │   │   ├── plan-proposer.ts              Sub-agent: propose weekly plan (variety + flex slots)
+│   │   ├── plan-reproposer.ts            Sub-agent: adjust existing plan per user request (Plan 025)
+│   │   ├── plan-diff.ts                  Deterministic change summary generator (Plan 025)
 │   │   ├── recipe-flow.ts               Recipe generation/edit flow handler
 │   │   ├── recipe-generator.ts           Sub-agent: generate new recipes to macro targets
 │   │   ├── recipe-scaler.ts              Sub-agent: scale existing recipes to new targets
@@ -113,7 +115,9 @@ flexy-agent/
 
 **Agent Harness** — The product. Contains all business logic:
 - **Flow handlers** (`agents/plan-flow.ts`, `agents/recipe-flow.ts`) — Phase-driven state machines for the planning and recipe flows. Each exports a state type, factory function, and pure handler functions that return `{text, state}`.
-- **Plan proposer** (`agents/plan-proposer.ts`) — Sub-agent that generates complete weekly plan proposals using the recipe DB, recent history, and variety rules. Always returns a complete plan (no recipe gaps from generation). Returns a discriminated union `PlanProposerOutput`: `{type:'proposal',...}` or `{type:'failure',...}`. Batches are fridge-life constrained, not required to be calendar-consecutive.
+- **Plan proposer** (`agents/plan-proposer.ts`) — Sub-agent that generates complete weekly plan proposals using the recipe DB, recent history, and variety rules. Always returns a complete plan. Batches are fridge-life constrained, not required to be calendar-consecutive.
+- **Re-proposer** (`agents/plan-reproposer.ts`) — Sub-agent that adjusts an existing plan per user request. Single structured-output LLM call. Same output contract as the proposer (complete plan), same validator, same solver. Returns proposal, clarification, or failure. Replaces all deterministic mutation handlers (Plan 025).
+- **Change summary** (`agents/plan-diff.ts`) — Deterministic diff between old and new proposals. Two-pass batch matching (recipe identity then day overlap for swaps). Used after re-proposer to show the user what changed.
 - **Budget solver** (`solver/solver.ts`) — Deterministic code. Reserves a protected treat budget upfront (`config.planning.treatBudgetPercent`), then distributes the remaining weekly calories uniformly across all meal prep slots. Every batch gets the same per-slot target; the recipe scaler adjusts each recipe to hit it.
 - **QA gate** (`qa/gate.ts`) — Validates all outputs before they reach the user. Retry loop with max 3 attempts. Proposal validation (`qa/validators/proposal.ts`) runs inside `proposePlan()` before the solver; 13 invariants cover slot coverage, fridge-life, flex count, recipe existence, and event validity.
 - **Sub-agents** — Isolated LLM tasks: recipe generation (with meal-type-specific prompts), recipe scaling, restaurant estimation. Each runs with focused context and returns a condensed result.
@@ -152,9 +156,11 @@ index.ts
   └─ state/store.ts
   └─ telegram/bot.ts
        ├─ agents/plan-flow.ts           (plan week flow)
-       │    ├─ agents/plan-proposer.ts  (sub-agent: plan proposals — always complete, fridge-life batches)
+       │    ├─ agents/plan-proposer.ts  (sub-agent: initial plan proposals)
        │    │    └─ qa/validators/proposal.ts  (13-invariant pre-solver gate, retry on failure)
-       │    ├─ agents/recipe-generator  (sub-agent: gap recipes — mutation path only, Plan 025 removes)
+       │    ├─ agents/plan-reproposer.ts (sub-agent: adjust plan per user request)
+       │    ├─ agents/plan-diff.ts      (deterministic change summary)
+       │    ├─ agents/recipe-generator  (sub-agent: generate recipes on demand)
        │    ├─ agents/recipe-scaler.ts  (sub-agent: scale recipes to solver targets at approval)
        │    ├─ solver/solver.ts         (budget math)
        │    ├─ qa/validators/plan.ts    (validation)
@@ -191,9 +197,10 @@ Plan presented to user:
   → [Looks good!] → recipe-scaler runs on each batch (adjusts ingredients
                     to the solver's per-slot target ±20 cal, preserving protein)
                   → plan saved to Supabase, shopping list ready
-  → [Swap something] → user describes change → LLM classifies swap type
-     (flex_add, flex_remove, flex_move, recipe_swap, unclear)
-     → proposal mutated → solver re-runs → re-presented
+  → user types adjustment (e.g. "move flex to Sunday", "swap beef for fish")
+     → re-proposer returns complete new plan (or clarification question)
+     → validateProposal() gates; retries once on failure
+     → solver re-runs → diffProposals() generates change summary → re-presented
 ```
 
 ---

@@ -259,26 +259,9 @@ export const planMoreEventsKeyboard = new InlineKeyboard()
   .text("That's all", 'plan_events_done')
   .text('Add another', 'plan_add_event');
 
-/** Plan proposal review */
+/** Plan proposal review — Plan 025: "Swap something" removed, users type adjustments directly. */
 export const planProposalKeyboard = new InlineKeyboard()
-  .text('Looks good', 'plan_approve')
-  .text('Swap something', 'plan_swap');
-
-/**
- * Recipe gap actions — shown when the plan-proposer identifies
- * a slot that needs a new recipe for variety.
- */
-export function planRecipeGapKeyboard(gapIndex: number) {
-  return new InlineKeyboard()
-    .text('Generate it', `plan_gen_gap_${gapIndex}`)
-    .text('I have an idea', `plan_idea_gap_${gapIndex}`)
-    .text('Pick from my recipes', `plan_skip_gap_${gapIndex}`);
-}
-
-/** Review a recipe generated within the plan flow */
-export const planGapRecipeReviewKeyboard = new InlineKeyboard()
-  .text('Use it', 'plan_use_recipe')
-  .text('Different one', 'plan_diff_recipe');
+  .text('Looks good', 'plan_approve');
 
 /** After plan is confirmed — legacy, kept for backward compatibility */
 export const planConfirmedKeyboard = new InlineKeyboard()

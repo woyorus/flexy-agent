@@ -107,7 +107,7 @@ interface PlanProposal {
   batches: ProposedBatch[];          // in-horizon day assignments (need not be consecutive)
   flexSlots: FlexSlot[];
   events: MealEvent[];               // Plan 024: single source of truth for events
-  /** @deprecated Proposer always returns []. Mutation handlers still push here until Plan 025. */
+  /** @deprecated Always []. Kept for structural compatibility. */
   recipesToGenerate: RecipeGap[];
   solverOutput?: SolverOutput;       // attached after solver runs
 }
@@ -116,20 +116,6 @@ interface PlanProposal {
 `ProposedBatch.days` contains in-horizon days only (need not be consecutive — Plan 024). `ProposedBatch.overflowDays` holds days past the horizon end (for cross-horizon batches). The fridge-life constraint is: `calendarSpan(days[0], lastEatingDay) ≤ recipe.storage.fridgeDays`.
 
 `RecipeSummary` (internal to `src/agents/plan-proposer.ts`) — the condensed recipe view passed as LLM context. Includes `fridgeDays` (from `recipe.storage.fridgeDays`) so the proposer can arrange non-consecutive eating days within the fridge-life limit.
-
-### RecipeGap
-
-The plan-proposer determined the DB doesn't have enough variety.
-
-```typescript
-interface RecipeGap {
-  mealType: 'lunch' | 'dinner';
-  days: string[];
-  servings: number;
-  suggestion: string;                // e.g., "Asian-inspired chicken stir-fry"
-  reason: string;                    // e.g., "no Asian meals in past 2 weeks"
-}
-```
 
 ## Persistence
 

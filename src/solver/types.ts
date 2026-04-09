@@ -156,7 +156,7 @@ export interface PlanProposal {
    * The initial proposer passes input events through; the re-proposer (Plan 025) may modify them.
    */
   events: MealEvent[];
-  /** @deprecated Proposer always returns []. Mutation handlers still push here until Plan 025. */
+  /** @deprecated Plan 025: always []. Kept for structural compatibility; removal is a future cleanup. */
   recipesToGenerate: RecipeGap[];
   /** The solver output backing this proposal (attached after solver runs) */
   solverOutput?: SolverOutput;

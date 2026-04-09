@@ -211,7 +211,7 @@ export default defineScenario({
 The distinction matters:
 
 - **Reply keyboard buttons** (persistent main menu: "📋 Plan Week", "🛒 Shopping List", etc.) arrive as plain text messages with the button's label. Use `text('<label>')`.
-- **Inline keyboard buttons** (in-flow buttons like "Keep it", "Looks good!", "Swap something") arrive as callback queries with a `callback_data` string. Use `click('<callback_data>')`.
+- **Inline keyboard buttons** (in-flow buttons like "Keep it", "Looks good!") arrive as callback queries with a `callback_data` string. Use `click('<callback_data>')`.
 
 Get this wrong and the scenario exercises the wrong code path. The captured transcript diff catches the mistake loudly, but knowing up front saves a regenerate cycle.
 
@@ -227,6 +227,14 @@ Run: npm run test:generate -- <name> --regenerate
 ```
 
 Run the suggested command, review the diff, commit.
+
+**Critical: delete before regenerate.** When regenerating a scenario, ALWAYS delete `recorded.json` first, then run `test:generate`, then wait for it to finish before reading the output. If you read `recorded.json` while regeneration is in flight you will see the OLD recording, not the new one. This is the single most common mistake when iterating on scenario specs.
+
+```bash
+rm test/scenarios/<name>/recorded.json
+npm run test:generate -- <name>
+# wait for completion, THEN read recorded.json
+```
 
 If the spec is unchanged but the BEHAVIOR of `BotCore.dispatch` changed (new reply, different wording, modified solver output), the scenario fails with an assertion diff. Decide whether the new behavior is intentional:
 - Intentional → regenerate and commit the new recording.

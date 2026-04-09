@@ -6,17 +6,15 @@
  * or tweaks. Target: 2-3 exchanges, under 2 minutes for a happy path.
  *
  * Flow phases:
- *   context → awaiting_events → generating_proposal → [recipe_suggestion →
- *   awaiting_recipe_prefs → generating_recipe → reviewing_recipe →]
- *   proposal → [awaiting_swap →] confirmed
+ *   context → awaiting_events → generating_proposal → proposal → confirmed
+ *
+ * In the `proposal` phase, user text is routed through the re-proposer agent
+ * (handleMutationText) which handles flex moves, recipe swaps, event changes,
+ * and any other plan adjustments in a single LLM call.
  *
  * Meta intents (pattern-matched, any phase):
  *   "start over" → resets flow, restarts planning from scratch
  *   "cancel"     → clears flow, returns to main menu
- *
- * The `proposal` phase accepts free text routed through the swap classifier
- * (same path as `awaiting_swap`), so users can type changes without tapping
- * [Swap something]. The swap classifier also handles `event_remove` intents.
  *
  * Follows the recipe-flow.ts pattern: exported state type, factory function,
  * and pure handler functions that return FlowResponse (text + updated state).
@@ -26,10 +24,10 @@
  * Telegram message sending (bot.ts does that).
  */
 
-import type { LLMProvider, ChatMessage } from '../ai/provider.js';
-import type { Recipe, MealEvent, FlexSlot, ScaledIngredient, DraftPlanSession } from '../models/types.js';
+import type { LLMProvider } from '../ai/provider.js';
+import type { MealEvent, ScaledIngredient, DraftPlanSession } from '../models/types.js';
 import { scaleRecipe } from './recipe-scaler.js';
-import type { PlanProposal, ProposedBatch, RecipeGap, SolverInput, PreCommittedSlot } from '../solver/types.js';
+import type { PlanProposal, SolverInput, PreCommittedSlot } from '../solver/types.js';
 import { config } from '../config.js';
 import { log } from '../debug/logger.js';
 import { solve } from '../solver/solver.js';
@@ -49,12 +47,12 @@ import {
   type GenerateResult,
 } from './recipe-generator.js';
 import { targetsForMealType } from './recipe-flow.js';
-import { validateRecipe } from '../qa/validators/recipe.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import type { StateStoreLike } from '../state/store.js';
 import { v4 as uuid } from 'uuid';
-import { restoreMealSlot } from './plan-utils.js';
 import { formatDayRange } from '../plan/helpers.js';
+import { reProposePlan, type MutationRecord } from './plan-reproposer.js';
+import { diffProposals } from './plan-diff.js';
 
 // ─── Flow state ─────────────────────────────────────────────────────────────────
 
@@ -62,12 +60,7 @@ export type PlanFlowPhase =
   | 'context'               // Showing breakfast confirm + events question
   | 'awaiting_events'       // User adding events (text/voice loop)
   | 'generating_proposal'   // Loading state while plan generates
-  | 'recipe_suggestion'     // Asking about generating a recipe for a gap
-  | 'awaiting_recipe_prefs' // User providing preferences for gap recipe
-  | 'generating_recipe'     // Recipe being generated for a gap
-  | 'reviewing_recipe'      // User reviewing generated recipe
-  | 'proposal'              // Full plan displayed
-  | 'awaiting_swap'         // User typing swap request
+  | 'proposal'              // User reviewing plan (can send adjustments or approve)
   | 'confirmed';            // Plan locked
 
 /**
@@ -87,14 +80,6 @@ export interface PlanFlowState {
   events: MealEvent[];
   /** The current plan proposal (set after plan-proposer runs) */
   proposal?: PlanProposal;
-  /** Unresolved recipe gaps from the proposal */
-  pendingGaps?: RecipeGap[];
-  /** Index of the gap currently being resolved */
-  activeGapIndex?: number;
-  /** Conversation history for in-flow recipe generation */
-  recipeGenMessages?: ChatMessage[];
-  /** Recipe being reviewed within the flow (for gap resolution) */
-  currentRecipe?: Recipe;
   /** The formatted proposal text, stored for resume view reconstruction. */
   proposalText?: string;
 
@@ -112,6 +97,25 @@ export interface PlanFlowState {
   replacingSessionId?: string;
   /** Pre-committed slots from prior sessions, loaded at proposal time (read-only display). */
   preCommittedSlots?: PreCommittedSlot[];
+
+  // ─── Plan 025: re-proposer mutation state ───
+
+  /** Accumulated mutation history for this planning session. Clears on confirm. */
+  mutationHistory?: MutationRecord[];
+  /**
+   * When the re-proposer returned a clarification, stores the context needed
+   * to continue the conversation on the next user message.
+   * Cleared when the clarification is resolved (next reProposePlan call).
+   */
+  pendingClarification?: {
+    originalMessage: string;
+    question: string;
+  };
+  /** When the re-proposer asked to generate a recipe, stores generation context. */
+  pendingRecipeGeneration?: {
+    description: string;
+    mealType: 'lunch' | 'dinner';
+  };
 }
 
 export interface FlowResponse {
@@ -529,153 +533,11 @@ export async function handleGenerateProposal(
     state.preCommittedSlots = preCommittedSlots;
   }
 
-  // Plan 024: gap flow is no longer entered from the proposer path.
-  // The proposer always returns recipesToGenerate: [].
-  // Gap flow stays alive for mutation handlers until Plan 025.
-
   // Present the full plan
   state.phase = 'proposal';
   return {
     text: formatPlanProposal(state),
     state,
-  };
-}
-
-/**
- * User chose how to handle a recipe gap.
- *
- * @param action - 'generate' (use the system's suggestion), 'idea' (user has preferences), 'skip' (use best available)
- * @param userPrefs - Optional user preferences (only when action is 'idea')
- */
-export async function handleGapResponse(
-  state: PlanFlowState,
-  action: 'generate' | 'idea' | 'skip',
-  llm: LLMProvider,
-  recipes: RecipeDatabase,
-  userPrefs?: string,
-): Promise<FlowResponse> {
-  const gap = state.pendingGaps?.[state.activeGapIndex ?? 0];
-  if (!gap) {
-    state.phase = 'proposal';
-    return { text: formatPlanProposal(state), state };
-  }
-
-  if (action === 'skip') {
-    // Pick best available from DB
-    const available = recipes.getByMealType(gap.mealType);
-    const usedSlugs = new Set(state.proposal?.batches.map((b) => b.recipeSlug) ?? []);
-    const unused = available.filter((r) => !usedSlugs.has(r.slug));
-    const pick = unused[0] ?? available[0];
-
-    if (pick) {
-      addBatchFromGap(state, gap, pick.slug, pick.name);
-      log.debug('PLAN-FLOW', `gap resolved with existing recipe: ${pick.slug}`);
-    } else {
-      log.warn('PLAN-FLOW', `no recipes available for gap, leaving unresolved`);
-    }
-
-    return advanceGapOrPresent(state, recipes);
-  }
-
-  if (action === 'idea') {
-    state.phase = 'awaiting_recipe_prefs';
-    log.debug('PLAN-FLOW', 'phase → awaiting_recipe_prefs');
-    return {
-      text: 'Describe what you have in mind — cuisine, protein, style, or anything specific.',
-      state,
-    };
-  }
-
-  // action === 'generate' — use the system's suggestion as preferences
-  return generateGapRecipe(state, gap.suggestion, llm);
-}
-
-/**
- * User provided preferences for a gap recipe. Generate it.
- */
-export async function handleGapRecipePrefs(
-  state: PlanFlowState,
-  prefs: string,
-  llm: LLMProvider,
-): Promise<FlowResponse> {
-  const gap = state.pendingGaps?.[state.activeGapIndex ?? 0];
-  if (!gap) {
-    state.phase = 'proposal';
-    return { text: formatPlanProposal(state), state };
-  }
-  return generateGapRecipe(state, prefs, llm);
-}
-
-/**
- * User reviewed the generated gap recipe.
- *
- * @param action - 'use' (save and use in plan) or 'different' (regenerate)
- */
-export async function handleGapRecipeReview(
-  state: PlanFlowState,
-  action: 'use' | 'different',
-  recipes: RecipeDatabase,
-  llm: LLMProvider,
-): Promise<FlowResponse> {
-  if (action === 'use' && state.currentRecipe) {
-    // Save recipe to DB and add to proposal
-    await recipes.save(state.currentRecipe);
-    const gap = state.pendingGaps?.[state.activeGapIndex ?? 0];
-    if (gap) {
-      addBatchFromGap(state, gap, state.currentRecipe.slug, state.currentRecipe.name);
-    }
-    log.debug('PLAN-FLOW', `gap recipe saved: ${state.currentRecipe.slug}`);
-    state.currentRecipe = undefined;
-    state.recipeGenMessages = undefined;
-
-    return advanceGapOrPresent(state, recipes);
-  }
-
-  // action === 'different' — regenerate with the same hint
-  const gap = state.pendingGaps?.[state.activeGapIndex ?? 0];
-  if (!gap) {
-    state.phase = 'proposal';
-    return { text: formatPlanProposal(state), state };
-  }
-  return generateGapRecipe(state, gap.suggestion, llm);
-}
-
-/**
- * User typed a refinement request while reviewing a gap recipe.
- * Uses multi-turn conversation to refine the recipe without regenerating from scratch.
- * (e.g., "swap avocado oil with olive oil", "use normal green peas instead")
- */
-export async function handleGapRecipeRefinement(
-  state: PlanFlowState,
-  feedback: string,
-  llm: LLMProvider,
-): Promise<FlowResponse> {
-  if (!state.recipeGenMessages || !state.currentRecipe) {
-    return { text: 'No recipe to refine. Something went wrong.', state };
-  }
-
-  log.debug('PLAN-FLOW', `refining gap recipe: "${feedback}"`);
-
-  const { refineRecipe } = await import('./recipe-generator.js');
-
-  const refined = await refineRecipe(state.recipeGenMessages, feedback, llm);
-
-  // Quick macro validation — use the same target as the standalone recipe flow
-  const gapMealType = state.pendingGaps?.[state.activeGapIndex ?? 0]?.mealType ?? 'lunch';
-  const targets = targetsForMealType(gapMealType);
-  const corrected = await validateAndCorrectRecipe(refined, targets, llm);
-
-  state.currentRecipe = corrected.recipe;
-  state.recipeGenMessages = corrected.messages;
-  state.phase = 'reviewing_recipe';
-
-  const { renderRecipe } = await import('../recipes/renderer.js');
-  const rendered = renderRecipe(corrected.recipe);
-
-  return {
-    text: `Updated:\n\n${rendered}\n\nUse this recipe in the plan?`,
-    state,
-    parseMode: 'MarkdownV2',
   };
 }
 
@@ -704,6 +566,11 @@ export async function handleApprove(
 
   state.phase = 'confirmed';
 
+  // Plan 025: clear session-scoped mutation state
+  state.mutationHistory = undefined;
+  state.pendingClarification = undefined;
+  state.pendingRecipeGeneration = undefined;
+
   // Find the first cook day among the freshly persisted batches
   const plannedBatches = batches.filter(b => b.status === 'planned');
   const cookDays = plannedBatches
@@ -724,361 +591,146 @@ export async function handleApprove(
 }
 
 /**
- * User wants to swap something. Set phase to collect swap description.
+ * Process a plan adjustment from free-form text via the re-proposer agent.
+ *
+ * Plan 025: replaces all deterministic mutation handlers (flex_move, flex_add,
+ * recipe_swap, event_remove, etc.) with a single LLM call. The re-proposer
+ * receives the current plan + user message and returns a complete new proposal
+ * or a clarification question.
+ *
+ * Also handles the recipe generation handshake: if the re-proposer previously
+ * asked to generate a recipe and the user confirmed, generates it first, then
+ * re-runs the re-proposer with the updated recipe DB.
  */
-export function handleSwapRequest(state: PlanFlowState): FlowResponse {
-  state.phase = 'awaiting_swap';
-  log.debug('PLAN-FLOW', 'phase → awaiting_swap');
-  return {
-    text: 'What would you like to change? (e.g., "different lunch for Thu-Sat", "swap the beef for fish", "add a flex meal on Friday")',
-    state,
-  };
-}
-
-/**
- * Process a swap request from free-form text.
- * Classifies the intent, modifies the proposal, re-runs the solver, re-presents.
- */
-export async function handleSwapText(
+export async function handleMutationText(
   state: PlanFlowState,
   text: string,
   llm: LLMProvider,
   recipes: RecipeDatabase,
-  store: StateStoreLike,
 ): Promise<FlowResponse> {
   if (!state.proposal) {
-    return { text: 'No plan to swap. Something went wrong.', state };
+    return { text: 'No plan to adjust. Something went wrong.', state };
   }
 
-  log.debug('PLAN-FLOW', `swap request: "${text}"`);
+  // 0. Recipe generation handshake — if a prior clarification asked to
+  //    generate a recipe and the user confirmed, generate it first, then
+  //    re-run the re-proposer with the updated DB.
+  if (state.pendingRecipeGeneration) {
+    const isAffirmative = /^(yes|yeah|sure|ok|create|do it|go ahead)/i.test(text.trim());
+    if (isAffirmative) {
+      const desc = state.pendingRecipeGeneration.description;
+      const mealType = state.pendingRecipeGeneration.mealType;
+      const originalRequest = state.pendingClarification?.originalMessage ?? desc;
+      state.pendingRecipeGeneration = undefined;
+      state.pendingClarification = undefined;
 
-  // Classify the swap intent
-  const intent = await classifySwapIntent(text, state, llm);
-  log.debug('PLAN-FLOW', `swap intent: ${intent.type}`);
+      // Generate + validate + persist the recipe
+      const targets = targetsForMealType(mealType);
+      const genResult = await generateRecipe({ mealType, targets, preferences: desc }, llm);
+      const corrected = await validateAndCorrectRecipe(genResult, targets, llm);
+      await recipes.save(corrected.recipe);
+      log.debug('PLAN-FLOW', `recipe generated and saved: ${corrected.recipe.slug}`);
 
-  switch (intent.type) {
-    case 'flex_add': {
-      // Enforce config.planning.flexSlotsPerWeek. If already at max, treat this
-      // as a MOVE: drop existing flex slots (restoring their meal prep days)
-      // before adding the new one.
-      // Plan 009: same deferred orphan resolution — pool freed days with orphans.
-      if (state.proposal.flexSlots.length >= config.planning.flexSlotsPerWeek) {
-        log.debug('PLAN-FLOW', `flex_add at capacity (${state.proposal.flexSlots.length}/${config.planning.flexSlotsPerWeek}) — treating as move`);
-
-        // 1. Snapshot for rollback
-        const snapshot = {
-          proposal: JSON.parse(JSON.stringify(state.proposal)) as PlanProposal,
-          pendingGaps: state.pendingGaps ? JSON.parse(JSON.stringify(state.pendingGaps)) as RecipeGap[] : undefined,
-          activeGapIndex: state.activeGapIndex,
-          phase: state.phase,
-        };
-
-        // 2. Capture dissolved recipe from the batch at the target position
-        const dissolvedBatch = findBatchForDay(state.proposal, intent.day, intent.mealTime);
-        const dissolvedRecipe = dissolvedBatch
-          ? { slug: dissolvedBatch.recipeSlug, name: dissolvedBatch.recipeName }
-          : undefined;
-
-        // 3. Collect freed flex days (same meal type pooled, cross-type independent)
-        const existingFlexes = [...state.proposal.flexSlots];
-        state.proposal.flexSlots = [];
-
-        const pooledFreedDays: string[] = [];
-        const horizonEnd = state.horizonDays?.[6];
-        for (const existing of existingFlexes) {
-          if (existing.mealTime === intent.mealTime) {
-            const isOverflow = horizonEnd ? existing.day > horizonEnd : false;
-            if (!isOverflow) {
-              pooledFreedDays.push(existing.day);
-            }
-            // overflow freed days are edge-case — absorb individually
-            if (isOverflow && !absorbFreedDay(state, existing.day, existing.mealTime)) {
-              state.proposal = snapshot.proposal;
-              state.pendingGaps = snapshot.pendingGaps;
-              state.activeGapIndex = snapshot.activeGapIndex;
-              state.phase = snapshot.phase;
-              return {
-                text: "Can't place flex there — it would strand next week's meals with no home. Try a different day.",
-                state,
-              };
-            }
-          } else {
-            absorbFreedDay(state, existing.day, existing.mealTime);
-          }
-        }
-
-        // 4. Add new flex and carve
-        state.proposal.flexSlots.push({
-          day: intent.day,
-          mealTime: intent.mealTime,
-          flexBonus: 350,
-          note: 'flex meal',
-        });
-        const { orphanDays, overflowOrphanDays } = removeBatchDay(
-          state.proposal, intent.day, intent.mealTime, horizonEnd,
-        );
-
-        // 5. Pool freed days with carved orphans
-        const allOrphans = [...orphanDays, ...pooledFreedDays];
-        const allOverflowOrphans = [...overflowOrphanDays];
-
-        // 6. Resolve pool
-        const resolved = resolveOrphanPool(
-          state, allOrphans, allOverflowOrphans, intent.mealTime, dissolvedRecipe,
-        );
-        if (!resolved) {
-          state.proposal = snapshot.proposal;
-          state.pendingGaps = snapshot.pendingGaps;
-          state.activeGapIndex = snapshot.activeGapIndex;
-          state.phase = snapshot.phase;
-          return {
-            text: "Can't place flex there — it would strand next week's meals with no home. Try a different day.",
-            state,
-          };
-        }
-        break;
-      }
-
-      // Not at capacity — simple add
-      state.proposal.flexSlots.push({
-        day: intent.day,
-        mealTime: intent.mealTime,
-        flexBonus: 350,
-        note: 'flex meal',
-      });
-
-      // Remove the new flex day from any existing batch; handle any orphan days.
-      {
-        const horizonEnd = state.horizonDays?.[6];
-        const dissolvedBatch = findBatchForDay(state.proposal, intent.day, intent.mealTime);
-        const dissolvedRecipe = dissolvedBatch
-          ? { slug: dissolvedBatch.recipeSlug, name: dissolvedBatch.recipeName }
-          : undefined;
-        const { orphanDays, overflowOrphanDays } = removeBatchDay(state.proposal, intent.day, intent.mealTime, horizonEnd);
-        // Even for simple add, use deferred resolution to merge contiguous orphans
-        const resolved = resolveOrphanPool(
-          state, orphanDays, overflowOrphanDays, intent.mealTime, dissolvedRecipe,
-        );
-        if (!resolved) {
-          return {
-            text: "Can't place flex there — it would strand next week's meals with no home. Try a different day.",
-            state,
-          };
-        }
-      }
-      break;
+      // Re-run re-proposer with updated DB — the new recipe is now available
+      return handleMutationText(state, originalRequest, llm, recipes);
     }
-    case 'flex_move': {
-      // Plan 009: Deferred orphan resolution with contiguous merging.
-      // Snapshot mutation-relevant state for rollback on failure, capture the
-      // dissolved recipe, pool freed days with orphans, resolve together.
-      const fromDay = intent.fromDay ?? state.proposal.flexSlots[0]?.day;
-      const fromMealTime = intent.fromMealTime ?? state.proposal.flexSlots[0]?.mealTime;
 
-      // 1. Snapshot for rollback (deep copy mutation-relevant state)
-      const snapshot = {
-        proposal: JSON.parse(JSON.stringify(state.proposal)) as PlanProposal,
-        pendingGaps: state.pendingGaps ? JSON.parse(JSON.stringify(state.pendingGaps)) as RecipeGap[] : undefined,
-        activeGapIndex: state.activeGapIndex,
-        phase: state.phase,
+    // User declined — clear state, keep current plan
+    state.pendingRecipeGeneration = undefined;
+    state.pendingClarification = undefined;
+    return { text: 'OK, keeping the current plan.', state };
+  }
+
+  // 1. Build the user message for the re-proposer.
+  //    If there's a pending clarification, combine original request + answer.
+  let userMessage: string;
+  const priorClarification = state.pendingClarification;
+  const mutationIntent = priorClarification
+    ? priorClarification.originalMessage
+    : text;
+
+  if (priorClarification) {
+    userMessage = [
+      `Original request: ${priorClarification.originalMessage}`,
+      `You asked: ${priorClarification.question}`,
+      `User answered: ${text}`,
+    ].join('\n');
+    state.pendingClarification = undefined;
+  } else {
+    userMessage = text;
+  }
+
+  log.debug('PLAN-FLOW', `mutation request: "${userMessage.slice(0, 80)}"`);
+
+  // 2. Call re-proposer
+  const result = await reProposePlan({
+    currentProposal: state.proposal,
+    userMessage,
+    mutationHistory: state.mutationHistory ?? [],
+    availableRecipes: buildRecipeSummaries(recipes.getAll()),
+    horizonDays: state.horizonDays ?? state.weekDays,
+    preCommittedSlots: state.preCommittedSlots ?? [],
+    breakfast: state.breakfast,
+    weeklyTargets: config.targets.weekly,
+  }, llm, recipes);
+
+  // 3. Handle clarification — store context, stay in proposal phase
+  if (result.type === 'clarification') {
+    state.pendingClarification = {
+      originalMessage: priorClarification
+        ? priorClarification.originalMessage
+        : text,
+      question: result.question,
+    };
+    if (result.recipeNeeded) {
+      // Infer meal type: trust the LLM's field if present, otherwise guess
+      // from which batches the user's message likely targets. If the message
+      // mentions "lunch" → lunch; otherwise default to dinner (more common
+      // for recipe swaps). This avoids generating with wrong-slot macros.
+      let mealType: 'lunch' | 'dinner' = result.recipeMealType ?? 'dinner';
+      if (!result.recipeMealType) {
+        const msg = (priorClarification?.originalMessage ?? text).toLowerCase();
+        if (msg.includes('lunch')) mealType = 'lunch';
+      }
+      state.pendingRecipeGeneration = {
+        description: result.recipeNeeded,
+        mealType,
       };
-
-      // 2. Capture dissolved recipe from the batch at the "to" position
-      const dissolvedBatch = findBatchForDay(state.proposal, intent.toDay, intent.toMealTime);
-      const dissolvedRecipe = dissolvedBatch
-        ? { slug: dissolvedBatch.recipeSlug, name: dissolvedBatch.recipeName }
-        : undefined;
-
-      // 3. Remove "from" flex
-      if (fromDay && fromMealTime) {
-        state.proposal.flexSlots = state.proposal.flexSlots.filter(
-          (f) => !(f.day === fromDay && f.mealTime === fromMealTime),
-        );
-      }
-
-      // 4. Add "to" flex and carve the batch
-      state.proposal.flexSlots.push({
-        day: intent.toDay,
-        mealTime: intent.toMealTime,
-        flexBonus: 350,
-        note: 'flex meal',
-      });
-      const horizonEnd = state.horizonDays?.[6];
-      const { orphanDays, overflowOrphanDays } = removeBatchDay(
-        state.proposal, intent.toDay, intent.toMealTime, horizonEnd,
-      );
-
-      // 5. Pool freed fromDay with orphans if same meal type
-      const allOrphans = [...orphanDays];
-      const allOverflowOrphans = [...overflowOrphanDays];
-      if (fromDay && fromMealTime) {
-        if (fromMealTime === intent.toMealTime) {
-          // Same meal type — pool the freed day with carved orphans
-          const isFromOverflow = horizonEnd ? fromDay > horizonEnd : false;
-          if (isFromOverflow) {
-            allOverflowOrphans.push(fromDay);
-          } else {
-            allOrphans.push(fromDay);
-          }
-        } else {
-          // Cross-meal-type — resolve fromDay independently
-          absorbFreedDay(state, fromDay, fromMealTime);
-        }
-      }
-
-      // 6. Resolve pool — contiguous runs merge, singletons get carry-over or gap
-      const resolved = resolveOrphanPool(
-        state, allOrphans, allOverflowOrphans, intent.toMealTime, dissolvedRecipe,
-      );
-
-      if (!resolved) {
-        // Rollback: restore full mutation-relevant state from snapshot
-        state.proposal = snapshot.proposal;
-        state.pendingGaps = snapshot.pendingGaps;
-        state.activeGapIndex = snapshot.activeGapIndex;
-        state.phase = snapshot.phase;
-        return {
-          text: "Can't move flex there — it would strand next week's meals with no home. Try a different day.",
-          state,
-        };
-      }
-      break;
     }
-    case 'flex_remove': {
-      state.proposal.flexSlots = state.proposal.flexSlots.filter(
-        (f) => !(f.day === intent.day && f.mealTime === intent.mealTime),
-      );
-      // The flex slot was replacing a meal-prep slot. Now that it's removed,
-      // we need to assign a recipe for that day. Try to extend an adjacent batch
-      // of the same meal type, or create a recipe gap.
-      const restored = restoreMealSlot(state.proposal, intent.day, intent.mealTime);
-      if (!restored) {
-        // No adjacent batch can absorb it — create a gap
-        const gap: RecipeGap = {
-          mealType: intent.mealTime,
-          days: [intent.day],
-          servings: 1,
-          suggestion: 'any recipe that fits',
-          reason: `Flex slot removed on ${formatDayShort(intent.day)} — need a recipe for this meal.`,
-        };
-        state.proposal.recipesToGenerate.push(gap);
-        state.pendingGaps = [gap];
-        state.activeGapIndex = 0;
-        return presentRecipeGap(state);
-      }
-      break;
-    }
-    case 'recipe_swap': {
-      // Find matching batch and try to swap it
-      const swapped = await handleRecipeSwap(state, intent, llm, recipes, store);
-      if (swapped) return swapped;
-      break;
-    }
-    case 'event_remove': {
-      // Remove a meal-out event and restore the slot to a cooked meal.
-      const idx = state.events.findIndex(
-        (e) => e.day === intent.day && e.mealTime === intent.mealTime,
-      );
-      if (idx === -1) {
-        return {
-          text: `No event found on ${formatDayShort(intent.day)} ${intent.mealTime}. Check the day and try again.`,
-          state,
-        };
-      }
-      const removed = state.events.splice(idx, 1)[0]!;
-      // Plan 024: sync proposal.events with state.events (bridge until Plan 025)
-      state.proposal!.events = [...state.events];
-      log.debug('PLAN-FLOW', `event removed: ${removed.name} on ${removed.day} ${removed.mealTime}`);
-
-      // Restore the meal slot — try to extend an adjacent batch, or create a gap.
-      const restored = restoreMealSlot(state.proposal, intent.day, intent.mealTime);
-      if (!restored) {
-        const gap: RecipeGap = {
-          mealType: intent.mealTime,
-          days: [intent.day],
-          servings: 1,
-          suggestion: 'any recipe that fits',
-          reason: `Event "${removed.name}" removed on ${formatDayShort(intent.day)} — need a recipe for this meal.`,
-        };
-        state.proposal.recipesToGenerate.push(gap);
-        state.pendingGaps = [gap];
-        state.activeGapIndex = 0;
-        return presentRecipeGap(state);
-      }
-      break;
-    }
-    case 'unclear':
-      return {
-        text: "I'm not sure what to change. Try something like:\n- \"swap lunch Mon-Wed for something with fish\"\n- \"add a flex dinner on Friday\"\n- \"remove the flex meal\"\n- \"remove the Thursday dinner event\"",
-        state,
-      };
+    return { text: result.question, state };
   }
 
-  // Surface any recipe gaps created by the mutation. Mirrors the initial
-  // proposal path at line 393-398: if absorbFreedDay or a recipe_swap pushed
-  // gaps into recipesToGenerate, route through the gap-resolution sub-flow
-  // instead of silently showing a plan with uncovered slots. flex_remove and
-  // recipe_swap already handle this themselves; flex_move and flex_add reach
-  // this tail and rely on this conditional.
-  if (state.proposal.recipesToGenerate.length > 0) {
-    state.pendingGaps = [...state.proposal.recipesToGenerate];
-    state.activeGapIndex = 0;
-    return presentRecipeGap(state);
+  // 4. Handle failure — keep prior plan, ask user to rephrase
+  if (result.type === 'failure') {
+    return { text: result.message, state };
   }
 
-  // Re-run solver with updated proposal
-  const solverInput = buildSolverInput(state, state.proposal, recipes);
+  // 5. New proposal — run solver
+  const proposal = result.proposal;
+  const solverInput = buildSolverInput(state, proposal, recipes, state.preCommittedSlots);
   const solverOutput = solve(solverInput);
-  state.proposal.solverOutput = solverOutput;
+  proposal.solverOutput = solverOutput;
 
+  // 6. Generate change summary
+  const summary = diffProposals(state.proposal, proposal);
+
+  // 7. Update state — store new proposal and append to history
+  state.proposal = proposal;
+  state.events = [...proposal.events]; // sync state.events from proposal
+  state.mutationHistory = [
+    ...(state.mutationHistory ?? []),
+    { constraint: mutationIntent, appliedAt: new Date().toISOString() },
+  ];
+
+  // 8. Present updated plan with change summary
   state.phase = 'proposal';
   return {
-    text: formatPlanProposal(state),
+    text: `${summary}\n\n${formatPlanProposal(state)}`,
     state,
   };
 }
 
 // ─── Internal helpers ───────────────────────────────────────────────────────────
-
-/** Generate a recipe for a gap using the recipe-generator sub-agent. */
-async function generateGapRecipe(
-  state: PlanFlowState,
-  preferences: string,
-  llm: LLMProvider,
-): Promise<FlowResponse> {
-  const gap = state.pendingGaps?.[state.activeGapIndex ?? 0];
-  if (!gap) {
-    state.phase = 'proposal';
-    return { text: formatPlanProposal(state), state };
-  }
-
-  state.phase = 'generating_recipe';
-  log.debug('PLAN-FLOW', `generating gap recipe: ${preferences}`);
-
-  const targets = targetsForMealType(gap.mealType);
-
-  const genResult = await generateRecipe({
-    mealType: gap.mealType,
-    targets,
-    preferences,
-  }, llm);
-
-  // Quick macro validation + correction
-  const corrected = await validateAndCorrectRecipe(genResult, targets, llm);
-
-  state.currentRecipe = corrected.recipe;
-  state.recipeGenMessages = corrected.messages;
-  state.phase = 'reviewing_recipe';
-
-  const { renderRecipe } = await import('../recipes/renderer.js');
-  const rendered = renderRecipe(corrected.recipe);
-
-  return {
-    text: `Here's what I came up with:\n\n${rendered}\n\nUse this recipe in the plan?`,
-    state,
-    parseMode: 'MarkdownV2',
-  };
-}
 
 /** Validate a generated recipe and correct macros if needed. */
 async function validateAndCorrectRecipe(
@@ -1115,390 +767,10 @@ async function validateAndCorrectRecipe(
   return current;
 }
 
-/** Present the next recipe gap to the user. */
-function presentRecipeGap(state: PlanFlowState): FlowResponse {
-  const gap = state.pendingGaps?.[state.activeGapIndex ?? 0];
-  if (!gap) {
-    state.phase = 'proposal';
-    return { text: formatPlanProposal(state), state };
-  }
-
-  state.phase = 'recipe_suggestion';
-  const dayRange = gap.days.map(formatDayShort).join('-');
-
-  return {
-    text: `${gap.reason}\n\nI'd suggest: ${gap.suggestion} for ${gap.mealType} ${dayRange} (${gap.servings} servings).\n\nWant me to generate one, or do you have something specific in mind?`,
-    state,
-  };
-}
-
-/** Advance to the next gap or present the plan if all gaps are resolved. */
-function advanceGapOrPresent(state: PlanFlowState, recipeDb?: RecipeDatabase): FlowResponse {
-  const nextIndex = (state.activeGapIndex ?? 0) + 1;
-  if (state.pendingGaps && nextIndex < state.pendingGaps.length) {
-    state.activeGapIndex = nextIndex;
-    return presentRecipeGap(state);
-  }
-
-  // All gaps resolved — re-run solver and present
-  if (state.proposal) {
-    const solverInput = buildSolverInput(state, state.proposal, recipeDb);
-    const solverOutput = solve(solverInput);
-    state.proposal.solverOutput = solverOutput;
-  }
-
-  state.phase = 'proposal';
-  state.pendingGaps = undefined;
-  state.activeGapIndex = undefined;
-  return { text: formatPlanProposal(state), state };
-}
-
-/** Add a batch to the proposal from a resolved recipe gap.
- * Removes any existing batch that covers the same (days, mealType) to prevent
- * ghost duplicates when the gap was also included as a placeholder batch.
- */
-function addBatchFromGap(
-  state: PlanFlowState,
-  gap: RecipeGap,
-  recipeSlug: string,
-  recipeName: string,
-): void {
-  if (!state.proposal) return;
-
-  // Remove any existing batch that covers the same days and mealType (prevents duplicates)
-  const gapDaySet = new Set(gap.days);
-  state.proposal.batches = state.proposal.batches.filter((b) => {
-    if (b.mealType !== gap.mealType) return true;
-    const overlap = b.days.some((d) => gapDaySet.has(d));
-    return !overlap;
-  });
-
-  state.proposal.batches.push({
-    recipeSlug,
-    recipeName,
-    mealType: gap.mealType,
-    days: gap.days,
-    servings: gap.servings,
-  });
-  // Remove the gap from recipesToGenerate
-  state.proposal.recipesToGenerate = state.proposal.recipesToGenerate.filter((g) => g !== gap);
-}
-
-// ─── Plan 009: deferred orphan resolution helpers ────────────────────────────
-
-/**
- * Find the batch that covers a given day and meal type.
- * Used to capture the dissolved recipe BEFORE any mutation so we can reuse it
- * when re-batching orphans. Returns undefined if no batch covers that day.
- */
-function findBatchForDay(
-  proposal: PlanProposal,
-  day: string,
-  mealType: 'lunch' | 'dinner',
-): ProposedBatch | undefined {
-  return proposal.batches.find(
-    (b) => b.mealType === mealType && b.days.includes(day),
-  );
-}
-
-/**
- * Resolve a single orphan day. Tries in order:
- * 1. Extend an adjacent batch (restoreMealSlot)
- * 2. If within 2 days of horizonEnd AND dissolved recipe available:
- *    create a carry-over batch directly (silent — no gap surfaced).
- *    This matches the proposer's cross-horizon behavior (Plan 007).
- * 3. Otherwise: create a standard recipe gap.
- *
- * Returns false ONLY if the day is past horizonEnd and cannot be absorbed
- * (overflow orphan with no adjacent batch → caller must reject the mutation).
- */
-function resolveSingletonOrphan(
-  state: PlanFlowState,
-  day: string,
-  mealType: 'lunch' | 'dinner',
-  dissolvedRecipe: { slug: string; name: string } | undefined,
-): boolean {
-  const horizonEnd = state.horizonDays?.[6];
-  const isOverflow = horizonEnd ? day > horizonEnd : false;
-
-  // 1. Try extending an adjacent batch
-  const restored = restoreMealSlot(state.proposal!, day, mealType, horizonEnd);
-  if (restored) return true;
-
-  // Overflow orphan — can't create a gap for a day the user can't see.
-  if (isOverflow) return false;
-
-  // 2. Near horizon edge with dissolved recipe → silent carry-over batch
-  if (horizonEnd && dissolvedRecipe) {
-    const dayDate = new Date(day + 'T00:00:00');
-    const endDate = new Date(horizonEnd + 'T00:00:00');
-    const diffMs = endDate.getTime() - dayDate.getTime();
-    const daysToEnd = Math.round(diffMs / (24 * 60 * 60 * 1000));
-
-    // Within 2 days of horizon end: cook day is in-horizon, overflow days
-    // extend past the end. Create batch directly — same as proposer carry-over.
-    if (daysToEnd >= 0 && daysToEnd <= 2) {
-      const overflowDays: string[] = [];
-      const nextDate = new Date(dayDate);
-      for (let i = 1; i <= 2 - daysToEnd; i++) {
-        nextDate.setDate(nextDate.getDate() + 1);
-        overflowDays.push(toLocalISODate(nextDate));
-      }
-      if (overflowDays.length > 0) {
-        state.proposal!.batches.push({
-          recipeSlug: dissolvedRecipe.slug,
-          recipeName: dissolvedRecipe.name,
-          mealType,
-          days: [day],
-          servings: 1 + overflowDays.length,
-          overflowDays,
-        });
-        return true;
-      }
-    }
-  }
-
-  // 3. Standard in-horizon gap
-  const gap: RecipeGap = {
-    mealType,
-    days: [day],
-    servings: 1,
-    suggestion: 'any recipe that fits this slot',
-    reason: `${mealType} on ${formatDayShort(day)} needs a recipe after a flex slot change.`,
-  };
-  state.proposal!.recipesToGenerate.push(gap);
-  if (!state.pendingGaps) state.pendingGaps = [];
-  state.pendingGaps.push(gap);
-  return true;
-}
-
-/**
- * Pool orphan days and resolve them together instead of individually.
- *
- * Plan 009: contiguous orphans (e.g., Fri+Sat freed from a dissolved 3-day batch)
- * should merge into a multi-serving batch reusing the dissolved recipe — not
- * become separate 1-serving gaps. This is the core fix for the re-batching bug.
- *
- * Algorithm:
- * 1. Sort in-horizon orphans, group into contiguous runs
- * 2. Runs >= 2 days: create batch directly with dissolved recipe (no gap/prompt)
- * 3. Singletons: delegate to resolveSingletonOrphan()
- * 4. Overflow orphans: try absorb individually (reject mutation on failure)
- *
- * Returns false if any overflow orphan is unabsorbable (caller must rollback).
- */
-function resolveOrphanPool(
-  state: PlanFlowState,
-  orphanDays: string[],
-  overflowOrphanDays: string[],
-  mealType: 'lunch' | 'dinner',
-  dissolvedRecipe: { slug: string; name: string } | undefined,
-): boolean {
-  // Group in-horizon orphans into contiguous runs
-  const runs = splitIntoContiguousRuns(orphanDays);
-
-  for (const run of runs) {
-    if (run.length >= 2 && dissolvedRecipe) {
-      // Multi-day contiguous run: create batch directly with dissolved recipe
-      const horizonEnd = state.horizonDays?.[6];
-      let overflowDays: string[] | undefined;
-
-      // Check if the last day of the run is near horizon end — extend with overflow
-      if (horizonEnd) {
-        const lastRunDay = new Date(run[run.length - 1]! + 'T00:00:00');
-        const endDate = new Date(horizonEnd + 'T00:00:00');
-        const daysToEnd = Math.round(
-          (endDate.getTime() - lastRunDay.getTime()) / (24 * 60 * 60 * 1000),
-        );
-        // If the run ends at or near horizon edge, extend with overflow days
-        // but respect the 3-serving cap
-        if (daysToEnd >= 0 && daysToEnd <= 1) {
-          const maxOverflow = 3 - run.length;
-          if (maxOverflow > 0) {
-            overflowDays = [];
-            const nextDate = new Date(lastRunDay);
-            for (let i = 0; i < Math.min(maxOverflow, 1 + (1 - daysToEnd)); i++) {
-              nextDate.setDate(nextDate.getDate() + 1);
-              const overflowDay = toLocalISODate(nextDate);
-              if (overflowDay > horizonEnd) {
-                overflowDays.push(overflowDay);
-              }
-            }
-            if (overflowDays.length === 0) overflowDays = undefined;
-          }
-        }
-      }
-
-      state.proposal!.batches.push({
-        recipeSlug: dissolvedRecipe.slug,
-        recipeName: dissolvedRecipe.name,
-        mealType,
-        days: run,
-        servings: run.length + (overflowDays?.length ?? 0),
-        overflowDays,
-      });
-    } else {
-      // Singleton (or multi-day without dissolved recipe): resolve individually
-      for (const day of run) {
-        if (!resolveSingletonOrphan(state, day, mealType, dissolvedRecipe)) {
-          return false; // shouldn't happen for in-horizon days, but be safe
-        }
-      }
-    }
-  }
-
-  // Overflow orphans: try to absorb individually
-  for (const day of overflowOrphanDays) {
-    if (!absorbFreedDay(state, day, mealType)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-/**
- * Absorb a freed day (orphan from a batch split, or a day where a flex was just
- * removed) back into the plan. First tries to extend an adjacent batch, then
- * falls back to creating a recipe gap for in-horizon days.
- *
- * Plan 007: overflow orphans (past horizonEnd) are absorb-only — if no adjacent
- * batch can take them, the mutation should be rejected by the caller (D30).
- * In-horizon orphans fall back to gap-surfacing as before.
- *
- * Returns true if absorbed, false if an overflow orphan couldn't be absorbed
- * (caller should reject the mutation).
- */
-function absorbFreedDay(
-  state: PlanFlowState,
-  day: string,
-  mealTime: 'lunch' | 'dinner',
-): boolean {
-  const horizonEnd = state.horizonDays?.[6];
-  const isOverflow = horizonEnd ? day > horizonEnd : false;
-
-  const restored = restoreMealSlot(state.proposal!, day, mealTime, horizonEnd);
-  if (restored) return true;
-
-  if (isOverflow) {
-    // Overflow orphan — can't create a gap for a day the user can't see.
-    // Caller must reject the mutation.
-    return false;
-  }
-
-  // In-horizon orphan — create a recipe gap.
-  const gap: RecipeGap = {
-    mealType: mealTime,
-    days: [day],
-    servings: 1,
-    suggestion: 'any recipe that fits this slot',
-    reason: `${mealTime} on ${formatDayShort(day)} needs a recipe after a flex slot change.`,
-  };
-  state.proposal!.recipesToGenerate.push(gap);
-  if (!state.pendingGaps) state.pendingGaps = [];
-  state.pendingGaps.push(gap);
-  return true;
-}
-
-// restoreMealSlot is now in plan-utils.ts (shared with plan-proposer)
-
-/**
- * Remove a day from a batch when a flex slot replaces it.
- * If removing from the middle of a batch (e.g., Tue from Mon-Wed), splits it
- * into two contiguous batches (Mon and Wed) so the cooking schedule stays valid.
- *
- * Returns orphan days split into two classes (Plan 007 D30):
- * - orphanDays: in-horizon orphans (absorb-or-gap)
- * - overflowOrphanDays: past-horizon orphans (absorb-only, reject mutation on failure)
- *
- * Also detects the D30 violation case: if removing a day would leave a batch
- * with zero in-horizon days but non-empty overflow, the batch is dropped entirely
- * and ALL its days become orphans.
- */
-function removeBatchDay(
-  proposal: PlanProposal,
-  day: string,
-  mealTime: 'lunch' | 'dinner',
-  horizonEnd?: string,
-): { orphanDays: string[]; overflowOrphanDays: string[] } {
-  const newBatches: ProposedBatch[] = [];
-  const orphanDays: string[] = [];
-  const overflowOrphanDays: string[] = [];
-
-  for (const batch of proposal.batches) {
-    if (batch.mealType === mealTime && batch.days.includes(day)) {
-      const remaining = batch.days.filter((d) => d !== day);
-      const overflow = batch.overflowDays ?? [];
-
-      if (remaining.length === 0 && overflow.length === 0) continue; // batch fully consumed
-
-      // D30 violation: removing the last in-horizon day strands overflow days
-      // with no cook day inside the horizon. Drop the entire batch.
-      if (remaining.length === 0 && overflow.length > 0) {
-        overflowOrphanDays.push(...overflow);
-        continue;
-      }
-
-      // Split remaining in-horizon days into contiguous runs
-      const runs = splitIntoContiguousRuns(remaining);
-      // The first run gets the overflow days (it's closest to the horizon end)
-      let overflowAssigned = false;
-      for (const run of runs) {
-        const totalWithOverflow = run.length + (!overflowAssigned ? overflow.length : 0);
-        if (run.length < 2 && totalWithOverflow < 2) {
-          orphanDays.push(...run);
-          if (!overflowAssigned && overflow.length > 0) {
-            overflowOrphanDays.push(...overflow);
-            overflowAssigned = true;
-          }
-        } else {
-          const batchOverflow = !overflowAssigned ? overflow : undefined;
-          overflowAssigned = true;
-          newBatches.push({
-            ...batch,
-            days: run,
-            servings: run.length + (batchOverflow?.length ?? 0),
-            overflowDays: batchOverflow && batchOverflow.length > 0 ? batchOverflow : undefined,
-          });
-        }
-      }
-      // If overflow was never assigned (all runs were orphans), it becomes overflow orphans
-      if (!overflowAssigned && overflow.length > 0) {
-        overflowOrphanDays.push(...overflow);
-      }
-    } else {
-      newBatches.push(batch);
-    }
-  }
-
-  proposal.batches = newBatches;
-  return { orphanDays, overflowOrphanDays };
-}
-
-/**
- * Split an array of ISO date strings into groups of consecutive days.
- * E.g., ['2026-04-06', '2026-04-08'] → [['2026-04-06'], ['2026-04-08']]
- */
-function splitIntoContiguousRuns(days: string[]): string[][] {
-  if (days.length === 0) return [];
-  const sorted = [...days].sort();
-  const runs: string[][] = [[sorted[0]!]];
-
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = new Date(sorted[i - 1]! + 'T00:00:00');
-    const curr = new Date(sorted[i]! + 'T00:00:00');
-    const diffMs = curr.getTime() - prev.getTime();
-    const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
-
-    if (diffDays === 1) {
-      runs[runs.length - 1]!.push(sorted[i]!);
-    } else {
-      runs.push([sorted[i]!]);
-    }
-  }
-
-  return runs;
-}
+// Plan 025: gap resolution helpers (presentRecipeGap, advanceGapOrPresent, addBatchFromGap)
+// and all deterministic mutation handlers (findBatchForDay, resolveSingletonOrphan,
+// resolveOrphanPool, absorbFreedDay, removeBatchDay, splitIntoContiguousRuns)
+// removed — replaced by reProposePlan() in plan-reproposer.ts.
 
 /** Build solver input from the plan flow state and proposal, using real recipe macros. */
 /** @internal Exported for regression testing (Plan 010). */
@@ -1712,167 +984,6 @@ export function matchPlanningMetaIntent(text: string): PlanningMetaIntent {
     if (p.test(trimmed)) return 'cancel';
   }
   return 'none';
-}
-
-// ─── Swap classification ────────────────────────────────────────────────────────
-
-type SwapIntent =
-  | { type: 'flex_add'; day: string; mealTime: 'lunch' | 'dinner' }
-  | { type: 'flex_remove'; day: string; mealTime: 'lunch' | 'dinner' }
-  | {
-      type: 'flex_move';
-      toDay: string;
-      toMealTime: 'lunch' | 'dinner';
-      /** Optional — if omitted, the handler moves the only existing flex slot. */
-      fromDay?: string;
-      fromMealTime?: 'lunch' | 'dinner';
-    }
-  | { type: 'recipe_swap'; batchIndex: number; preference: string }
-  | { type: 'event_remove'; day: string; mealTime: 'lunch' | 'dinner' }
-  | { type: 'unclear' };
-
-async function classifySwapIntent(
-  text: string,
-  state: PlanFlowState,
-  llm: LLMProvider,
-): Promise<SwapIntent> {
-  const batchDescriptions = (state.proposal?.batches ?? []).map((b, i) =>
-    `${i}: ${b.mealType} ${b.days.map(formatDayShort).join('-')}: ${b.recipeName}`,
-  ).join('\n');
-
-  const flexDescriptions = (state.proposal?.flexSlots ?? []).map((f) =>
-    `${f.mealTime} ${formatDayShort(f.day)}: flex meal`,
-  ).join('\n');
-
-  const eventDescriptions = state.events.map((e) =>
-    `${e.mealTime} ${formatDayShort(e.day)}: ${e.name} (~${e.estimatedCalories} cal)`,
-  ).join('\n');
-
-  const result = await llm.complete({
-    model: 'nano',
-    json: true,
-    context: 'swap-classification',
-    messages: [
-      {
-        role: 'system',
-        content: `Classify a plan swap request. The week is ${state.weekDays[0]} to ${state.weekDays[6]}.
-Day names: ${state.weekDays.map((d) => `${formatDayShort(d)}=${d}`).join(', ')}.
-
-Current batches:
-${batchDescriptions}
-
-Current flex slots:
-${flexDescriptions || '(none)'}
-
-Current events (meals out):
-${eventDescriptions || '(none)'}
-
-Classify into ONE of:
-- {"type":"flex_move","to_day":"ISO date","to_meal_time":"lunch|dinner","from_day":"ISO date|null","from_meal_time":"lunch|dinner|null"} — user wants to move an existing flex meal to a different day. Use this when the user says things like "put flex on Saturday instead" or "move flex to Fri" or "let's put the flex on Sunday". If "from" is clear from context use it, otherwise set from_day and from_meal_time to null (the only existing flex slot will be moved).
-- {"type":"flex_add","day":"ISO date","meal_time":"lunch|dinner"} — user wants to ADD a flex meal (only when no flex slot currently exists, or when they explicitly want an additional one).
-- {"type":"flex_remove","day":"ISO date","meal_time":"lunch|dinner"} — user wants to remove a flex meal and cook that day instead.
-- {"type":"recipe_swap","batch_index":number,"preference":"string"} — user wants to change a specific meal prep recipe (batch_index from the list above).
-- {"type":"event_remove","day":"ISO date","meal_time":"lunch|dinner"} — user wants to remove a previously added event (meal out) so they cook that day instead. Only use this when there IS an event on the specified day.
-- {"type":"unclear"} — can't determine intent.
-
-CRITICAL: if a flex slot ALREADY exists in the plan and the user mentions putting flex on a different day, that is flex_move, NOT flex_add. flex_add is only for creating the first flex slot or adding an extra one.
-
-Respond with JSON only.`,
-      },
-      { role: 'user', content: text },
-    ],
-    maxTokens: 100,
-  });
-
-  try {
-    const parsed = JSON.parse(result.content);
-    switch (parsed.type) {
-      case 'flex_add':
-        return { type: 'flex_add', day: parsed.day, mealTime: parsed.meal_time };
-      case 'flex_remove':
-        return { type: 'flex_remove', day: parsed.day, mealTime: parsed.meal_time };
-      case 'flex_move':
-        return {
-          type: 'flex_move',
-          toDay: parsed.to_day,
-          toMealTime: parsed.to_meal_time,
-          fromDay: parsed.from_day ?? undefined,
-          fromMealTime: parsed.from_meal_time ?? undefined,
-        };
-      case 'recipe_swap':
-        return { type: 'recipe_swap', batchIndex: parsed.batch_index, preference: parsed.preference };
-      case 'event_remove':
-        return { type: 'event_remove', day: parsed.day, mealTime: parsed.meal_time };
-      default:
-        return { type: 'unclear' };
-    }
-  } catch {
-    return { type: 'unclear' };
-  }
-}
-
-/** Handle a recipe swap by picking a different recipe or regenerating the proposal for that batch. */
-async function handleRecipeSwap(
-  state: PlanFlowState,
-  intent: { batchIndex: number; preference: string },
-  llm: LLMProvider,
-  recipes: RecipeDatabase,
-  store: StateStoreLike,
-): Promise<FlowResponse | null> {
-  const batch = state.proposal?.batches[intent.batchIndex];
-  if (!batch) return null;
-
-  // Try to find a matching recipe from the DB
-  const available = recipes.getByMealType(batch.mealType);
-  const usedSlugs = new Set(state.proposal?.batches.map((b) => b.recipeSlug) ?? []);
-
-  // Use nano to pick the best match from available recipes based on user preference
-  const candidates = available
-    .filter((r) => !usedSlugs.has(r.slug) || r.slug === batch.recipeSlug)
-    .map((r) => `${r.slug}: ${r.name} (${r.cuisine}, ${r.tags.join(', ')})`);
-
-  if (candidates.length > 0) {
-    const pickResult = await llm.complete({
-      model: 'nano',
-      json: true,
-      context: 'recipe-pick',
-      messages: [
-        {
-          role: 'system',
-          content: `Pick the best recipe matching the user's preference. Respond with JSON: {"slug":"the-slug"} or {"slug":"none"} if nothing fits.\n\nAvailable:\n${candidates.join('\n')}`,
-        },
-        { role: 'user', content: intent.preference },
-      ],
-      maxTokens: 50,
-    });
-
-    try {
-      const picked = JSON.parse(pickResult.content);
-      if (picked.slug && picked.slug !== 'none') {
-        const recipe = recipes.getBySlug(picked.slug);
-        if (recipe) {
-          batch.recipeSlug = recipe.slug;
-          batch.recipeName = recipe.name;
-          log.debug('PLAN-FLOW', `swapped batch ${intent.batchIndex} to ${recipe.slug}`);
-          return null; // caller will re-run solver and present
-        }
-      }
-    } catch { /* fall through to gap creation */ }
-  }
-
-  // No matching recipe found — create a gap
-  state.proposal!.recipesToGenerate.push({
-    mealType: batch.mealType,
-    days: batch.days,
-    servings: batch.servings,
-    suggestion: intent.preference,
-    reason: `User requested: "${intent.preference}"`,
-  });
-  // Remove the old batch
-  state.proposal!.batches.splice(intent.batchIndex, 1);
-  state.pendingGaps = [...state.proposal!.recipesToGenerate];
-  state.activeGapIndex = state.pendingGaps.length - 1;
-  return presentRecipeGap(state);
 }
 
 // ─── Plan formatting ────────────────────────────────────────────────────────────

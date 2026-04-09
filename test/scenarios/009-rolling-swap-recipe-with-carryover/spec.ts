@@ -1,11 +1,11 @@
 /**
- * Scenario 009 — recipe swap with pre-committed carry-over.
+ * Scenario 009 — recipe swap with pre-committed carry-over via re-proposer.
  *
- * Session B has pre-committed slots from session A. The user performs a
- * recipe_swap on a non-pre-committed batch. Verifies that the swap:
- * - Succeeds on the user's own batch
- * - Does NOT touch pre-committed slots
- * - Re-runs the solver correctly with carry-over still in place
+ * Session B has pre-committed slots from session A. The user types a recipe
+ * swap request directly in the proposal phase. The re-proposer handles the
+ * swap while respecting pre-committed slots.
+ *
+ * Plan 025 rework: no separate swap phase, no intent classification.
  */
 import { defineScenario, command, text, click } from '../../../src/harness/define.js';
 import type { PlanSession, Batch } from '../../../src/models/types.js';
@@ -47,7 +47,7 @@ const batchesA: Batch[] = [
 
 export default defineScenario({
   name: '009-rolling-swap-recipe-with-carryover',
-  description: 'Recipe swap on a non-pre-committed batch — carry-over stays intact',
+  description: 'Recipe swap via re-proposer on a non-pre-committed batch — carry-over stays intact',
   clock: '2026-04-12T10:00:00Z',
   recipeSet: 'six-balanced',
   initialState: {
@@ -60,7 +60,7 @@ export default defineScenario({
     text('📋 Plan Week'),
     click('plan_keep_breakfast'),
     click('plan_no_events'),
-    click('plan_swap'),
+    // User types swap directly in proposal phase.
     text('Swap the tuna lunch for something with pork'),
     click('plan_approve'),
   ],

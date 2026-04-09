@@ -1,23 +1,17 @@
 /**
- * Scenario 013 — flex_move re-batching + horizon-edge carry-over (Plan 009).
+ * Scenario 013 — flex move with re-batching via re-proposer (Plan 025).
  *
- * Exercises the core Plan 009 fix: when a flex_move dissolves a multi-day
- * batch, contiguous orphans merge into a multi-serving batch reusing the
- * dissolved recipe — no 1-serving gaps. If the merge lands near the horizon
- * edge, overflow days extend silently into the next week.
+ * Originally tested Plan 009's contiguous orphan merging. Now tests that
+ * the re-proposer correctly rearranges batches when the user moves flex
+ * to Sunday dinner (last day of horizon). The re-proposer handles the
+ * entire rearrangement in a single LLM call — no orphan resolution.
  *
  * ## What the captured transcript locks in
  *
- * After `text('Move the flex to Sunday dinner')`, the carved batch's orphan
- * days must merge into a 2+ serving batch (not individual 1-serving gaps).
- * The plan should go directly to the proposal view — no gap prompts for
- * merged orphans. Any gap prompts indicate the merging failed.
- *
- * Key assertions in the recording:
- * - No 1-serving meal-prep batches in any plan proposal
- * - Dissolved recipe reused for the merged orphan batch
- * - If a merged batch sits at the horizon edge, carry-over notation present
- * - Plan approval succeeds without intermediate gap resolution
+ * After the user types "Move the flex to Sunday dinner", the re-proposer
+ * returns a complete new plan with flex on Sunday and batches adjusted.
+ * The change summary shows what moved. No gap prompts, no intermediate
+ * steps — one message in, one updated plan out.
  */
 
 import { defineScenario, command, text, click } from '../../../src/harness/define.js';
@@ -25,8 +19,8 @@ import { defineScenario, command, text, click } from '../../../src/harness/defin
 export default defineScenario({
   name: '013-flex-move-rebatch-carryover',
   description:
-    'flex_move dissolves a multi-day batch — contiguous orphans merge ' +
-    'into a multi-serving batch with dissolved recipe, no 1-serving gaps.',
+    'Flex move to Sunday via re-proposer — batches rearrange cleanly, ' +
+    'no orphan gaps. Plan 025 rework of Plan 009 regression.',
   clock: '2026-04-05T10:00:00Z',
   recipeSet: 'six-balanced',
   initialState: { session: null },
@@ -35,12 +29,8 @@ export default defineScenario({
     text('📋 Plan Week'),
     click('plan_keep_breakfast'),
     click('plan_no_events'),
-    // Initial proposal arrives. Tap "Swap something" to enter swap flow.
-    click('plan_swap'),
-    // Move flex to Sunday dinner — last day of horizon. The dinner batch
-    // covering Sunday dissolves, orphans should merge with the freed flex day.
+    // User types adjustment directly in proposal phase.
     text('Move the flex to Sunday dinner'),
-    // Plan 009 fix: orphans merged, no gap prompts. Approve directly.
     click('plan_approve'),
   ],
 });
