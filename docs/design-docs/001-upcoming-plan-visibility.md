@@ -1,6 +1,6 @@
 # Upcoming Plan Visibility
 
-> Status: draft
+> Status: landed (plan 021, 2026-04-08)
 > Date: 2026-04-08
 > JTBD: A1 (Know my next action), A2 (Shopping list), A4 (Browse my week)
 > PRODUCT_SENSE alignment: The primary emotional arc is anxiety → calm. A confirmed plan that the user can't see creates anxiety, not calm. This directly violates "low friction comes first" and the planning-first principle — the user planned, and the product ignores it.
@@ -48,6 +48,8 @@ Shopping list generation is coming soon.
 
 User feels: "Wait, what? I just confirmed my plan. Where's my shopping list?"
 
+> **Landed:** The `view_shopping_list` callback now routes to the real shopping list handler (`sl_next`). The "coming soon" dead end is gone.
+
 ### Moment 2: Coming back to the app
 
 The menu shows:
@@ -74,6 +76,8 @@ Plan kept. Tap Plan Week again to plan the week after.
 
 User feels: "But I don't want to plan the week after. I want to see THIS week."
 
+> **Landed:** The message now says just "Plan kept." and the menu shows "📋 My Plan" — the user can immediately tap it to see their plan.
+
 ### Moment 3: Trying the shopping list
 
 User taps [🛒 Shopping List]:
@@ -83,6 +87,8 @@ No plan yet — plan your week first to see what you'll need.
 ```
 
 User feels: "I literally JUST planned. The product told me I have a plan 30 seconds ago. Now it says I don't have one?"
+
+> **Landed:** The shopping list handler uses `getVisiblePlanSession()` which finds future plans. The "No plan yet" message only appears when there is genuinely no confirmed plan.
 
 ### The emotional summary
 
@@ -284,6 +290,20 @@ Existing behavior is correct: "You already have a plan for [dates]. Replan it?" 
 ### Post-confirmation buttons
 
 The buttons shown right after "Plan locked ✓" must connect to the real screens. [🛒 Get shopping list] should open the actual shopping list (not "coming soon"). [📅 View full week] should open the week overview. These are the natural next actions after confirming a plan.
+
+## What landed
+
+All proposed experiences shipped as designed. The key design decisions held:
+
+- **Same screens, no special "upcoming" view.** Next Action, Week Overview, Shopping List, Cook View, and Recipe List all work for upcoming plans with no visual changes to their layout.
+- **"No meals — your plan starts [day]"** replaces bare dashes for pre-plan days in the 3-day Next Action window. Italic, single line, informational tone.
+- **Shopping list works before the plan starts.** The user shops on day 0, cooks on day 1. No longer blocked.
+- **Menu says "📋 My Plan" whenever a confirmed plan exists** — whether active or upcoming.
+- **Post-confirmation buttons connect to real screens.** `[🛒 Shopping list]` opens the actual shopping list. `[📅 View full week]` opens the week overview.
+- **"Plan kept." is a clean exit.** No confusing guidance about what to do next — the menu keyboard already shows the right buttons.
+- **Cold-start plans start tomorrow.** First-time users create a plan that starts tomorrow, shop today, cook tomorrow. The upcoming visibility makes this work seamlessly.
+
+Scenario 022 (`test/scenarios/022-upcoming-plan-view/`) exercises the full surface: My Plan → Next Action → Week Overview → Shopping List → Plan Week replan prompt → cancel.
 
 ## Out of scope
 
