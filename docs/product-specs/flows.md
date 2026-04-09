@@ -26,18 +26,12 @@ Follow-up messages classify into: correction to last event, `reclassify_as_treat
 
 **generating_proposal** — Heavy async step:
 1. Load available recipes + recent plan history from DB/Supabase
-2. Call plan-proposer sub-agent (generates recipe assignments, exactly `config.planning.flexSlotsPerWeek` flex slots, identifies recipe gaps). Proposer retries once with correction if it returns the wrong flex slot count.
-3. Run solver on the proposal (protected treat budget upfront, uniform per-slot targets)
-4. Validate solver output via QA gate
-5. If recipe gaps exist → enter gap resolution loop. Otherwise → show proposal.
+2. Call plan-proposer sub-agent — always returns a **complete** plan: every slot covered, exactly `config.planning.flexSlotsPerWeek` flex slots, batches fridge-life constrained (not required to be consecutive). `proposePlan()` returns a discriminated union: `{type:'proposal',...}` or `{type:'failure',...}`.
+3. `validateProposal()` gates the raw proposal (13 invariants: slot coverage, no overlap, fridge-life, flex count, recipe existence, event validity). On failure, the proposer retries once with correction feedback. Double failure → graceful abort: reset to `context`, tell user to adjust events or add more recipes.
+4. Run solver on validated proposal (protected treat budget upfront, uniform per-slot targets)
+5. Validate solver output via QA gate → show proposal.
 
-**recipe_suggestion** — Plan-proposer found a gap (not enough variety in the recipe DB for a meal type). Shows the gap reason and suggestion. User picks: [Generate it] / [I have an idea] / [Pick from my recipes].
-
-**awaiting_recipe_prefs** — User describes preferences for the gap recipe (if they chose "I have an idea").
-
-**generating_recipe** — Recipe-generator sub-agent creates a recipe for the gap. Runs QA validation + correction loop (max 2 corrections). Result stored in `state.currentRecipe`.
-
-**reviewing_recipe** — User reviews the generated gap recipe. Options: [Use it] / [Different one]. Free-text during this phase is treated as a refinement request (multi-turn conversation with the generator).
+**recipe_suggestion**, **awaiting_recipe_prefs**, **generating_recipe**, **reviewing_recipe** — Gap-resolution sub-flow. **Not reachable from the proposer path** (Plan 024: proposer always returns complete plans). These phases remain alive for the swap/mutation path (flex_remove, event_remove) where orphan slots can arise. Plan 025 will remove this flow entirely.
 
 **proposal** — Full plan displayed with: breakfast, meal prep batches (uniform per-serving calorie shown once as a header, rounded to nearest 10 — e.g. "each ~800 cal/serving"), events, flex meal, treat budget, cooking schedule, weekly totals. User picks: [Looks good!] / [Swap something].
 
@@ -55,7 +49,7 @@ After any swap, if the mutation created any recipe gaps (orphan days that couldn
 ### Key behaviors
 
 - **No explicit fun food step.** Flex slots are auto-suggested by the plan-proposer and presented in the proposal. Users can add/remove flex meals via the swap mechanism.
-- **Inline recipe gap resolution.** When the plan-proposer identifies variety gaps, the flow enters a recipe generation sub-loop within the planning session rather than requiring a separate recipe creation step.
+- **Inline recipe gap resolution (mutation path only).** The proposer never produces gaps. Gap resolution phases remain for the mutation path (swap/flex_remove operations that orphan slots). Plan 025 removes this flow.
 - **Event corrections.** During event collection, the system distinguishes corrections to the last event from new events using nano LLM classification.
 - **Multi-turn recipe refinement.** During gap recipe review, free-text messages refine the recipe via conversation history (not regeneration from scratch).
 

@@ -70,7 +70,7 @@ After every `npm run test:generate -- <name>` (new or `--regenerate`):
 |---|---|---|
 | Ghost batches | `actualPerServing.calories === 0` with empty `scaledIngredients` | Scenario 003 ghost batch bug |
 | Double-booked slots | Two batches covering the same (day, mealType) | Scenario 003 gap resolution duplication |
-| Orphan slots | A day × mealTime with no source in the daily breakdown | Scenario 011 proposer underfill |
+| Orphan slots | A day × mealTime with no source in the daily breakdown | Scenario 014 validator retry (caught by `validateProposal()` before solver) |
 | Stale recipe names | Proposal text shows recipe names not in the fixture recipe set | Scenario 003 gap display bug |
 | Missing keyboards | An interactive message with no `keyboard` field | Any scenario — always check |
 | Flex count wrong | More or fewer than `config.planning.flexSlotsPerWeek` flex slots | Proposer retry logic |
@@ -243,7 +243,7 @@ Scenario-local `fixture-edits.md` files and generator warnings must point to `np
 Fixture-edited scenarios should also add `fixture-assertions.ts` next to `spec.ts` and export `assertFixtureEdits(recorded)`. The harness runs this assertion in both `test:replay` and `npm test`, before the scenario replay. If a fresh valid LLM fixture accidentally replaces the malformed one, the assertion must fail with instructions to regenerate, re-apply `fixture-edits.md`, then run `test:replay`.
 
 Current scenarios with manual fixture edits:
-- **014-proposer-orphan-fill** — removes days from batches to create orphan slots that `fillOrphanSlots` must fix.
+- **014-proposer-validator-retry** — edits the fixture to return a proposal with an uncovered slot; `validateProposal()` catches it, proposer retries with correction feedback, second attempt fills the slot (Plan 024).
 
 ### DANGER: `--regenerate` always calls the real LLM
 

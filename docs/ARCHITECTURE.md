@@ -20,13 +20,14 @@ flexy-agent/
 │   │   └── types.ts                      Core data models (PlanSession, Batch, Recipe, FlexSlot, etc.)
 │   │
 │   ├── solver/
-│   │   ├── types.ts                      Solver I/O interfaces + PlanProposal, ProposedBatch, RecipeGap
+│   │   ├── types.ts                      Solver I/O interfaces + PlanProposal, ProposedBatch, RecipeGap, PlanProposerOutput
 │   │   └── solver.ts                     Deterministic budget allocation algorithm
 │   │
 │   ├── qa/
 │   │   ├── gate.ts                       QA retry-loop wrapper (validate → fix → retry)
 │   │   └── validators/
 │   │       ├── plan.ts                   Weekly plan constraint checker
+│   │       ├── proposal.ts               PlanProposal invariant checker (13 rules, pre-solver gate)
 │   │       ├── recipe.ts                 Recipe macro/consistency checker
 │   │       └── shopping-list.ts          Shopping list completeness checker
 │   │
@@ -112,9 +113,9 @@ flexy-agent/
 
 **Agent Harness** — The product. Contains all business logic:
 - **Flow handlers** (`agents/plan-flow.ts`, `agents/recipe-flow.ts`) — Phase-driven state machines for the planning and recipe flows. Each exports a state type, factory function, and pure handler functions that return `{text, state}`.
-- **Plan proposer** (`agents/plan-proposer.ts`) — Sub-agent that generates complete weekly plan proposals using the recipe DB, recent history, and variety rules.
+- **Plan proposer** (`agents/plan-proposer.ts`) — Sub-agent that generates complete weekly plan proposals using the recipe DB, recent history, and variety rules. Always returns a complete plan (no recipe gaps from generation). Returns a discriminated union `PlanProposerOutput`: `{type:'proposal',...}` or `{type:'failure',...}`. Batches are fridge-life constrained, not required to be calendar-consecutive.
 - **Budget solver** (`solver/solver.ts`) — Deterministic code. Reserves a protected treat budget upfront (`config.planning.treatBudgetPercent`), then distributes the remaining weekly calories uniformly across all meal prep slots. Every batch gets the same per-slot target; the recipe scaler adjusts each recipe to hit it.
-- **QA gate** (`qa/gate.ts`) — Validates all outputs before they reach the user. Retry loop with max 3 attempts.
+- **QA gate** (`qa/gate.ts`) — Validates all outputs before they reach the user. Retry loop with max 3 attempts. Proposal validation (`qa/validators/proposal.ts`) runs inside `proposePlan()` before the solver; 13 invariants cover slot coverage, fridge-life, flex count, recipe existence, and event validity.
 - **Sub-agents** — Isolated LLM tasks: recipe generation (with meal-type-specific prompts), recipe scaling, restaurant estimation. Each runs with focused context and returns a condensed result.
 
 **AI Layer** — LLM calls behind a provider interface. Three model tiers: primary (GPT-5.4, complex tasks), mini (GPT-5.4-mini, generation/reasoning), nano (GPT-5.4-nano, classification/parsing). Switching from OpenAI to another provider requires only a new implementation of `ai/provider.ts`.
@@ -151,8 +152,9 @@ index.ts
   └─ state/store.ts
   └─ telegram/bot.ts
        ├─ agents/plan-flow.ts           (plan week flow)
-       │    ├─ agents/plan-proposer.ts  (sub-agent: plan proposals)
-       │    ├─ agents/recipe-generator  (sub-agent: gap recipes)
+       │    ├─ agents/plan-proposer.ts  (sub-agent: plan proposals — always complete, fridge-life batches)
+       │    │    └─ qa/validators/proposal.ts  (13-invariant pre-solver gate, retry on failure)
+       │    ├─ agents/recipe-generator  (sub-agent: gap recipes — mutation path only, Plan 025 removes)
        │    ├─ agents/recipe-scaler.ts  (sub-agent: scale recipes to solver targets at approval)
        │    ├─ solver/solver.ts         (budget math)
        │    ├─ qa/validators/plan.ts    (validation)
@@ -177,15 +179,13 @@ User confirms breakfast, adds meal-replacement events (or none — treats are
   never declared here, they come from the protected treat budget)
   → plan-proposer sub-agent runs
      (recipe DB + recent history + variety rules → complete proposal with
-      exactly config.planning.flexSlotsPerWeek flex slots)
+      exactly config.planning.flexSlotsPerWeek flex slots; batches are
+      fridge-life constrained, not required to be consecutive)
+  → validateProposal() gates the proposal (13 invariants); retries once with
+     correction if invalid; returns {type:'failure'} if retry also fails
   → solver runs on proposal (reserves protected treat budget, distributes
      remaining budget uniformly across slots, validates weekly totals)
   → QA gate validates
-
-If recipe gaps found:
-  → user prompted: [Generate it] [I have an idea] [Skip]
-  → recipe-generator sub-agent fills the gap
-  → solver re-runs with complete batches
 
 Plan presented to user:
   → [Looks good!] → recipe-scaler runs on each batch (adjusts ingredients
@@ -205,7 +205,7 @@ Plan presented to user:
 | Change how the plan week flow works | `src/agents/plan-flow.ts` (phases + handlers) |
 | Change how the plan proposer picks recipes | `src/agents/plan-proposer.ts` (system prompt + variety rules) |
 | Fix budget math or allocation | `src/solver/solver.ts` |
-| Change validation rules | `src/qa/validators/plan.ts`, `recipe.ts`, or `shopping-list.ts` |
+| Change validation rules | `src/qa/validators/plan.ts`, `proposal.ts` (pre-solver, 13 invariants), `recipe.ts`, or `shopping-list.ts` |
 | Add a new LLM provider | Implement `src/ai/provider.ts` interface |
 | Change how recipes are stored | `src/recipes/parser.ts` (format), `src/recipes/database.ts` (CRUD) |
 | Modify Telegram UI or buttons | `src/telegram/keyboards.ts`, `src/telegram/formatters.ts` |

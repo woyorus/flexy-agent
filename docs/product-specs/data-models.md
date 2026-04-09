@@ -42,8 +42,8 @@ interface Batch {
   id: string;
   recipeSlug: string;
   mealType: 'lunch' | 'dinner';
-  eatingDays: string[];              // 2-3 contiguous ISO dates. Cook day = [0].
-  servings: number;
+  eatingDays: string[];              // 2-3 ISO dates, ascending. Need NOT be contiguous — fridge-life is the constraint. Cook day = [0].
+  servings: number;                  // DB: CHECK (servings BETWEEN 1 AND 3)
   targetPerServing: Macros;          // uniform solver target
   actualPerServing: MacrosWithFatCarbs; // scaled result from recipe-scaler
   scaledIngredients: ScaledIngredient[];
@@ -114,6 +114,8 @@ interface PlanProposal {
 ```
 
 `ProposedBatch.days` contains in-horizon days only (need not be consecutive — Plan 024). `ProposedBatch.overflowDays` holds days past the horizon end (for cross-horizon batches). The fridge-life constraint is: `calendarSpan(days[0], lastEatingDay) ≤ recipe.storage.fridgeDays`.
+
+`RecipeSummary` (internal to `src/agents/plan-proposer.ts`) — the condensed recipe view passed as LLM context. Includes `fridgeDays` (from `recipe.storage.fridgeDays`) so the proposer can arrange non-consecutive eating days within the fridge-life limit.
 
 ### RecipeGap
 
