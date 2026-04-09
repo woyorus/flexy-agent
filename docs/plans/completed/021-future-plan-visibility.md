@@ -1,6 +1,6 @@
 # Plan 021: Future plan visibility
 
-**Status:** Active
+**Status:** Completed
 **Date:** 2026-04-08
 **Affects:** `src/plan/helpers.ts`, `src/state/store.ts`, `src/harness/test-store.ts`, `src/telegram/core.ts`, `src/telegram/formatters.ts`, `src/agents/plan-flow.ts`
 **Design:** `docs/design-docs/proposals/001-upcoming-plan-visibility.md`
