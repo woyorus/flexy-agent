@@ -271,10 +271,12 @@ export function formatDayRange(days: string[]): string {
   let currentRun: string[] = [days[0]!];
 
   for (let i = 1; i < days.length; i++) {
-    const prev = new Date(days[i - 1]! + 'T00:00:00');
-    const curr = new Date(days[i]! + 'T00:00:00');
-    const diffMs = curr.getTime() - prev.getTime();
-    if (diffMs === 24 * 60 * 60 * 1000) {
+    // Compare by calendar day difference, not milliseconds — DST transitions
+    // shift local midnight by ±1 hour, breaking a naive 86400000ms check.
+    const prev = new Date(days[i - 1]! + 'T12:00:00');
+    const curr = new Date(days[i]! + 'T12:00:00');
+    const diffDays = Math.round((curr.getTime() - prev.getTime()) / (24 * 60 * 60 * 1000));
+    if (diffDays === 1) {
       currentRun.push(days[i]!);
     } else {
       runs.push(currentRun);

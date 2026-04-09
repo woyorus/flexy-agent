@@ -551,16 +551,9 @@ function mapToProposal(raw: Record<string, unknown>, inputEvents: MealEvent[]): 
     note: (f.note as string) ?? undefined,
   })) satisfies FlexSlot[];
 
-  // Plan 024: map events from raw output, fall back to input events
-  const rawEvents = raw.events as Array<Record<string, unknown>> | undefined;
-  const events: MealEvent[] = rawEvents && rawEvents.length > 0
-    ? rawEvents.map((e) => ({
-        name: e.name as string,
-        day: e.day as string,
-        mealTime: (e.meal_time ?? e.mealTime) as 'lunch' | 'dinner',
-        estimatedCalories: (e.estimated_calories ?? e.estimatedCalories) as number,
-      }))
-    : inputEvents;
+  // Plan 024: input events are always authoritative — the LLM may echo a
+  // subset or tweak fields, so we never trust the raw output over the user's list.
+  const events = inputEvents;
 
   // Plan 024: proposer always returns [] — the field stays for mutation handlers until Plan 025
   return { batches, flexSlots, events, recipesToGenerate: [] };
