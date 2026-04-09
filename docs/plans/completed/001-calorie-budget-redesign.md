@@ -22,7 +22,7 @@ Treat headroom:     ~2 cal/day → effectively zero
 
 This breaks the core product promise (../PRODUCT_SENSE.md): flexibility, fun foods, handling cravings, the system bending without breaking. If every calorie is locked into meal prep, there's nothing left for ice cream, a handful of nuts, or absorbing cooking imprecision.
 
-Additionally, when v0.0.5 adds restaurant tracking and rebalancing, the system needs to scale down remaining meals to absorb overages. If meals are already at maximum size, there's no room to scale. See also: `docs/plans/003-flex-slot-redesign.md` for open problems with flex slots and rebalancing.
+Additionally, when v0.0.5 adds restaurant tracking and rebalancing, the system needs to scale down remaining meals to absorb overages. If meals are already at maximum size, there's no room to scale. See also: `docs/design-docs/proposals/002-plans-that-survive-real-life.md` for the broader plan adaptation design including flex/event/rebalancing.
 
 ## Root Cause
 
@@ -343,4 +343,4 @@ The scaler (`src/agents/recipe-scaler.ts`) already exists and works. It adjusts 
 
 ## Related
 
-- `docs/plans/003-flex-slot-redesign.md` — Open problems with flex slots, restaurant interaction, and rebalancing (parked until v0.0.5)
+- `docs/design-docs/proposals/002-plans-that-survive-real-life.md` — Supersedes the flex slot redesign plan; covers flex/event/rebalancing design as part of the broader "plans that survive real life" architecture
