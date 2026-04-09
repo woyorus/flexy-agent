@@ -4,7 +4,7 @@
 |---|------|---------------|
 | 001 | plan-week-happy-path | Fresh user completes a full planning flow end-to-end: /start → keep breakfast → no events → approve on first try. |
 | 002 | plan-week-flex-move-regression | flex_move swap dissolves a multi-day batch and orphaned days must surface as gaps rather than silently clamping calories. |
-| 003 | plan-week-minimal-recipes | A 2-recipe library forces the proposer to emit gap entries, exercising the gap-resolution sub-flow via "pick from existing". |
+| 003 | plan-week-minimal-recipes | A 2-recipe library: the proposer reuses recipes to cover all slots (Plan 024 — no gap-resolution needed). |
 | 004 | rolling-first-plan | First-ever plan from completely empty state: cold-start path where horizonStart falls back to "tomorrow". |
 | 005 | rolling-continuous | Rolling horizon continuation: session B plans the next 7 days with session A's carry-over slots pre-committed in the proposer. |
 | 006 | rolling-gap-vacation | Vacation fallback: session A is historical (ended before today), so computeNextHorizonStart falls back to "tomorrow" with no carry-over. |
@@ -14,7 +14,7 @@
 | 011 | rolling-replan-future-only | Replanning a future-only session: old session is superseded and its batches cancelled only after the new session is fully saved. |
 | 012 | rolling-replan-abandon | Replanning a future session then cancelling: the original session must remain fully intact after abandonment (save-before-destroy guarantee). |
 | 013 | flex-move-rebatch-carryover | flex_move re-batching: contiguous orphans after batch dissolution merge into a multi-serving batch instead of individual 1-serving gaps. |
-| 014 | proposer-orphan-fill | Deterministic orphan fill: LLM underfills the week (fixture edited), fillOrphanSlots extends adjacent batches to cover gaps. |
+| 014 | proposer-orphan-fill | Validator retry: LLM underfills the week (fixture edited), validateProposal catches it, retry with correction succeeds (Plan 024). |
 | 015 | progress-logging | Progress: first log with disambiguation, first-measurement hint, already-logged same day, defensive pg_last_report with no completed week. |
 | 016 | progress-weekly-report | Progress: tap [Last weekly report] with a full completed week seeded — verifies tone, averages, and delta computation. |
 | 017 | free-text-fallback | Lifecycle-aware free-text fallback: no-plan branch shows helpful guidance, shopping list with no plan shows jargon-free message. |

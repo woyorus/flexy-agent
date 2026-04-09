@@ -53,7 +53,8 @@ import { validateRecipe } from '../qa/validators/recipe.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import type { StateStoreLike } from '../state/store.js';
 import { v4 as uuid } from 'uuid';
-import { restoreMealSlot, computeUnexplainedOrphans } from './plan-utils.js';
+import { restoreMealSlot } from './plan-utils.js';
+import { formatDayRange } from '../plan/helpers.js';
 
 // ─── Flow state ─────────────────────────────────────────────────────────────────
 
@@ -496,8 +497,20 @@ export async function handleGenerateProposal(
     preCommittedSlots: preCommittedSlots.length > 0 ? preCommittedSlots : undefined,
   };
 
-  // Call plan-proposer
-  const { proposal, reasoning } = await proposePlan(proposerInput, llm);
+  // Plan 024: call proposer with recipeDb for validator fridge-life checks
+  const proposerResult = await proposePlan(proposerInput, llm, recipes);
+
+  // Plan 024: handle graceful abort on double validation failure
+  if (proposerResult.type === 'failure') {
+    log.error('PLAN', `proposer failed: ${proposerResult.errors.join('; ')}`);
+    state.phase = 'context';
+    return {
+      text: "I couldn't build a complete plan — try adjusting your events or adding more recipes.",
+      state,
+    };
+  }
+
+  const { proposal, reasoning } = proposerResult;
   log.debug('PLAN', `proposer reasoning: ${reasoning}`);
 
   // Run solver on the proposal using real recipe macros
@@ -505,53 +518,10 @@ export async function handleGenerateProposal(
   const solverOutput = solve(solverInput);
   proposal.solverOutput = solverOutput;
 
-  // Validate
+  // Validate solver output
   const validation = validatePlan(solverOutput, config.targets.weekly, preCommittedSlots);
   if (!validation.valid) {
     log.warn('QA', `plan validation warnings: ${validation.errors.join('; ')}`);
-  }
-
-  // Plan 011 — flow gate: never show a plan with unexplained orphan slots.
-  // The deterministic fill in the proposer should make this impossible, but
-  // as defense-in-depth we check and retry once if orphans survive.
-  const effectiveHorizon = state.horizonDays ?? state.weekDays;
-  let unexplained = computeUnexplainedOrphans(proposal, effectiveHorizon, state.events, preCommittedSlots);
-  if (unexplained.length > 0) {
-    log.warn('PLAN', `flow gate: ${unexplained.length} unexplained orphan(s) after proposer — retrying`);
-
-    // Silent retry: re-propose + re-solve
-    const { proposal: retryProposal } = await proposePlan(proposerInput, llm);
-    const retrySolverInput = buildSolverInput(state, retryProposal, recipes, preCommittedSlots);
-    const retrySolverOutput = solve(retrySolverInput);
-    retryProposal.solverOutput = retrySolverOutput;
-
-    unexplained = computeUnexplainedOrphans(retryProposal, effectiveHorizon, state.events, preCommittedSlots);
-    if (unexplained.length > 0) {
-      log.error('PLAN', `flow gate: ${unexplained.length} orphan(s) remain after retry — aborting`);
-      state.phase = 'context';
-      return {
-        text: "I couldn't build a complete plan for this week. Try again or adjust your recipe set.",
-        state,
-      };
-    }
-
-    // Retry succeeded — use the retried proposal
-    state.proposal = retryProposal;
-    if (preCommittedSlots.length > 0) {
-      state.preCommittedSlots = preCommittedSlots;
-    }
-
-    if (retryProposal.recipesToGenerate.length > 0) {
-      state.pendingGaps = [...retryProposal.recipesToGenerate];
-      state.activeGapIndex = 0;
-      return presentRecipeGap(state);
-    }
-
-    state.phase = 'proposal';
-    return {
-      text: formatPlanProposal(state),
-      state,
-    };
   }
 
   state.proposal = proposal;
@@ -559,14 +529,11 @@ export async function handleGenerateProposal(
     state.preCommittedSlots = preCommittedSlots;
   }
 
-  // Check for recipe gaps
-  if (proposal.recipesToGenerate.length > 0) {
-    state.pendingGaps = [...proposal.recipesToGenerate];
-    state.activeGapIndex = 0;
-    return presentRecipeGap(state);
-  }
+  // Plan 024: gap flow is no longer entered from the proposer path.
+  // The proposer always returns recipesToGenerate: [].
+  // Gap flow stays alive for mutation handlers until Plan 025.
 
-  // No gaps — present the full plan
+  // Present the full plan
   state.phase = 'proposal';
   return {
     text: formatPlanProposal(state),
@@ -1019,6 +986,8 @@ export async function handleSwapText(
         };
       }
       const removed = state.events.splice(idx, 1)[0]!;
+      // Plan 024: sync proposal.events with state.events (bridge until Plan 025)
+      state.proposal!.events = [...state.events];
       log.debug('PLAN-FLOW', `event removed: ${removed.name} on ${removed.day} ${removed.mealTime}`);
 
       // Restore the meal slot — try to extend an adjacent batch, or create a gap.
@@ -1541,7 +1510,7 @@ export function buildSolverInput(
 ): SolverInput {
   return {
     weeklyTargets: config.targets.weekly,
-    events: state.events,
+    events: proposal.events,  // Plan 024: proposal is single source of truth for events
     flexSlots: proposal.flexSlots,
     mealPrepPreferences: {
       recipes: proposal.batches.map((b) => {
@@ -1625,7 +1594,7 @@ async function buildNewPlanSession(
     },
     treatBudgetCalories: solver.weeklyTotals.treatBudget,
     flexSlots: proposal.flexSlots,
-    events: state.events,
+    events: proposal.events,  // Plan 024: proposal is single source of truth for events
   };
 
   const batches: Array<Omit<NewBatch, 'createdAt' | 'updatedAt'>> = [];
@@ -1950,7 +1919,7 @@ function formatPlanProposal(state: PlanFlowState): string {
 
   parts.push(uniformCal !== undefined ? `Meal prep (each ~${uniformCal} cal/serving):` : 'Meal prep:');
   for (const batch of proposal.batches) {
-    const dayRange = batch.days.map(formatDayShort).join(batch.days.length === 2 ? '+' : '-');
+    const dayRange = formatDayRange(batch.days);
     const overflowCount = batch.overflowDays?.length ?? 0;
     const overflowNote = overflowCount > 0 ? `, +${overflowCount} into next week` : '';
     if (uniformCal !== undefined) {
@@ -1966,10 +1935,10 @@ function formatPlanProposal(state: PlanFlowState): string {
   }
   parts.push('');
 
-  // Events
-  if (state.events.length > 0) {
+  // Events — Plan 024: read from proposal.events (single source of truth)
+  if (proposal.events.length > 0) {
     parts.push('Events:');
-    for (const e of state.events) {
+    for (const e of proposal.events) {
       parts.push(`  ${formatDayShort(e.day)} ${e.mealTime}: ${e.name} (~${e.estimatedCalories} cal)`);
     }
     parts.push('');

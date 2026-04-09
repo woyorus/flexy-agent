@@ -1,3 +1,12 @@
+/**
+ * Fixture assertions for scenario 014 — proposer validator retry.
+ *
+ * Plan 024: reworked from orphan-fill to validator-retry.
+ * Verifies that fixture 1 (proposer response) has been edited to create
+ * an uncovered slot, and that fixture 2 (retry response) exists with a
+ * valid complete plan.
+ */
+
 import type { RecordedScenario } from '../../../src/harness/types.js';
 
 const FIXTURE_EDIT_ERROR = `Scenario 014 fixture edits are missing. Run:
@@ -13,20 +22,8 @@ interface ProposerBatch {
   servings?: unknown;
 }
 
-interface ProposerFlexSlot {
-  day?: string;
-  meal_time?: string;
-}
-
-interface ProposerGeneratedRecipe {
-  days?: unknown;
-  meal_type?: string;
-}
-
 interface ProposerResponse {
   batches?: unknown;
-  flex_slots?: unknown;
-  recipes_to_generate?: unknown;
 }
 
 function fail(detail: string): never {
@@ -53,49 +50,8 @@ function findBatch(
   });
 }
 
-function assertBatchUnderfill(
-  batches: unknown[],
-  recipeSlug: string,
-  mealType: 'lunch' | 'dinner',
-  missingDay: string,
-  servings: number,
-): void {
-  const batch = findBatch(batches, recipeSlug, mealType);
-  if (!batch) {
-    fail(`Missing ${mealType} batch for ${recipeSlug}.`);
-  }
-
-  const days = batchDays(batch);
-  if (days.includes(missingDay) || batch.servings !== servings) {
-    fail(
-      `${recipeSlug} ${mealType} must omit ${missingDay} and have servings=${servings}; ` +
-        `got days=${JSON.stringify(days)} servings=${String(batch.servings)}.`,
-    );
-  }
-}
-
-function assertSlotNotReassigned(
-  response: ProposerResponse,
-  day: string,
-  mealType: 'lunch' | 'dinner',
-): void {
-  const flexSlots = asArray(response.flex_slots) as ProposerFlexSlot[];
-  const flexHit = flexSlots.some((slot) => slot.day === day && slot.meal_time === mealType);
-  if (flexHit) {
-    fail(`${day} ${mealType} must not be present in flex_slots.`);
-  }
-
-  const generatedRecipes = asArray(response.recipes_to_generate) as ProposerGeneratedRecipe[];
-  const generatedHit = generatedRecipes.some((gap) => {
-    const days = Array.isArray(gap.days) ? gap.days : [];
-    return gap.meal_type === mealType && days.includes(day);
-  });
-  if (generatedHit) {
-    fail(`${day} ${mealType} must not be present in recipes_to_generate.`);
-  }
-}
-
 export function assertFixtureEdits(recorded: RecordedScenario): void {
+  // --- Fixture 1: edited proposer response with uncovered slot ---
   const proposerFixture = recorded.llmFixtures.find((fixture) => fixture.callIndex === 1);
   if (!proposerFixture) {
     fail('Missing first proposer LLM fixture.');
@@ -109,21 +65,50 @@ export function assertFixtureEdits(recorded: RecordedScenario): void {
   }
 
   const batches = asArray(response.batches);
-  assertBatchUnderfill(
-    batches,
-    'chicken-black-bean-avocado-rice-bowl',
-    'lunch',
-    '2026-04-08',
-    2,
-  );
-  assertBatchUnderfill(
-    batches,
-    'creamy-salmon-and-shrimp-linguine',
-    'dinner',
-    '2026-04-07',
-    1,
-  );
 
-  assertSlotNotReassigned(response, '2026-04-08', 'lunch');
-  assertSlotNotReassigned(response, '2026-04-07', 'dinner');
+  // Edit 1: chicken lunch batch should only have Mon-Tue (Wed removed)
+  const chickenBatch = findBatch(batches, 'chicken-black-bean-avocado-rice-bowl', 'lunch');
+  if (!chickenBatch) {
+    fail('Missing lunch batch for chicken-black-bean-avocado-rice-bowl.');
+  }
+  const chickenDays = batchDays(chickenBatch);
+  if (chickenDays.includes('2026-04-08') || chickenBatch.servings !== 2) {
+    fail(
+      `chicken-black-bean-avocado-rice-bowl lunch must omit 2026-04-08 and have servings=2; ` +
+      `got days=${JSON.stringify(chickenDays)} servings=${String(chickenBatch.servings)}.`,
+    );
+  }
+
+  // --- Fixture 2: retry response should be a valid complete plan ---
+  const retryFixture = recorded.llmFixtures.find((fixture) => fixture.callIndex === 2);
+  if (!retryFixture) {
+    fail('Missing retry proposer LLM fixture (callIndex 2). The validator retry fixture is required.');
+  }
+
+  // Verify the retry messages include the correction
+  const lastUserMessage = retryFixture.messages?.[retryFixture.messages.length - 1];
+  if (!lastUserMessage || !lastUserMessage.content.includes('validation errors')) {
+    fail('Retry fixture last user message should contain validation error correction.');
+  }
+
+  // Verify the retry response is a complete plan (has all slots covered)
+  let retryResponse: ProposerResponse;
+  try {
+    retryResponse = JSON.parse(retryFixture.response) as ProposerResponse;
+  } catch (err) {
+    fail(`Retry fixture response is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const retryBatches = asArray(retryResponse.batches);
+  // The retry should have the chicken batch with 3 days (restored)
+  const retryChicken = findBatch(retryBatches, 'chicken-black-bean-avocado-rice-bowl', 'lunch');
+  if (!retryChicken) {
+    fail('Retry response missing lunch batch for chicken-black-bean-avocado-rice-bowl.');
+  }
+  const retryChickenDays = batchDays(retryChicken);
+  if (!retryChickenDays.includes('2026-04-08')) {
+    fail(
+      `Retry response chicken lunch must include 2026-04-08; got days=${JSON.stringify(retryChickenDays)}.`,
+    );
+  }
 }

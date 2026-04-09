@@ -1,21 +1,20 @@
 /**
- * Scenario 014 — proposer orphan fill.
+ * Scenario 014 — proposer validator retry.
  *
- * Tests the deterministic orphan fill (Plan 011). After generating fixtures,
- * the recorded LLM response is manually edited to simulate the proposer
- * underfilling the week — removing days from batches to create orphan slots.
- * The fillOrphanSlots post-processing should extend adjacent batches to
- * cover the orphans, producing a valid plan with no "no source" errors.
+ * Plan 024: reworked from orphan-fill to validator-retry.
+ * Tests the validateProposal() retry loop. After generating fixtures,
+ * the recorded LLM response is manually edited to create an uncovered slot.
+ * The validator catches the error and the proposer retries with the
+ * errors fed back to the LLM. The retry fixture provides a valid plan.
  *
- * Uses the six-balanced recipe set (enough batches with spare capacity).
- * Fresh user, no events, standard happy-path flow.
+ * Uses the six-balanced recipe set. Fresh user, no events, standard flow.
  */
 
 import { defineScenario, command, text, click } from '../../../src/harness/define.js';
 
 export default defineScenario({
   name: '014-proposer-orphan-fill',
-  description: 'Proposer underfills the week; deterministic orphan fill extends adjacent batches to cover gaps',
+  description: 'Proposer returns incomplete plan; validator catches it and retry succeeds',
   clock: '2026-04-05T10:00:00Z',
   recipeSet: 'six-balanced',
   initialState: {

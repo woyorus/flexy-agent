@@ -46,6 +46,7 @@ test('buildSolverInput: overflow batch emits servings === days.length, not total
       },
     ],
     flexSlots: [],
+    events: [],
     recipesToGenerate: [],
   };
 

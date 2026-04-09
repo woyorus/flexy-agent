@@ -27,7 +27,7 @@ create table batches (
   recipe_slug                text not null,
   meal_type                  text not null check (meal_type in ('lunch', 'dinner')),
   eating_days                date[] not null,
-  servings                   int not null check (servings between 2 and 3),
+  servings                   int not null check (servings between 1 and 3),
   target_per_serving         jsonb not null,
   actual_per_serving         jsonb not null,
   scaled_ingredients         jsonb not null,

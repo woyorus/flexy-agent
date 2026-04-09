@@ -121,6 +121,7 @@ function makeTestState(): PlanFlowState {
     flexSlots: [
       { day: '2026-04-18', mealTime: 'dinner' as const, flexBonus: 350, note: 'flex dinner' },
     ],
+    events: [],
     recipesToGenerate: [],
   };
 

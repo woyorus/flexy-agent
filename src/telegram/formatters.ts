@@ -12,7 +12,7 @@
 import type { ShoppingList, Recipe, Measurement, BatchView, FlexSlot, MealEvent, PlanSession } from '../models/types.js';
 import type { SolverOutput, DailyBreakdown } from '../solver/types.js';
 import { esc } from '../utils/telegram-markdown.js';
-import { getBatchForMeal, isReheat, getServingNumber, getDayRange } from '../plan/helpers.js';
+import { getBatchForMeal, isReheat, getServingNumber, getDayRange, formatDayRange } from '../plan/helpers.js';
 
 /**
  * Format the budget review message shown in Step 5 of planning.
@@ -362,10 +362,7 @@ export function formatDayDetail(
         lines.push(`${esc(mealLabel)}: ${esc(recipeName)}`);
         lines.push(`_Reheat \\(cooked ${esc(cookDayLabel)}\\) · serving ${servNum} of ${total}_`);
       } else {
-        const range = getDayRange(match.batch);
-        const dayRangeStr = range
-          ? `${formatWeekdayShort(range.first)}–${formatWeekdayShort(range.last)}`
-          : '';
+        const dayRangeStr = formatDayRange(match.batch.eatingDays);
         const cal = match.batch.actualPerServing.calories;
         lines.push(`🔪 ${esc(mealLabel)}: *${esc(recipeName)}*`);
         lines.push(`Cook ${match.batch.servings} servings \\(${esc(dayRangeStr)}\\) · \\~${cal} cal each`);

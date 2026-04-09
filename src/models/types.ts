@@ -204,7 +204,11 @@ export type DraftPlanSession = Omit<
 >;
 
 /**
- * A first-class batch — one recipe, 2-3 servings, 2-3 consecutive eating days.
+ * A first-class batch — one recipe, 1-3 servings, 1-3 eating days.
+ *
+ * Plan 024: eating days need NOT be contiguous. A batch of 3 can span Wed, Fri, Sat
+ * (Thursday is a flex or event day). The hard constraint is fridge-life:
+ * calendarSpan(eatingDays[0], eatingDays.at(-1)) ≤ recipe.storage.fridgeDays.
  *
  * Only persisted (confirmed) batches exist as instances of this type.
  * In-memory drafts use ProposedBatch (solver/types.ts) until confirmation.
@@ -216,7 +220,7 @@ export interface Batch {
   id: string;
   recipeSlug: string;
   mealType: 'lunch' | 'dinner';
-  /** ISO dates this batch is eaten on (2-3 contiguous days). Cook day = eatingDays[0]. */
+  /** ISO dates this batch is eaten on (1-3 days, not necessarily contiguous). Cook day = eatingDays[0]. */
   eatingDays: string[];
   servings: number;
   targetPerServing: Macros;

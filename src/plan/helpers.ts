@@ -239,8 +239,8 @@ export function getServingNumber(batch: Batch, date: string): number {
 
 /**
  * First and last eating day for a batch.
- * Returns `null` if `eatingDays` is empty (should not happen for valid
- * planned batches, but defensive).
+ * @deprecated Plan 024: use formatDayRange(batch.eatingDays) for display instead.
+ * Kept alive because existing callers may still need raw first/last values.
  */
 export function getDayRange(batch: Batch): { first: string; last: string } | null {
   if (batch.eatingDays.length === 0) return null;
@@ -248,4 +248,49 @@ export function getDayRange(batch: Batch): { first: string; last: string } | nul
     first: batch.eatingDays[0]!,
     last: batch.eatingDays[batch.eatingDays.length - 1]!,
   };
+}
+
+/**
+ * Format an array of ISO dates into a human-readable compact range.
+ * Handles non-contiguous days by splitting into runs of consecutive days.
+ *
+ * Plan 024: supports flexible (non-consecutive) batch eating days.
+ *
+ * Examples:
+ *   ["2026-04-15","2026-04-16","2026-04-17"] → "Wed–Fri"
+ *   ["2026-04-15","2026-04-17","2026-04-18"] → "Wed, Fri–Sat"
+ *   ["2026-04-14","2026-04-16","2026-04-18"] → "Tue, Thu, Sat"
+ *   ["2026-04-14"]                           → "Tue"
+ */
+export function formatDayRange(days: string[]): string {
+  if (days.length === 0) return '';
+  if (days.length === 1) return dayShort(days[0]!);
+
+  // Split into runs of consecutive days
+  const runs: string[][] = [];
+  let currentRun: string[] = [days[0]!];
+
+  for (let i = 1; i < days.length; i++) {
+    const prev = new Date(days[i - 1]! + 'T00:00:00');
+    const curr = new Date(days[i]! + 'T00:00:00');
+    const diffMs = curr.getTime() - prev.getTime();
+    if (diffMs === 24 * 60 * 60 * 1000) {
+      currentRun.push(days[i]!);
+    } else {
+      runs.push(currentRun);
+      currentRun = [days[i]!];
+    }
+  }
+  runs.push(currentRun);
+
+  // Format each run
+  return runs.map((run) => {
+    if (run.length === 1) return dayShort(run[0]!);
+    return `${dayShort(run[0]!)}–${dayShort(run[run.length - 1]!)}`;
+  }).join(', ');
+}
+
+/** Short weekday name from ISO date (e.g., "Mon", "Tue"). */
+function dayShort(isoDate: string): string {
+  return new Date(isoDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
 }

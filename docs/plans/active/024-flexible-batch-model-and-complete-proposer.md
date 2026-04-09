@@ -303,12 +303,12 @@ Every regenerated scenario gets the full behavioral review per `docs/product-spe
 
 ## Progress
 
-- [ ] Phase 1: Type changes + DB migration
-- [ ] Phase 2: Proposal validator
-- [ ] Phase 3: Proposer overhaul
-- [ ] Phase 4: Flow surgery
-- [ ] Phase 5: Display updates
-- [ ] Phase 6: Testing
+- [x] Phase 1: Type changes + DB migration
+- [x] Phase 2: Proposal validator
+- [x] Phase 3: Proposer overhaul
+- [x] Phase 4: Flow surgery
+- [x] Phase 5: Display updates
+- [x] Phase 6: Testing
 
 ## Decision log
 
