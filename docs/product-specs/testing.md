@@ -88,6 +88,18 @@ After every `npm run test:generate -- <name>` (new or `--regenerate`):
 
 If the issue is LLM output quality (proposer didn't fill all slots, bad recipe choice) rather than a code bug, log it to `docs/plans/tech-debt.md` with the scenario name, what went wrong, and potential fix options. Then commit the recording as-is — the scenario still exercises the code path correctly even if the LLM's choices are suboptimal.
 
+### Regenerate in parallel, review serially
+
+When a prompt change, rule addition, or shared-code change invalidates many scenario fixtures at once, the right sequence is:
+
+1. **Identify** the affected set — run `npm test` and collect every scenario name that failed with `MissingFixtureError` (or any other fixture drift).
+2. **Delete** each affected `recorded.json` (per the existing "delete before regenerate" rule, so the generator knows it's starting fresh).
+3. **Regenerate in parallel.** Launch `npm run test:generate -- <name> --regenerate --yes` for every scenario CONCURRENTLY — e.g., as background processes or batched tool calls — and wait for all of them to finish. Generation is mechanical and LLM-bound; running them sequentially burns wall-clock time and money with zero quality benefit.
+4. **Validate behaviorally ONE BY ONE.** Once all regenerations are done, review each `recorded.json` serially, applying the full 5-step protocol from the section above. Do not skim. Do not batch your attention across multiple scenarios. Reviewing in parallel — even mentally — erodes the discipline that the behavioral-validation rule exists to enforce.
+5. **If any review surfaces a bug, fix the code and re-regenerate only the affected scenario.** Do NOT patch the recording to silence the symptom.
+
+The split is: **parallel for the mechanical step (generate), serial for the attention step (review)**. Behavioral validity is the POINT of the harness — `npm test` green alone proves determinism, not correctness. Treat the tenth scenario in your regenerate list with the same rigor as the first.
+
 ### Quick verification script
 
 For scenarios where manual reading is impractical, use this as a starting point (run after generate):
