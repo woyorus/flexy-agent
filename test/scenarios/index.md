@@ -8,7 +8,6 @@
 | 004 | rolling-first-plan | First-ever plan from completely empty state: cold-start path where horizonStart falls back to "tomorrow". |
 | 005 | rolling-continuous | Rolling horizon continuation: session B plans the next 7 days with session A's carry-over slots pre-committed in the proposer. |
 | 006 | rolling-gap-vacation | Vacation fallback: session A is historical (ended before today), so computeNextHorizonStart falls back to "tomorrow" with no carry-over. |
-| 008 | rolling-flex-move-at-edge | Flex move to Sunday dinner (horizon edge) via re-proposer — batches rearrange around last day. Plan 025 rework. |
 | 009 | rolling-swap-recipe-with-carryover | Recipe swap via re-proposer on a non-pre-committed batch — carry-over stays intact. Plan 025 rework. |
 | 010 | rolling-events-with-carryover | Proposer must simultaneously respect pre-committed carry-over slots, a restaurant event, and the standard flex slot with no double-booking. |
 | 011 | rolling-replan-future-only | Replanning a future-only session: old session is superseded and its batches cancelled only after the new session is fully saved. |
@@ -29,3 +28,4 @@
 | 026 | reproposer-multi-mutation | Two sequential mutations (flex move then recipe swap) — history preserves first change. Plan 025. |
 | 027 | reproposer-clarification | Vague request ("this doesn't work for me") triggers clarification, user answers with specific change, plan updates. Plan 025. |
 | 028 | reproposer-recipe-generation | User asks for recipe not in DB ("Thai green curry") — re-proposer asks to generate, user confirms, recipe created and placed. Plan 025. |
+| 029 | recipe-flow-happy-path | Standalone recipe flow from main menu → recipe list → [Add new recipe] → meal type → preferences → Save. Distinct from 028's re-proposer handshake. |

@@ -1,0 +1,168 @@
+{
+  "generatedAt": "2026-04-05T10:00:00.000Z",
+  "specHash": "886a0aa42b0da170c9c2696d5bf3837a21c3e283bcf51e54a7c453db0008ebe5",
+  "llmFixtures": [
+    {
+      "hash": "99ae652a8e8d1d44f6a2050e1758b6b0d62c3ab7f00b6bac05f61397c232b6c6",
+      "callIndex": 1,
+      "model": "mini",
+      "reasoning": "high",
+      "json": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are an expert chef and nutritionist who creates macro-controlled meal prep recipes.\n\nYOUR JOB: Create a recipe that hits specific macro targets while being delicious, practical, and easy to cook.\n\n## MACRO TARGETS (per serving)\n- Calories: 804 kcal (allowed range: 780-828)\n- Protein: 50g (allowed range: 47-54)\n- Fat: 43g (allowed range: 37-49)\n- Carbs: 54g (allowed range: 46-62)\n\nPriority if tradeoffs happen: 1) Calories 2) Protein 3) Fat 4) Carbs.\nIt is better to slightly undershoot than overshoot. Overshooting kills caloric deficit.\n\n## MEAL STRUCTURE RULES\n\n### Lunch: light, practical, one-container meals\n- Lunches are eaten during the day, often reheated at work. They should be LIGHTER in character than dinner — not heavy pasta dishes or rich stews.\n- Preferred styles:\n  - GRAIN/RICE BOWLS: Protein + vegetables + grain base + light dressing/sauce. The default lunch format.\n  - SALADS WITH WARM PROTEIN: Hearty salads with grilled chicken, fish, or legumes. Not sad diet salads — filling and satisfying.\n  - LIGHTER STEWS/SOUPS: Lentil soups, chicken and vegetable stews, lighter curries. Not heavy cream-based.\n  - WRAPS/STUFFED MEALS: When practical and reheatable.\n- The meal has clear, separable parts:\n  - MAIN: Protein + vegetables with a light sauce or dressing. Clear identity (e.g., \"lemon herb chicken\", \"sesame tofu and vegetables\").\n  - BASE (often separate): Rice, quinoa, couscous, bulgur, or mixed grains.\n  - SIDE (optional): Fresh component — salad, pickled vegetables, salsa.\n- Sauces should be LIGHT: vinaigrettes, tahini, soy-based, salsa, lemon-herb. Avoid heavy cream sauces, cheese-heavy preparations, or rich meat gravies for lunch.\n- Must be microwave-friendly and hold 2-3 days in the fridge. One-container packing preferred.\n- Do NOT default to pasta, bolognese, traybakes, or other dinner-style meals unless the user specifically asks for them.\n- 6-10 ingredients in the main. Cohesive flavor profile.\n- The base (grain/rice) is the natural calorie scaling lever.\n- Prep time must be REALISTIC. Minimums:\n  - Simple bowl assembly (pre-cooked protein + grain): 25-35 min\n  - Skillet protein + grain side: 35-45 min\n  - Anything with 10+ ingredients: at least 40 min\n  When in doubt, round UP.\n\n## INGREDIENT RULES\n- Use metric grams/ml with exact quantities per serving — EXCEPT for naturally countable items.\n- **Countable items use whole units, not grams.** The user can't weigh an egg.\n  - Eggs: \"2 eggs\" (unit: \"whole\"), NOT \"90g eggs\"\n  - Limes/lemons: \"1 lime\" (unit: \"whole\") or \"juice of 1 lime\" — NOT \"30g lime\"\n  - Garlic: \"2 cloves\" (unit: \"cloves\"), NOT \"6g garlic\"\n  - Bananas, avocados, onions: use count or fraction (\"1 avocado\", \"½ onion\") when the natural unit is obvious\n  - For macro calculations, use standard sizes: 1 large egg ≈ 60g, 1 clove garlic ≈ 3g, 1 medium avocado ≈ 150g flesh\n- **ALL amounts must be RAW / UNCOOKED / DRY weight.** This is critical for accurate macro counting and shopping.\n  - Meat and fish: RAW weight (e.g., \"chicken breast, raw: 200g\")\n  - Pasta, rice, grains: DRY/UNCOOKED weight (e.g., \"rigatoni, dry: 65g\", \"jasmine rice, uncooked: 80g\")\n  - Legumes: DRAINED weight for canned (e.g., \"canned chickpeas, drained: 100g\"), DRY weight for dried\n  - Vegetables: raw/uncooked weight\n  - Your macro calculations MUST be based on the raw/dry weights you specify. Do NOT calculate macros from cooked weights.\n- Every ingredient has a role: protein, carb, fat, vegetable, base, or seasoning.\n- Every ingredient belongs to a component (main, carb_side, side, or a breakfast component name).\n- Prefer: olive oil, nuts, avocado, fish for fats. Minimize butter, cream, fatty processed meats.\n- Keep ultra-processed foods low. Minimize added sugar.\n- Be PRECISE about ingredient variants that affect macros. The user will shop for exactly what you specify, and will calculate macros from it. If the fat/calorie content varies significantly by type, you MUST specify which type:\n  - Dairy: \"cooking cream (20% fat)\", \"Greek yogurt (2%)\", \"whole milk\", \"semi-skimmed milk\"\n  - Meat: \"ground beef (10% fat)\", \"chicken thigh (skin-on)\" vs \"chicken breast\"\n  - Coconut: \"coconut milk (full fat)\" vs \"light coconut milk\"\n  - Cheese: \"mozzarella\" vs \"light mozzarella\", \"cream cheese (full fat)\"\n  - General rule: if two common variants of the same ingredient differ by more than 30% in calories, specify which one. Your macro calculations must match the specific variant you name.\n\n## USER FOOD PROFILE\nThe user lives in Southern Spain. Shopping access: Standard European supermarkets (Mercadona, Lidl, Carrefour). Good access to fresh seafood, Mediterranean produce, olive oil, Iberian pork, Spanish cheeses.\nPrefer ingredients commonly available in Spanish supermarkets. Mediterranean, Spanish, and Southern European ingredients are natural choices. Asian ingredients are fine if they are the common ones found in any supermarket (soy sauce, rice, ginger, coconut milk) — avoid specialty Asian grocery items. Avoid niche North American ingredients (Cotija cheese, chipotle en adobo, ranch seasoning, American-style BBQ sauces). When a recipe calls for cheese, prefer commonly available European options (manchego, mozzarella, parmesan, feta, goat cheese).\n\nALL ingredient choices must respect this profile. Do not suggest ingredients the user cannot easily find in their local stores.\n\n## RECIPE TEXT RULES\n- Write the recipe body as natural, human-readable text.\n- Include a brief description of the dish (1-2 sentences — what it is, what makes it good).\n- Steps are numbered and use `{ingredient_name}` placeholders for amounts:\n  CORRECT: \"Cook {penne pasta} until al dente, **10-11 min**.\"\n  CORRECT: \"Heat {olive oil} in a large skillet.\"\n  WRONG: \"Cook 65g penne pasta until al dente.\" (hardcoded amount)\n  WRONG: \"Cook the pasta until al dente.\" (no placeholder — user can't know the amount)\n  The placeholder name MUST exactly match an ingredient's `name` field in the ingredients array.\n  \"To-taste\" seasoning — ingredients that a cook applies freely without measuring (salt, pepper,\n  chili flakes) — stay as-is in prose even though they have YAML amounts. No placeholder.\n  Use `role: seasoning` as the signal: if it's a role-seasoning ingredient with a small nominal\n  YAML amount (e.g., 1g salt, 0.5g pepper) that doesn't materially affect macros, treat it as to-taste.\n  Only ingredients whose amount directly affects macros or cooking outcome get a placeholder:\n  proteins, carbs, oils, specific spices in meaningful amounts (e.g., \"2 tsp smoked paprika\")\n  → those DO get a placeholder: \"Add {smoked paprika}, stir **1 min**.\"\n- Every heat step MUST include an explicit duration:\n  CORRECT: \"Sear salmon cubes without moving, **2 min per side**.\"\n  CORRECT: \"Cook **4-5 min** until softened.\"\n  WRONG: \"Cook until golden.\" (no time anchor)\n  WRONG: \"Simmer until thickened.\" (needs \"**15-20 min** until thickened\")\n- Group to-taste seasonings on one line in the prose:\n  CORRECT: \"Season with salt, pepper, and chili flakes.\"\n  WRONG: \"Add the salt. Add the pepper. Add the chili flakes.\" (three lines for to-taste items)\n  Only seasonings with specific amounts (e.g., \"2 tsp smoked paprika\") get called out individually.\n- Include: prep time, equipment needed, storage, reheating instructions.\n- Include practical tips or simple variations if relevant.\n\n## OUTPUT FORMAT\nRespond with ONLY valid JSON matching this schema:\n{\n  \"name\": \"string — the dish name, clear identity\",\n  \"short_name\": \"string — max 25 chars, 2-3 word recognizable identity (e.g., 'Beef Tagine', 'Salmon Pasta')\",\n  \"slug\": \"string — kebab-case, max 50 chars (e.g. 'chicken-pepperonata-rice', not 'chicken-pepperonata-with-rice-and-roasted-vegetables-mediterranean-style')\",\n  \"meal_types\": [\"breakfast\" | \"lunch\" | \"dinner\"],\n  \"cuisine\": \"string\",\n  \"tags\": [\"string\"],\n  \"prep_time_minutes\": number,\n  \"structure\": [{ \"type\": \"main\"|\"carb_side\"|\"side\"|\"breakfast_component\", \"name\": \"string\" }],\n  \"per_serving\": { \"calories\": number, \"protein\": number, \"fat\": number, \"carbs\": number },\n  \"ingredients\": [{ \"name\": \"string\", \"amount\": number, \"unit\": \"string\", \"role\": \"protein|carb|fat|vegetable|base|seasoning\", \"component\": \"string — matching a structure name\" }],\n  \"storage\": { \"fridge_days\": number, \"freezable\": boolean, \"reheat\": \"string\" },\n  \"body\": \"string — the full recipe text (description + steps + storage notes + tips). Use {ingredient_name} placeholders in steps (see RECIPE TEXT RULES). Use newlines for formatting. Steps as numbered list.\"\n}"
+        },
+        {
+          "role": "user",
+          "content": "Create a lunch recipe.\n\nMy preferences: something light with chicken and vegetables"
+        }
+      ],
+      "response": "{\n  \"name\": \"Lemon Tahini Chicken Rice Bowl\",\n  \"short_name\": \"Chicken Tahini Bowl\",\n  \"slug\": \"lemon-tahini-chicken-rice-bowl\",\n  \"meal_types\": [\"lunch\"],\n  \"cuisine\": \"Mediterranean\",\n  \"tags\": [\"meal-prep\", \"high-protein\", \"microwave-friendly\", \"mediterranean\", \"rice-bowl\", \"chicken\", \"lunch\"],\n  \"prep_time_minutes\": 40,\n  \"structure\": [\n    {\n      \"type\": \"main\",\n      \"name\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"type\": \"carb_side\",\n      \"name\": \"Brown Rice\"\n    }\n  ],\n  \"per_serving\": {\n    \"calories\": 814,\n    \"protein\": 50,\n    \"fat\": 44,\n    \"carbs\": 54\n  },\n  \"ingredients\": [\n    {\n      \"name\": \"chicken breast raw\",\n      \"amount\": 185,\n      \"unit\": \"g\",\n      \"role\": \"protein\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"zucchini\",\n      \"amount\": 100,\n      \"unit\": \"g\",\n      \"role\": \"vegetable\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"red bell pepper\",\n      \"amount\": 100,\n      \"unit\": \"g\",\n      \"role\": \"vegetable\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"red onion\",\n      \"amount\": 30,\n      \"unit\": \"g\",\n      \"role\": \"vegetable\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"cherry tomatoes\",\n      \"amount\": 50,\n      \"unit\": \"g\",\n      \"role\": \"vegetable\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"olive oil\",\n      \"amount\": 32,\n      \"unit\": \"g\",\n      \"role\": \"fat\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"tahini\",\n      \"amount\": 10,\n      \"unit\": \"g\",\n      \"role\": \"fat\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"lemon\",\n      \"amount\": 1,\n      \"unit\": \"whole\",\n      \"role\": \"seasoning\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"garlic\",\n      \"amount\": 2,\n      \"unit\": \"cloves\",\n      \"role\": \"seasoning\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"dried oregano\",\n      \"amount\": 1,\n      \"unit\": \"g\",\n      \"role\": \"seasoning\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"salt\",\n      \"amount\": 2,\n      \"unit\": \"g\",\n      \"role\": \"seasoning\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"black pepper\",\n      \"amount\": 0.5,\n      \"unit\": \"g\",\n      \"role\": \"seasoning\",\n      \"component\": \"Lemon Tahini Chicken and Vegetables\"\n    },\n    {\n      \"name\": \"brown rice dry\",\n      \"amount\": 45,\n      \"unit\": \"g\",\n      \"role\": \"base\",\n      \"component\": \"Brown Rice\"\n    }\n  ],\n  \"storage\": {\n    \"fridge_days\": 3,\n    \"freezable\": false,\n    \"reheat\": \"Microwave from chilled for 2-3 min, stirring halfway. Add a teaspoon of water or extra lemon after heating if the sauce thickens.\"\n  },\n  \"body\": \"Bright, Mediterranean meal-prep bowl with lemon-tahini chicken, roasted vegetables, and brown rice. It reheats well, stays juicy, and feels fresh rather than heavy.\\n\\nPrep time: 40 minutes\\nEquipment: large baking tray, medium saucepan with lid, large skillet, mixing bowl, whisk, knife, cutting board, meal-prep containers.\\n\\n1. Heat the oven to 220°C. Toss {zucchini}, {red bell pepper}, {red onion}, and {cherry tomatoes} with half of {olive oil}, {dried oregano}, salt, and pepper on a baking tray. Roast for **18-20 min**, stirring once halfway, until the edges start to caramelize.\\n2. While the vegetables roast, rinse {brown rice dry} and cook it in plenty of lightly salted water for **25-30 min**, until tender. Drain well and keep covered.\\n3. Pat {chicken breast raw} dry and season with salt and pepper. Heat the remaining {olive oil} in a skillet over medium-high heat for **1 min**, then sear the chicken for **4-5 min per side** until golden and cooked through. Rest for **5 min** before slicing.\\n4. Whisk {tahini}, the juice of {lemon}, and minced {garlic} with a splash of water until smooth and pourable; season with salt and pepper.\\n5. Divide the rice, roasted vegetables, and sliced chicken between containers. Spoon the sauce over the top, cool completely, then seal.\\n\\nStorage: keep in the fridge for up to 3 days. Reheat **2-3 min** in the microwave, stirring once halfway. Tip: if the bowl looks a little dry after reheating, add a small splash of water and an extra squeeze of lemon to wake it back up.\"\n}",
+      "usage": {
+        "inputTokens": 2225,
+        "outputTokens": 20944
+      }
+    }
+  ],
+  "expected": {
+    "outputs": [
+      {
+        "text": "Welcome to Flexie. Use the menu below to get started.",
+        "keyboard": {
+          "kind": "reply",
+          "buttons": [
+            [
+              "📋 Plan Week",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Progress"
+            ]
+          ],
+          "persistent": true,
+          "resized": true
+        }
+      },
+      {
+        "text": "Your recipes (3):",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa",
+                "callback": "rv_chicken-black-bean-avocado-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Ground Beef Rigatoni Bolognese",
+                "callback": "rv_ground-beef-rigatoni-bolognese"
+              }
+            ],
+            [
+              {
+                "label": "Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt",
+                "callback": "rv_salmon-avocado-toast-soft-eggs-cinnamon-yogurt"
+              }
+            ],
+            [
+              {
+                "label": "Add new recipe",
+                "callback": "add_recipe"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "What type of recipe?",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Breakfast",
+                "callback": "meal_type_breakfast"
+              },
+              {
+                "label": "Lunch",
+                "callback": "meal_type_lunch"
+              },
+              {
+                "label": "Dinner",
+                "callback": "meal_type_dinner"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "Lunch recipe.\n\nDescribe what you want (cuisine, ingredients, style) or just say \"surprise me.\""
+      },
+      {
+        "text": "Generating your recipe — this usually takes a minute or two..."
+      },
+      {
+        "text": "*Lemon Tahini Chicken Rice Bowl*\n_814 cal \\| 50g P \\| 44g F \\| 54g C_\nMediterranean · 40 min · meal\\-prep, high\\-protein, microwave\\-friendly, mediterranean, rice\\-bowl, chicken, lunch\n\n*Ingredients \\(per serving\\)*\n\n*Lemon Tahini Chicken and Vegetables:*\n  chicken breast raw: 185g\n  zucchini: 100g\n  red bell pepper: 100g\n  red onion: 30g\n  cherry tomatoes: 50g\n  olive oil: 32g\n  tahini: 10g\n  lemon: 1whole\n  garlic: 2cloves\n  dried oregano: 1g\n  salt: 2g\n  black pepper: 0\\.5g\n\n*Brown Rice:*\n  brown rice dry: 45g\n\nBright, Mediterranean meal\\-prep bowl with lemon\\-tahini chicken, roasted vegetables, and brown rice\\. It reheats well, stays juicy, and feels fresh rather than heavy\\.\n\nPrep time: 40 minutes\nEquipment: large baking tray, medium saucepan with lid, large skillet, mixing bowl, whisk, knife, cutting board, meal\\-prep containers\\.\n\n1\\. Heat the oven to 220°C\\. Toss 100g zucchini, 100g red bell pepper, 30g red onion, and 50g cherry tomatoes with half of 32g olive oil, 1g dried oregano, salt, and pepper on a baking tray\\. Roast for *18\\-20 min*, stirring once halfway, until the edges start to caramelize\\.\n2\\. While the vegetables roast, rinse 45g brown rice dry and cook it in plenty of lightly salted water for *25\\-30 min*, until tender\\. Drain well and keep covered\\.\n3\\. Pat 185g chicken breast raw dry and season with salt and pepper\\. Heat the remaining 32g olive oil in a skillet over medium\\-high heat for *1 min*, then sear the chicken for *4\\-5 min per side* until golden and cooked through\\. Rest for *5 min* before slicing\\.\n4\\. Whisk 10g tahini, the juice of 1whole lemon, and minced 2cloves garlic with a splash of water until smooth and pourable; season with salt and pepper\\.\n5\\. Divide the rice, roasted vegetables, and sliced chicken between containers\\. Spoon the sauce over the top, cool completely, then seal\\.\n\nStorage: keep in the fridge for up to 3 days\\. Reheat *2\\-3 min* in the microwave, stirring once halfway\\. Tip: if the bowl looks a little dry after reheating, add a small splash of water and an extra squeeze of lemon to wake it back up\\.",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Save",
+                "callback": "save_recipe"
+              },
+              {
+                "label": "Refine",
+                "callback": "refine_recipe"
+              }
+            ],
+            [
+              {
+                "label": "New recipe",
+                "callback": "new_recipe"
+              },
+              {
+                "label": "Discard",
+                "callback": "discard_recipe"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "Saved \"Lemon Tahini Chicken Rice Bowl\" to your recipe database.",
+        "keyboard": {
+          "kind": "reply",
+          "buttons": [
+            [
+              "📋 Plan Week",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Progress"
+            ]
+          ],
+          "persistent": true,
+          "resized": true
+        }
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "recipes",
+      "progressFlow": null
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [],
+      "batches": []
+    }
+  }
+}
