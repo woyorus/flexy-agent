@@ -1,6 +1,6 @@
 {
   "name": "flexy-agent",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "description": "AI-guided weekly calorie budget planner — Telegram bot with planning-first approach",
   "main": "dist/index.js",
   "scripts": {
