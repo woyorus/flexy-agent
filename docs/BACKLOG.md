@@ -32,7 +32,6 @@
 - Recipe database (markdown files) with CRUD via Telegram
 - Recipe generation with multi-turn refinement and macro correction loop
 - Recipe scaling to solver targets at approval time
-- Restaurant meal estimation
 - Voice input via Whisper for all free-form inputs
 - Scenario test harness with fixture-replayed LLM calls + recipe sandbox isolation
 - Debug logging system (full AI call traces, flow state transitions)
@@ -43,67 +42,46 @@
 
 v0.0.4 proved the architecture: a reasoning LLM handles plan arrangement and mutations, deterministic code handles math and validation. v0.0.5 extends this agentic loop across the entire product lifecycle so the plan keeps adapting after confirmation — not just during planning.
 
-The re-proposer already exists and works. v0.0.5 is about opening new entry points to it, wiring a freeform conversation layer to route any inbound message to the right agent, and adding the state tracking (running budget, actual vs. planned) that makes mid-week adaptation meaningful. See design-docs/002-plans-that-survive-real-life.md for the architectural foundation.
+The re-proposer already exists and works. v0.0.5 opens new entry points to it via a freeform conversation layer that routes any inbound text or voice message to the right capability. The post-confirmation entry point is the load-bearing feature — it's what turns the confirmed plan into a living document.
 
-**Freeform conversation layer (new — prerequisite for everything else)**:
+Authoritative design: **[`design-docs/proposals/003-freeform-conversation-layer.md`](./design-docs/proposals/003-freeform-conversation-layer.md)** (status: approved). Architectural foundation: [`design-docs/002-plans-that-survive-real-life.md`](./design-docs/002-plans-that-survive-real-life.md).
 
-Every inbound message from any screen is classified by a thin router agent. The router has two jobs: (1) decide which downstream handler owns the message, (2) preserve enough context that handlers can respond without re-asking the user. No new flow phases, no modal "type your command now" screens — the user talks, the product routes.
+**Freeform conversation layer (the entry-point mechanism)**:
 
-Intents the router produces:
-- **flow_input** — message belongs to the active flow (planning, recipe generation, progress logging). Routed to the existing flow handler. Current behavior.
-- **mutation_request** — user wants to change something about their plan. Routed to the re-proposer (post-confirmation entry point, see below). "Move flex to Sunday", "Swap the tagine for fish", "I'm out for dinner Friday".
-- **treat_report** — user ate something off-plan and wants it absorbed. Routed to the treat tracker. "Had a Snickers", "Grabbed a coffee and pastry".
-- **contextual_question** — side conversation with plan/recipe context. Routed to a read-only Q&A agent. "Why is there so much pasta this week?", "How long does the tagine keep?" Answer, offer [← Back to plan].
-- **domain_question** — general food/nutrition question. Routed to the Q&A agent with explicit "read-only, no plan changes" framing. "Is rice better than pasta for weight loss?" Answer briefly, don't moralize, return to context.
-- **out_of_scope** — not a food/plan/progress topic. Polite decline with no attempt to be clever.
+A single reasoning LLM call sits as the front door for all inbound text and voice. It picks one action from a 13-action catalog spanning flow passthrough, read-only Q&A (plan / recipe / domain), navigation (recipe view, plan view, shopping list, progress, natural-language "back to X"), plan mutation, freeform measurement logging, clarification, and honest out-of-scope decline. Two additional actions (`log_treat`, `log_eating_out`) are architecturally committed in the catalog but deferred from v0.0.5 implementation — see "Deferred from v0.0.5 scope" below.
 
-Domain answers are **read-only** — informational questions never mutate plan state. The Q&A agent has no write access. Every side-conversation response ends with a persistent [← Back to ...] button so users never feel trapped in a dead-end chat.
+Button taps bypass the dispatcher (unchanged). Voice messages reuse the existing Whisper → text path.
 
-Voice input goes through the same router after Whisper transcription — no separate voice path.
+Proposal 003 specifies the full design: context hydration, state-preservation invariants, navigation state model extensions, confirmation model by action class, the cross-doc supersession of `ui-architecture.md § Freeform conversation layer`, and an implementation-planning appendix with a 5-plan decomposition (A→E) organized for agent context clarity and isolated testability.
 
-See `ui-architecture.md` § Freeform conversation layer for copy and interaction patterns.
+**Post-confirmation plan mutations** (the v0.0.5 headline capability):
 
-**Post-confirmation plan mutations** (the v0.0.5 motivation from design doc 002):
+Once a plan is confirmed, mid-week adjustments route to the **same re-proposer** that handles planning-session mutations. The entry point changes; the agent is identical. The work splits across three layers per proposal 003:
 
-Once a plan is confirmed, mid-week adjustments route to the **same re-proposer** that handles planning-session mutations. No new agent. The entry point changes; the agent is identical.
+- **Data model adapter** that converts a persisted `PlanSession + Batch[]` into the in-memory `PlanProposal` shape the re-proposer understands, split at the **(date, mealType)** level so today's already-eaten lunch stays frozen while tonight's dinner is still active (server-local wall-clock cutoffs). Round-trip back via `confirmPlanSessionReplacing` (save-before-destroy), preserving past-slot batches verbatim so `formatWeekOverview` and `formatNextAction` still render the full session horizon after the write.
+- **Mutation history persistence** via a new `mutation_history` JSON column on `plan_sessions`. The current in-memory shape `{ constraint, appliedAt }` gets carried across save-before-destroy writes so post-confirmation mutations accumulate history instead of losing it on every revision.
+- **New re-proposer rules** added to the prompt AND the proposal validator: meal-type lanes (`batch.mealType ∈ recipe.mealTypes`, never crossed by mutations) and near-future safety (next ~2 days soft-locked unless the user's request explicitly targets them).
 
-- "I got invited to dinner Friday" → re-proposer adds the event, rearranges remaining batches around it
+Example mutations this unlocks:
+- "I got invited to dinner Friday" → re-proposer adds the event, shifts affected dinner batches forward in the dinner lane
 - "I don't have salmon, use chicken" → re-proposer swaps the recipe on the affected batch
-- "The plan ends Tuesday, I want to extend through Thursday" → re-proposer extends the horizon
-
-The re-proposer operates on the **remaining days** of the active plan — past days are frozen. Mutation history persists across the plan lifecycle (not cleared on confirm like planning-session mutations are today). Each confirmed mutation creates a plan revision; the original plan stays in history.
-
-**Running budget (actual vs. planned)**:
-
-The product needs to know what the user actually ate vs. what was planned. Today the plan is frozen truth. v0.0.5 adds a per-day actual state that starts matching the plan and drifts as the user reports deviations. Running budget = sum of (actual − planned) across past and current days.
-
-- Treat tracker adds to actual
-- Mutation acceptance updates both planned and actual for affected days
-- Restaurant reporting (user says "I had Italian lunch ~850 cal") adds to actual
-- Plan view surfaces the running delta when non-zero ("~150 cal over this week so far — still within budget")
-
-**Treat tracking**:
-
-One message in, one message out. "Had a small Snickers" → "Logged: ~245 cal. Treat budget remaining: ~608 cal (~1-2 more treats)." LLM estimates calories from description. Works via freeform text from any screen — no navigation required, the router handles it.
-
-**Three-tier deviation response**:
-
-Not every deviation needs a replan offer. The product matches response intensity to deviation size:
-- **Silent (<300 cal)**: absorbed into running budget, no UI interruption
-- **Informational (300-800 cal)**: gentle FYI in plan view next time user opens it
-- **Replan offer (800+ cal)**: explicit "want me to rebalance the remaining days?" — routes through the re-proposer
-
-**Cook-time ingredient adjustment**:
-
-"I have 500g of beef, not 440g" → recipe rescales around real quantity. Anti-food-waste: the product adjusts math to what the user actually has, not the other way around. Small recipe-level mutation that doesn't require the re-proposer (no batch rearrangement, just macro rescaling).
-
-**Contextual quick-fix suggestions**:
-
-Now that mutations are accessible from anywhere, the plan view can show LLM-generated quick-fix buttons prioritized for the current plan state (e.g., "Move flex to Sunday", "Extend tagine to cover Wednesday"). Not generic static buttons — the re-proposer suggests options based on the current arrangement.
+- "Move flex to Sunday" → re-proposer rearranges slots around the moved flex
 
 **Test coverage expansion**:
 
-Solver + plan validator unit tests, recipe scaling + shopping list unit tests, recipe flow scenarios, voice smoke-test scenario. Scheduled here because tracking and freeform routing exercise this code fresh.
+Solver + plan validator unit tests, recipe scaling + shopping list unit tests, recipe flow scenarios, voice smoke-test scenario, plus the adapter round-trip tests and post-confirmation mutation scenarios specified by proposal 003's implementation-planning appendix. Scheduled here because the freeform layer and the adapter exercise this code fresh.
+
+**Deferred from v0.0.5 scope** (belong to a future "deviation accounting" body of work, requires its own proposal → plan cycle):
+
+The items below were listed in the original v0.0.5 scope but are NOT delivered by proposal 003. They share a common dependency — a running-budget / actual-vs-planned state model — that's big enough to deserve its own design pass.
+
+- **Running budget (actual vs. planned)**: a per-day actual state that drifts from the plan as the user reports deviations. Foundation for the two logging actions below.
+- **Treat tracking** (`log_treat` handler): "Had a small Snickers" → calorie estimate + running treat budget update + remaining-budget reply. Architecturally committed in proposal 003's catalog but handler not built in v0.0.5.
+- **Eating-out tracking** (`log_eating_out` compound handler): restaurant/social-meal reporting with automatic batch shift and calorie absorption (flex → treats → accept hierarchy). Includes retroactive support ("last night I went to Indian"). Architecturally committed in proposal 003's catalog but handler not built in v0.0.5.
+- **Three-tier deviation response** (silent <300 cal / informational 300-800 cal / replan offer 800+ cal). Depends on running-budget state.
+- **Cook-time ingredient adjustment** ("I have 500g of beef, not 440g" → rescale the recipe): ingredient-level plan recipe updates. Explicitly out of scope per proposal 003 — it's a capability extension of the re-proposer scoped separately.
+- **Contextual quick-fix suggestions** (LLM-generated quick-fix buttons prioritized for the current plan state). Builds on top of the dispatcher but is its own design work and not specified in proposal 003.
+- **`answer_product_question` action** (answers about product concepts and methodology like "what's a flex meal?") with a small opinionated knowledge base. Proposal 003 routes such questions through `out_of_scope` in v0.0.5.
 
 **What stays deferred to later versions:**
 - Proactive nudges (v0.0.6)
@@ -120,6 +98,11 @@ The product reaches out at the right moments. Communication quality rises.
 - **Recipe rotation**: Track when recipes were last used, avoid repeating too soon.
 - **Week-end review**: Brief, non-judgmental summary of the week. Pairs with the weekly progress report.
 - **Messaging overhaul**: Treats stance (hyper-palatable foods trigger compulsiveness — the product is opinionated, not neutral). Method education (why weekly budgets, why flex, why averages not daily numbers). Light-touch, contextual, not a lecture.
+- **Shopping list quality pass**: The list works but is annoying. Known issues:
+  - **Unit semantics**: Countable items (eggs, avocados, lemons) should show counts, not grams. "Large egg — 7" not "Large egg — 350g".
+  - **Ingredient consolidation**: Same ingredient under slightly different names should merge. Today "Olive oil (for potatoes) — 16g", "Extra virgin olive oil — 30g", and "Olive oil (for ragù) — 24g" appear as three separate lines instead of one "Olive oil — 70g".
+  - **Name normalization**: Strip qualifiers that don't affect the buy ("fine salt" → "salt", parenthetical use-hints removed from the displayed name).
+  - **Category bugs**: Grouping is wrong in several cases — olive oil appears in both Oils & Fats and Pantry; avocado lands in Fats instead of Produce; pitted green olives show under the wrong section instead of Pantry. Category assignment needs to be deterministic and correct per ingredient, not per-recipe.
 
 ### v0.0.7 — Intelligence
 
