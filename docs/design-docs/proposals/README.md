@@ -76,5 +76,4 @@ discussion.
 
 ## Current proposals
 
-- [001-upcoming-plan-visibility.md](001-upcoming-plan-visibility.md) — Future plan visibility during active plan period
-- [002-plans-that-survive-real-life.md](002-plans-that-survive-real-life.md) — Flexible batches + re-proposer agent. Plans adapt to real life via agent + deterministic sidecar architecture. Supersedes 002-flexible-batch-model.md.
+- [003-freeform-conversation-layer.md](003-freeform-conversation-layer.md) — Action-dispatcher front door for all inbound text/voice. Reasoning LLM picks one action from a small catalog, delegates execution to existing handlers, preserves flow state across side conversations. Enables post-confirmation mutations, treat/measurement logging from any surface, read-only Q&A, natural-language navigation.
