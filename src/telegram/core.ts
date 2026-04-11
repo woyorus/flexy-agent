@@ -89,9 +89,10 @@ import {
 } from './keyboards.js';
 import { setLastRenderedView, type LastRenderedView } from './navigation-state.js';
 import type { ConversationTurn } from './dispatcher-runner.js';
+import { getPlanFlowResumeView } from './flow-resume-views.js';
 import { getPlanLifecycle, getVisiblePlanSession, toLocalISODate, getNextCookDay } from '../plan/helpers.js';
 import type { PlanLifecycle } from '../plan/helpers.js';
-import { getCalendarWeekBoundaries } from '../utils/dates.js';
+import { getCalendarWeekBoundaries, formatDateForMessage } from '../utils/dates.js';
 import { parseMeasurementInput, assignWeightWaist, formatDisambiguationPrompt } from '../agents/progress-flow.js';
 import {
   formatMeasurementConfirmation,
@@ -908,43 +909,6 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     );
   }
 
-  /**
-   * Build a resume view for an in-progress planning flow.
-   * Shows the user where they left off and re-displays the appropriate keyboard.
-   */
-  function getPlanFlowResumeView(state: PlanFlowState): {
-    text: string;
-    replyMarkup?: InlineKeyboard | Keyboard;
-    parseMode?: 'MarkdownV2';
-  } {
-    switch (state.phase) {
-      case 'context': {
-        const weekEnd = state.weekDays[6]!;
-        return {
-          text: `Planning ${formatDateForMessage(state.weekStart)} – ${formatDateForMessage(weekEnd)}. Breakfast: keep ${state.breakfast.name}?`,
-          replyMarkup: planBreakfastKeyboard,
-        };
-      }
-      case 'awaiting_events': {
-        const kb = state.events.length === 0 ? planEventsKeyboard : planMoreEventsKeyboard;
-        return {
-          text: "You're adding events for the week. Send another event or tap Done.",
-          replyMarkup: kb,
-        };
-      }
-      case 'generating_proposal':
-        return { text: 'Still working on it…' };
-      case 'proposal':
-        return {
-          text: state.proposalText ?? 'Your plan is ready for review.',
-          replyMarkup: planProposalKeyboard,
-        };
-      case 'confirmed':
-        // Should not reach here (handled by lifecycle guard)
-        return { text: 'Plan already confirmed.' };
-    }
-  }
-
   async function handleMenu(action: string, sink: OutputSink): Promise<void> {
     session.recipeFlow = null; // exit any recipe flow
     session.progressFlow = null; // exit any progress flow
@@ -1375,12 +1339,6 @@ function getNextWeekStart(): string {
   const month = String(monday.getMonth() + 1).padStart(2, '0');
   const day = String(monday.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-/** Format a date for display in messages. */
-function formatDateForMessage(isoDate: string): string {
-  const d = new Date(isoDate + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 /**

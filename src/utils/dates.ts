@@ -77,3 +77,18 @@ export function getCalendarWeekBoundaries(today: string): {
 function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
+
+/**
+ * Format an ISO date string ('YYYY-MM-DD') as a human-readable label for
+ * Telegram messages. Returns short English weekday + short month + day,
+ * e.g. "Mon, Apr 6". Used by `getPlanFlowResumeView` and any other view
+ * code that wants a compact day label without dragging in `Intl.DateTimeFormat`
+ * configuration.
+ *
+ * Moved from `src/telegram/core.ts` in Plan 028 Task 8b so the new
+ * flow-resume-views module can import it without pulling in core.ts.
+ */
+export function formatDateForMessage(isoDate: string): string {
+  const d = new Date(isoDate + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
