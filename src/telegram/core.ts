@@ -668,6 +668,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
       const prevWeekData = await store.getMeasurements('default', prevWeekStart, prevWeekEnd);
       const report = formatWeeklyReport(lastWeekData, prevWeekData, lastWeekStart, lastWeekEnd);
+      setLastRenderedView(session, { surface: 'progress', view: 'weekly_report' });
       await sink.reply(report, { parse_mode: 'Markdown' });
       return;
     }
@@ -1035,7 +1036,6 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
       case 'progress': {
-        session.surfaceContext = 'progress';
         session.lastRecipeSlug = undefined;
 
         const today = toLocalISODate(new Date());
@@ -1047,6 +1047,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           const lastWeekData = await store.getMeasurements('default', lastWeekStart, lastWeekEnd);
           const hasCompletedWeekReport = lastWeekData.length > 0;
           const alreadyText = 'Already logged today ✓';
+          setLastRenderedView(session, { surface: 'progress', view: 'weekly_report' });
           if (hasCompletedWeekReport) {
             await sink.reply(alreadyText, { reply_markup: progressReportKeyboard });
           } else {
@@ -1062,6 +1063,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           ? '\n\nIf this is your morning weight, drop it here.'
           : '';
         const prompt = `Drop your weight (and waist if you track it):\n\nExamples: "82.3 / 91" or just "82.3"${timeQualifier}`;
+        setLastRenderedView(session, { surface: 'progress', view: 'log_prompt' });
         await sink.reply(prompt);
         return;
       }
