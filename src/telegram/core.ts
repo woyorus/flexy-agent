@@ -87,6 +87,7 @@ import {
   progressDisambiguationKeyboard,
   progressReportKeyboard,
 } from './keyboards.js';
+import { setLastRenderedView, type LastRenderedView } from './navigation-state.js';
 import { getPlanLifecycle, getVisiblePlanSession, toLocalISODate, getNextCookDay } from '../plan/helpers.js';
 import type { PlanLifecycle } from '../plan/helpers.js';
 import { getCalendarWeekBoundaries } from '../utils/dates.js';
@@ -190,6 +191,16 @@ export interface BotCoreSession {
   surfaceContext: 'plan' | 'cooking' | 'shopping' | 'recipes' | 'progress' | null;
   /** Slug of the last recipe viewed — for contextual back navigation. */
   lastRecipeSlug?: string;
+  /**
+   * Plan 027: Precise "what the user is looking at" — discriminated union
+   * that captures the exact render target (plan subview, cook view, shopping
+   * scope, recipe detail vs. library, progress subview) plus its parameters
+   * (day, batchId, slug, etc.). The dispatcher in Plan C reads this to
+   * compute dynamic back-button targets; set via `setLastRenderedView`
+   * immediately before every render's `sink.reply`. Stays `undefined` on
+   * session init and after `reset()`.
+   */
+  lastRenderedView?: LastRenderedView;
   /** Progress measurement flow — explicit phase prevents input hijacking after logging. */
   progressFlow: {
     phase: 'awaiting_measurement' | 'confirming_disambiguation';
@@ -325,6 +336,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       session.pendingReplan = undefined;
       session.surfaceContext = null;
       session.lastRecipeSlug = undefined;
+      session.lastRenderedView = undefined;
       await sink.reply('Welcome to Flexie. Use the menu below to get started.', {
         reply_markup: await getMenuKeyboard(),
       });
@@ -335,6 +347,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       session.planFlow = null;
       session.progressFlow = null;
       session.pendingReplan = undefined;
+      session.lastRenderedView = undefined;
       await sink.reply('Cancelled.', { reply_markup: await getMenuKeyboard() });
       return;
     }
@@ -1347,6 +1360,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     session.recipeListPage = 0;
     session.surfaceContext = null;
     session.lastRecipeSlug = undefined;
+    session.lastRenderedView = undefined;
     session.pendingReplan = undefined;
   }
 
