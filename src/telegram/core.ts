@@ -691,6 +691,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         const nextCookBatchViews = nextCook
           ? batchViews.filter(bv => bv.batch.eatingDays[0] === nextCook.date)
           : [];
+        setLastRenderedView(session, { surface: 'plan', view: 'next_action' });
         await sink.reply(text, { reply_markup: nextActionKeyboard(nextCookBatchViews, lifecycle), parse_mode: 'MarkdownV2' });
         return;
       }
@@ -705,6 +706,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           weekDays.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
           d.setDate(d.getDate() + 1);
         }
+        setLastRenderedView(session, { surface: 'plan', view: 'week_overview' });
         await sink.reply(text, { reply_markup: weekOverviewKeyboard(weekDays), parse_mode: 'MarkdownV2' });
         return;
       }
@@ -718,6 +720,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         }
         const text = formatDayDetail(date, batchViews, planSession.events, planSession.flexSlots);
         const cookBatchViews = batchViews.filter(bv => bv.batch.eatingDays[0] === date);
+        setLastRenderedView(session, { surface: 'plan', view: 'day_detail', day: date });
         await sink.reply(text, { reply_markup: dayDetailKeyboard(date, cookBatchViews, today), parse_mode: 'MarkdownV2' });
         return;
       }
