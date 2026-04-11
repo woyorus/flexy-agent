@@ -1,0 +1,131 @@
+{
+  "generatedAt": "2026-04-08T10:00:00.000Z",
+  "specHash": "cc6d93d6c0745158b3c37ca9b0bc54d8ef06b119064e121fa00c15cf9e34b52e",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "Planning Mon, Apr 13 – Sun, Apr 19.\n\nBreakfast: keep Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt (390 cal/day)?",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Keep it",
+                "callback": "plan_keep_breakfast"
+              },
+              {
+                "label": "Change this week",
+                "callback": "plan_change_breakfast"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*What you'll need* — Thursday, Apr 9\n_For: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato\\-Lime Salsa \\(3 servings\\) \\+ Breakfast_\n\n*PRODUCE*\n\\- Chives — 12g _\\(breakfast, 4 days\\)_\n\n*FISH*\n\\- Smoked salmon — 200g _\\(breakfast, 4 days\\)_\n\n*MEAT*\n\\- Chicken breast, raw — 570g\n\n*DAIRY & EGGS*\n\\- Large egg — 200g _\\(breakfast, 4 days\\)_\n\\- Pasteurized liquid egg whites — 320g _\\(breakfast, 4 days\\)_\n\\- Plain yogurt \\(58 kcal/100 g, 3\\.2% fat\\) — 800g _\\(breakfast, 4 days\\)_\n\n*PANTRY*\n\\- Black beans, canned, drained — 230g\n\\- Wholegrain bread — 280g _\\(breakfast, 4 days\\)_\n\n*OILS & FATS*\n\\- Avocado — 280g _\\(breakfast, 4 days\\)_\n\\- Small avocado — 3whole\n\\- Walnuts — 52g _\\(breakfast, 4 days\\)_\n\n_Check you have:_\n_cinnamon, lemon juice, olive oil_\n\n_Long\\-press to copy\\. Paste into Notes,_\n_then remove what you already have\\._",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "← Back to plan",
+                "callback": "na_show"
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "shopping",
+      "progressFlow": null,
+      "lastRenderedView": {
+        "surface": "shopping",
+        "view": "next_cook"
+      }
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [
+        {
+          "id": "session-031-0000-0000-0000-000000000001",
+          "horizonStart": "2026-04-06",
+          "horizonEnd": "2026-04-12",
+          "breakfast": {
+            "locked": true,
+            "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
+            "caloriesPerDay": 390,
+            "proteinPerDay": 31
+          },
+          "treatBudgetCalories": 1050,
+          "flexSlots": [],
+          "events": [],
+          "mutationHistory": [],
+          "confirmedAt": "2026-04-06T08:00:00.000Z",
+          "superseded": false,
+          "createdAt": "2026-04-06T08:00:00.000Z",
+          "updatedAt": "2026-04-06T08:00:00.000Z"
+        }
+      ],
+      "batches": [
+        {
+          "id": "batch-031-lunch-0000-0000-000000000001",
+          "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-09",
+            "2026-04-10",
+            "2026-04-11"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 893,
+            "protein": 56
+          },
+          "actualPerServing": {
+            "calories": 893,
+            "protein": 56,
+            "fat": 46,
+            "carbs": 68
+          },
+          "scaledIngredients": [
+            {
+              "name": "chicken breast, raw",
+              "amount": 190,
+              "unit": "g",
+              "totalForBatch": 570,
+              "role": "protein"
+            },
+            {
+              "name": "black beans, canned, drained",
+              "amount": 75,
+              "unit": "g",
+              "totalForBatch": 225,
+              "role": "carb"
+            },
+            {
+              "name": "small avocado",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 3,
+              "role": "fat"
+            },
+            {
+              "name": "olive oil",
+              "amount": 22,
+              "unit": "ml",
+              "totalForBatch": 66,
+              "role": "fat"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-031-0000-0000-0000-000000000001"
+        }
+      ]
+    }
+  }
+}
