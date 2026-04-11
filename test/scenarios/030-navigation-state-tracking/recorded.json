@@ -1,0 +1,767 @@
+{
+  "generatedAt": "2026-04-08T10:00:00.000Z",
+  "specHash": "956b08adb05544f95d5481eb7ba719044b69fd8ce24e6dabe9e60693a47ca13a",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "*Wed, Apr 8*\nChicken, Black Bean, Corn and Avocado Rice Bowl with Tomato\\-Lime Salsa _\\(reheat\\)_\nMoroccan Beef Tagine\\-Style Skillet with Lemon Couscous _\\(reheat\\)_\n\n*Thu, Apr 9*\n🔪 Cook Lunch: *Ground Beef Rigatoni Bolognese* — 3 servings\n🔪 Cook Dinner: *Soy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions* — 3 servings\n\n*Fri, Apr 10*\nGround Beef Rigatoni Bolognese _\\(reheat\\)_\nSoy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions _\\(reheat\\)_",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "🔪 Beef Bolognese — 3 servings",
+                "callback": "cv_batch-030-lunch2-0000-0000-000000000003"
+              }
+            ],
+            [
+              {
+                "label": "🔪 Soy Ginger Pork Bowls — 3 servings",
+                "callback": "cv_batch-030-dinner2-0000-0000-000000000004"
+              }
+            ],
+            [
+              {
+                "label": "🛒 Get shopping list",
+                "callback": "sl_next"
+              },
+              {
+                "label": "📅 View full week",
+                "callback": "wo_show"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Your week: Mon, Apr 6 – Sun, Apr 12*\nBreakfast: Salmon\\-Avocado Toast with Soft Eggs and Cinnamon Yogurt \\(daily\\)\n\n*Mon* 🔪 L: 🔪 Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato\\-Lime Salsa · D: 🔪 Moroccan Beef Tagine\\-Style Skillet with Lemon Couscous\n*Tue* L: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato\\-Lime Salsa · D: Moroccan Beef Tagine\\-Style Skillet with Lemon Couscous\n*Wed* L: Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato\\-Lime Salsa · D: Moroccan Beef Tagine\\-Style Skillet with Lemon Couscous\n*Thu* 🔪 L: 🔪 Ground Beef Rigatoni Bolognese · D: 🔪 Soy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\n*Fri* L: Ground Beef Rigatoni Bolognese · D: Soy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\n*Sat* L: Ground Beef Rigatoni Bolognese · D: Soy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\n*Sun* L: Flex · D: Sunday dinner out\n\n*Weekly target: on track ✓*\n_Tap a day for details:_",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Mon",
+                "callback": "dd_2026-04-06"
+              },
+              {
+                "label": "Tue",
+                "callback": "dd_2026-04-07"
+              },
+              {
+                "label": "Wed",
+                "callback": "dd_2026-04-08"
+              },
+              {
+                "label": "Thu",
+                "callback": "dd_2026-04-09"
+              }
+            ],
+            [
+              {
+                "label": "Fri",
+                "callback": "dd_2026-04-10"
+              },
+              {
+                "label": "Sat",
+                "callback": "dd_2026-04-11"
+              },
+              {
+                "label": "Sun",
+                "callback": "dd_2026-04-12"
+              }
+            ],
+            [
+              {
+                "label": "← Back",
+                "callback": "na_show"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Thursday, Apr 9*\n\n🔪 Lunch: *Ground Beef Rigatoni Bolognese*\nCook 3 servings \\(Thu–Sat\\) · \\~780 cal each\n🔪 Dinner: *Soy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions*\nCook 3 servings \\(Thu–Sat\\) · \\~650 cal each",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "🔪 Beef Bolognese — 3 servings",
+                "callback": "cv_batch-030-lunch2-0000-0000-000000000003"
+              }
+            ],
+            [
+              {
+                "label": "🔪 Soy Ginger Pork Bowls — 3 servings",
+                "callback": "cv_batch-030-dinner2-0000-0000-000000000004"
+              }
+            ],
+            [
+              {
+                "label": "🛒 Get shopping list",
+                "callback": "sl_2026-04-09"
+              },
+              {
+                "label": "← Back to week",
+                "callback": "wo_show"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Ground Beef Rigatoni Bolognese* — 3 servings\n_\\~780 cal/serving · 52g protein_\n_Divide into 3 equal portions_\n\n*Ingredients* \\(total for batch\\):\n  · ground beef — `540g`\n  · rigatoni — `270g`\n  · cherry tomatoes — `450g`\n  · olive oil — `45ml`\n\nThis is a rich, meal\\-prep friendly bolognese built around ground beef, softened aromatics, and a short tomato simmer\\. Keeping the pasta separate makes the portion easy to scale and helps it stay firmer when reheated\\.\n\nPrep time: about 45 minutes\\.\nEquipment: large saute pan or wide pot, medium saucepan, colander, knife, chopping board, grater\\.\n\n1\\. Finely chop the onion and carrot, mince the garlic, and grate the parmesan\\.\n2\\. Heat the olive oil in a large saute pan over medium heat\\. Add the onion, carrot, and sea salt, and cook until softened and lightly sweet\\.\n3\\. Add the garlic and dried oregano and cook briefly until fragrant\\.\n4\\. Add the ground beef and black pepper\\. Cook, breaking the meat up well, until browned and no longer wet\\.\n5\\. Stir in the ripe diced tomatoes, bring to a gentle bubble, then lower the heat and simmer until the sauce is thick, rich, and glossy\\.\n6\\. Meanwhile, cook the rigatoni or spaghetti in boiling water until just al dente, then drain well\\.\n7\\. Serve the lean beef bolognese over the rigatoni or spaghetti and finish with the parmesan\\. For meal prep, pack the lean beef bolognese and the pasta separately so the pasta keeps a better texture\\.\n\nStorage: Cool before sealing and refrigerate for up to 3 days\\. The sauce freezes very well, and for best texture it is better to freeze the lean beef bolognese separately from the pasta\\.\nReheating: Reheat until piping hot, loosening the sauce with a small splash of water if needed\\.\nTip: If you want to adjust calories later without changing the flavor balance of the meal, change the pasta first and leave the sauce the same\\.\n\n_Storage: Fridge 3 days\\. Reheat the lean beef bolognese and pasta separately in the microwave or in a pan with a small splash of water until piping hot\\. Finish with the parmesan after reheating if you want the cleanest texture\\._",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "← Back to plan",
+                "callback": "na_show"
+              }
+            ],
+            [
+              {
+                "label": "Edit this recipe",
+                "callback": "re_ground-beef-rigatoni-bolognese"
+              },
+              {
+                "label": "View in my recipes",
+                "callback": "rv_ground-beef-rigatoni-bolognese"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "COOKING SOON\n\nALL RECIPES (7):",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "🔪 Beef Bolognese",
+                "callback": "cv_batch-030-lunch2-0000-0000-000000000003"
+              }
+            ],
+            [
+              {
+                "label": "🔪 Soy Ginger Pork Bowls",
+                "callback": "cv_batch-030-dinner2-0000-0000-000000000004"
+              }
+            ],
+            [
+              {
+                "label": "Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa",
+                "callback": "rv_chicken-black-bean-avocado-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Creamy Salmon and Shrimp Linguine",
+                "callback": "rv_creamy-salmon-and-shrimp-linguine"
+              }
+            ],
+            [
+              {
+                "label": "Ground Beef Rigatoni Bolognese",
+                "callback": "rv_ground-beef-rigatoni-bolognese"
+              }
+            ],
+            [
+              {
+                "label": "Mediterranean Tuna, Chickpea and Feta Rice Bowl",
+                "callback": "rv_mediterranean-tuna-chickpea-feta-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Moroccan Beef Tagine-Style Skillet with Lemon Couscous",
+                "callback": "rv_moroccan-beef-tagine-style-skillet-with-lemon-couscous"
+              }
+            ],
+            [
+              {
+                "label": "1/2",
+                "callback": "rp_noop"
+              },
+              {
+                "label": "Next →",
+                "callback": "rp_1"
+              }
+            ],
+            [
+              {
+                "label": "Add new recipe",
+                "callback": "add_recipe"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato\\-Lime Salsa*\n_893 cal \\| 56g P \\| 46g F \\| 68g C_\nMexican\\-inspired · 40 min · meal\\-prep, high\\-protein, microwave\\-friendly, gluten\\-free, rice\\-bowl, latin\\-inspired\n\n*Ingredients \\(per serving\\)*\n\n*smoky chicken with black beans, corn and avocado:*\n  chicken breast, raw: 190g\n  black beans, canned, drained: 75g\n  sweetcorn kernels, frozen: 40g\n  small avocado: 1whole\n  olive oil: 22g\n  ground cumin: 2g\n  smoked paprika: 2g\n  salt: 2g\n  black pepper: 1g\n\n*basmati rice:*\n  basmati rice, dry: 38g\n\n*tomato\\-lime salsa:*\n  large tomato: 1whole\n  small red onion: 0\\.5whole\n  lime, juiced: 1whole\n  fresh coriander \\(cilantro\\): 5g\n\nA bright, meal\\-prep\\-friendly rice bowl with smoky chicken, black beans, sweetcorn, creamy avocado, and a fresh tomato\\-lime salsa\\. It reheats well and stays satisfying without feeling heavy\\.\n\nEquipment: saucepan with lid, frying pan or skillet, chopping board, knife, and a mixing bowl\\.\n\n1\\. Cook the basmati rice until tender, then keep it covered while you finish the rest\\.\n2\\. Season the chicken breast with cumin, smoked paprika, salt, and black pepper\\.\n3\\. Heat olive oil in a skillet and cook the chicken breast until golden and cooked through\\. Rest it briefly, then slice\\.\n4\\. Add the black beans and sweetcorn kernels to the skillet and warm them through\\.\n5\\. Mix the tomato, red onion, lime, fresh coriander, and a pinch of salt to make the salsa\\.\n6\\. Build bowls with the rice, chicken, black beans, sweetcorn, avocado, and tomato\\-lime salsa\\.\n7\\. For meal prep, cool the components before sealing\\. Store in the fridge for up to 3 days, and reheat the rice, chicken, black beans, and sweetcorn before adding the salsa and avocado\\. If you want a brighter finish, squeeze over a little extra lime right before eating\\.",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "← Back to recipes",
+                "callback": "recipe_back"
+              },
+              {
+                "label": "Edit",
+                "callback": "re_chicken-black-bean-avocado-rice-bowl"
+              },
+              {
+                "label": "Delete",
+                "callback": "rd_chicken-black-bean-avocado-rice-bowl"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "COOKING SOON\n\nALL RECIPES (7):",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "🔪 Beef Bolognese",
+                "callback": "cv_batch-030-lunch2-0000-0000-000000000003"
+              }
+            ],
+            [
+              {
+                "label": "🔪 Soy Ginger Pork Bowls",
+                "callback": "cv_batch-030-dinner2-0000-0000-000000000004"
+              }
+            ],
+            [
+              {
+                "label": "Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa",
+                "callback": "rv_chicken-black-bean-avocado-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Creamy Salmon and Shrimp Linguine",
+                "callback": "rv_creamy-salmon-and-shrimp-linguine"
+              }
+            ],
+            [
+              {
+                "label": "Ground Beef Rigatoni Bolognese",
+                "callback": "rv_ground-beef-rigatoni-bolognese"
+              }
+            ],
+            [
+              {
+                "label": "Mediterranean Tuna, Chickpea and Feta Rice Bowl",
+                "callback": "rv_mediterranean-tuna-chickpea-feta-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Moroccan Beef Tagine-Style Skillet with Lemon Couscous",
+                "callback": "rv_moroccan-beef-tagine-style-skillet-with-lemon-couscous"
+              }
+            ],
+            [
+              {
+                "label": "1/2",
+                "callback": "rp_noop"
+              },
+              {
+                "label": "Next →",
+                "callback": "rp_1"
+              }
+            ],
+            [
+              {
+                "label": "Add new recipe",
+                "callback": "add_recipe"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*What you'll need* — Thursday, Apr 9\n_For: Ground Beef Rigatoni Bolognese \\(3 servings\\) \\+ Soy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions \\(3 servings\\) \\+ Breakfast_\n\n*PRODUCE*\n\\- Broccoli — 300g\n\\- Cherry tomatoes — 450g\n\\- Chives — 12g _\\(breakfast, 4 days\\)_\n\n*FISH*\n\\- Smoked salmon — 200g _\\(breakfast, 4 days\\)_\n\n*MEAT*\n\\- Ground beef — 540g\n\\- Pork tenderloin — 540g\n\n*DAIRY & EGGS*\n\\- Large egg — 200g _\\(breakfast, 4 days\\)_\n\\- Pasteurized liquid egg whites — 320g _\\(breakfast, 4 days\\)_\n\\- Plain yogurt \\(58 kcal/100 g, 3\\.2% fat\\) — 800g _\\(breakfast, 4 days\\)_\n\n*PANTRY*\n\\- Basmati rice — 240g\n\\- Rigatoni — 270g\n\\- Wholegrain bread — 280g _\\(breakfast, 4 days\\)_\n\n*OILS & FATS*\n\\- Avocado — 280g _\\(breakfast, 4 days\\)_\n\\- Walnuts — 52g _\\(breakfast, 4 days\\)_\n\n_Check you have:_\n_cinnamon, lemon juice, olive oil, soy sauce_\n\n_Long\\-press to copy\\. Paste into Notes,_\n_then remove what you already have\\._",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "← Back to plan",
+                "callback": "na_show"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*What you'll need* — Thursday, Apr 9\n_For: Ground Beef Rigatoni Bolognese \\(3 servings\\) \\+ Soy\\-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions \\(3 servings\\) \\+ Breakfast_\n\n*PRODUCE*\n\\- Broccoli — 300g\n\\- Cherry tomatoes — 450g\n\\- Chives — 12g _\\(breakfast, 4 days\\)_\n\n*FISH*\n\\- Smoked salmon — 200g _\\(breakfast, 4 days\\)_\n\n*MEAT*\n\\- Ground beef — 540g\n\\- Pork tenderloin — 540g\n\n*DAIRY & EGGS*\n\\- Large egg — 200g _\\(breakfast, 4 days\\)_\n\\- Pasteurized liquid egg whites — 320g _\\(breakfast, 4 days\\)_\n\\- Plain yogurt \\(58 kcal/100 g, 3\\.2% fat\\) — 800g _\\(breakfast, 4 days\\)_\n\n*PANTRY*\n\\- Basmati rice — 240g\n\\- Rigatoni — 270g\n\\- Wholegrain bread — 280g _\\(breakfast, 4 days\\)_\n\n*OILS & FATS*\n\\- Avocado — 280g _\\(breakfast, 4 days\\)_\n\\- Walnuts — 52g _\\(breakfast, 4 days\\)_\n\n_Check you have:_\n_cinnamon, lemon juice, olive oil, soy sauce_\n\n_Long\\-press to copy\\. Paste into Notes,_\n_then remove what you already have\\._",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "← Back to plan",
+                "callback": "na_show"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "Already logged today ✓",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Last weekly report",
+                "callback": "pg_last_report"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Week of Mar 30 – Apr 5*\n\nWeight: *82.9 kg* avg\nWaist: *91.5 cm* avg\n\n_Next report ready Sunday._\n_(delta shown once you have two weeks of data)_"
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "progress",
+      "progressFlow": null,
+      "lastRenderedView": {
+        "surface": "progress",
+        "view": "weekly_report"
+      }
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [
+        {
+          "id": "session-030-0000-0000-0000-000000000001",
+          "horizonStart": "2026-04-06",
+          "horizonEnd": "2026-04-12",
+          "breakfast": {
+            "locked": true,
+            "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
+            "caloriesPerDay": 390,
+            "proteinPerDay": 31
+          },
+          "treatBudgetCalories": 1050,
+          "flexSlots": [
+            {
+              "day": "2026-04-12",
+              "mealTime": "lunch",
+              "flexBonus": 300,
+              "note": "flex lunch"
+            }
+          ],
+          "events": [
+            {
+              "name": "Sunday dinner out",
+              "day": "2026-04-12",
+              "mealTime": "dinner",
+              "estimatedCalories": 900
+            }
+          ],
+          "mutationHistory": [],
+          "confirmedAt": "2026-04-06T08:00:00.000Z",
+          "superseded": false,
+          "createdAt": "2026-04-06T08:00:00.000Z",
+          "updatedAt": "2026-04-06T08:00:00.000Z"
+        }
+      ],
+      "batches": [
+        {
+          "id": "batch-030-lunch1-0000-0000-000000000001",
+          "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-06",
+            "2026-04-07",
+            "2026-04-08"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 893,
+            "protein": 56
+          },
+          "actualPerServing": {
+            "calories": 893,
+            "protein": 56,
+            "fat": 46,
+            "carbs": 68
+          },
+          "scaledIngredients": [
+            {
+              "name": "chicken breast, raw",
+              "amount": 190,
+              "unit": "g",
+              "totalForBatch": 570,
+              "role": "protein"
+            },
+            {
+              "name": "black beans, canned, drained",
+              "amount": 75,
+              "unit": "g",
+              "totalForBatch": 225,
+              "role": "carb"
+            },
+            {
+              "name": "small avocado",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 3,
+              "role": "fat"
+            },
+            {
+              "name": "olive oil",
+              "amount": 22,
+              "unit": "ml",
+              "totalForBatch": 66,
+              "role": "fat"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-030-0000-0000-0000-000000000001"
+        },
+        {
+          "id": "batch-030-dinner1-0000-0000-000000000002",
+          "recipeSlug": "moroccan-beef-tagine-style-skillet-with-lemon-couscous",
+          "mealType": "dinner",
+          "eatingDays": [
+            "2026-04-06",
+            "2026-04-07",
+            "2026-04-08"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 720,
+            "protein": 48
+          },
+          "actualPerServing": {
+            "calories": 720,
+            "protein": 48,
+            "fat": 28,
+            "carbs": 72
+          },
+          "scaledIngredients": [
+            {
+              "name": "ground beef",
+              "amount": 200,
+              "unit": "g",
+              "totalForBatch": 600,
+              "role": "protein"
+            },
+            {
+              "name": "couscous",
+              "amount": 80,
+              "unit": "g",
+              "totalForBatch": 240,
+              "role": "carb"
+            },
+            {
+              "name": "olive oil",
+              "amount": 15,
+              "unit": "ml",
+              "totalForBatch": 45,
+              "role": "fat"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-030-0000-0000-0000-000000000001"
+        },
+        {
+          "id": "batch-030-lunch2-0000-0000-000000000003",
+          "recipeSlug": "ground-beef-rigatoni-bolognese",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-09",
+            "2026-04-10",
+            "2026-04-11"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 780,
+            "protein": 52
+          },
+          "actualPerServing": {
+            "calories": 780,
+            "protein": 52,
+            "fat": 32,
+            "carbs": 78
+          },
+          "scaledIngredients": [
+            {
+              "name": "ground beef",
+              "amount": 180,
+              "unit": "g",
+              "totalForBatch": 540,
+              "role": "protein"
+            },
+            {
+              "name": "rigatoni",
+              "amount": 90,
+              "unit": "g",
+              "totalForBatch": 270,
+              "role": "carb"
+            },
+            {
+              "name": "cherry tomatoes",
+              "amount": 150,
+              "unit": "g",
+              "totalForBatch": 450,
+              "role": "vegetable"
+            },
+            {
+              "name": "olive oil",
+              "amount": 15,
+              "unit": "ml",
+              "totalForBatch": 45,
+              "role": "fat"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-030-0000-0000-0000-000000000001"
+        },
+        {
+          "id": "batch-030-dinner2-0000-0000-000000000004",
+          "recipeSlug": "soy-ginger-pork-rice-bowls-broccoli-carrots-scallions",
+          "mealType": "dinner",
+          "eatingDays": [
+            "2026-04-09",
+            "2026-04-10",
+            "2026-04-11"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 650,
+            "protein": 44
+          },
+          "actualPerServing": {
+            "calories": 650,
+            "protein": 44,
+            "fat": 22,
+            "carbs": 65
+          },
+          "scaledIngredients": [
+            {
+              "name": "pork tenderloin",
+              "amount": 180,
+              "unit": "g",
+              "totalForBatch": 540,
+              "role": "protein"
+            },
+            {
+              "name": "broccoli",
+              "amount": 100,
+              "unit": "g",
+              "totalForBatch": 300,
+              "role": "vegetable"
+            },
+            {
+              "name": "basmati rice",
+              "amount": 80,
+              "unit": "g",
+              "totalForBatch": 240,
+              "role": "carb"
+            },
+            {
+              "name": "soy sauce",
+              "amount": 20,
+              "unit": "ml",
+              "totalForBatch": 60,
+              "role": "seasoning"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-030-0000-0000-0000-000000000001"
+        }
+      ],
+      "measurements": [
+        {
+          "id": "meas-030-1",
+          "userId": "default",
+          "date": "2026-04-08",
+          "weightKg": 82.5,
+          "waistCm": 91,
+          "createdAt": "2026-04-08T08:00:00Z"
+        },
+        {
+          "id": "meas-030-2",
+          "userId": "default",
+          "date": "2026-04-05",
+          "weightKg": 82.7,
+          "waistCm": 91,
+          "createdAt": "2026-04-05T08:00:00Z"
+        },
+        {
+          "id": "meas-030-3",
+          "userId": "default",
+          "date": "2026-04-04",
+          "weightKg": 82.8,
+          "waistCm": 91,
+          "createdAt": "2026-04-04T08:00:00Z"
+        },
+        {
+          "id": "meas-030-4",
+          "userId": "default",
+          "date": "2026-04-02",
+          "weightKg": 83,
+          "waistCm": 92,
+          "createdAt": "2026-04-02T08:00:00Z"
+        },
+        {
+          "id": "meas-030-5",
+          "userId": "default",
+          "date": "2026-03-31",
+          "weightKg": 83.2,
+          "waistCm": 92,
+          "createdAt": "2026-03-31T08:00:00Z"
+        }
+      ]
+    },
+    "sessionAt": [
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "plan",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "plan",
+          "view": "next_action"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "plan",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "plan",
+          "view": "week_overview"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "plan",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "plan",
+          "view": "day_detail",
+          "day": "2026-04-09"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "cooking",
+        "progressFlow": null,
+        "lastRecipeSlug": "ground-beef-rigatoni-bolognese",
+        "lastRenderedView": {
+          "surface": "cooking",
+          "view": "cook_view",
+          "batchId": "batch-030-lunch2-0000-0000-000000000003",
+          "recipeSlug": "ground-beef-rigatoni-bolognese"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "recipes",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "recipes",
+          "view": "library"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "recipes",
+        "progressFlow": null,
+        "lastRecipeSlug": "chicken-black-bean-avocado-rice-bowl",
+        "lastRenderedView": {
+          "surface": "recipes",
+          "view": "recipe_detail",
+          "slug": "chicken-black-bean-avocado-rice-bowl"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "recipes",
+        "progressFlow": null,
+        "lastRecipeSlug": "chicken-black-bean-avocado-rice-bowl",
+        "lastRenderedView": {
+          "surface": "recipes",
+          "view": "library"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "shopping",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "shopping",
+          "view": "next_cook"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "shopping",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "shopping",
+          "view": "day",
+          "day": "2026-04-09"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "progress",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "progress",
+          "view": "weekly_report"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "progress",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "progress",
+          "view": "weekly_report"
+        }
+      }
+    ]
+  }
+}
