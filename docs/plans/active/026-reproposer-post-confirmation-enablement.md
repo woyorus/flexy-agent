@@ -2917,21 +2917,21 @@ git commit -m "Plan 026: sync data-models.md with mutationHistory + invariant #1
 
 ## Progress
 
-- [ ] Task 1 — Green baseline
-- [ ] Task 2 — Move `MutationRecord` into `models/types.ts`
-- [ ] Task 3 — Add `mutationHistory` field to `PlanSession` and `DraftPlanSession`
-- [ ] Task 4 — SQL migration 005 + store row mappers
-- [ ] Task 5 — `TestStateStore` mirrors `mutation_history` handling
-- [ ] Task 6 — Unit test: mutation history round-trips through `TestStateStore`
-- [ ] Task 7 — Adapter scaffold + `classifySlot`
-- [ ] Task 8 — `splitBatchAtCutoffs` — pure past, pure active
-- [ ] Task 9 — `splitBatchAtCutoffs` — spanning batch split
-- [ ] Task 10 — `sessionToPostConfirmationProposal` — forward adapter
-- [ ] Task 11 — `buildReplacingDraft` — round-trip write payload
-- [ ] Task 12 — Proposal validator invariant #14 — meal-type lane
-- [ ] Task 13 — Re-proposer mode field + meal-type lane + near-future safety rules
-- [ ] Task 14 — End-to-end adapter round-trip integration test
-- [ ] Task 15 — Sync `data-models.md` and baseline
+- [x] Task 1 — Green baseline
+- [x] Task 2 — Move `MutationRecord` into `models/types.ts`
+- [x] Task 3 — Add `mutationHistory` field to `PlanSession` and `DraftPlanSession`
+- [x] Task 4 — SQL migration 005 + store row mappers
+- [x] Task 5 — `TestStateStore` mirrors `mutation_history` handling
+- [x] Task 6 — Unit test: mutation history round-trips through `TestStateStore`
+- [x] Task 7 — Adapter scaffold + `classifySlot`
+- [x] Task 8 — `splitBatchAtCutoffs` — pure past, pure active
+- [x] Task 9 — `splitBatchAtCutoffs` — spanning batch split
+- [x] Task 10 — `sessionToPostConfirmationProposal` — forward adapter
+- [x] Task 11 — `buildReplacingDraft` — round-trip write payload
+- [x] Task 12 — Proposal validator invariant #14 — meal-type lane
+- [x] Task 13 — Re-proposer mode field + meal-type lane + near-future safety rules
+- [x] Task 14 — End-to-end adapter round-trip integration test
+- [x] Task 15 — Sync `data-models.md` and baseline
 
 ---
 
