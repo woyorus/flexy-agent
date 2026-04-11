@@ -1356,6 +1356,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       );
     if (recipe) {
       log.debug('FLOW', `recipe lookup: "${text}" → ${recipe.slug}`);
+      session.lastRecipeSlug = recipe.slug;
+      setLastRenderedView(session, { surface: 'recipes', view: 'recipe_detail', slug: recipe.slug });
       await sink.reply(renderRecipe(recipe), { parse_mode: 'MarkdownV2' });
       return;
     }
