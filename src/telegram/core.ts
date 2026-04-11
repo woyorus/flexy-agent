@@ -772,6 +772,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       const plannedBatches = allBatches.filter(b => b.status === 'planned');
 
       let targetDate: string;
+      let scopeView: LastRenderedView;
       if (param === 'next') {
         const nextCook = getNextCookDay(plannedBatches, today);
         if (!nextCook) {
@@ -779,12 +780,14 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           return;
         }
         targetDate = nextCook.date;
+        scopeView = { surface: 'shopping', view: 'next_cook' };
       } else {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(param) || param < today || param < planSession.horizonStart || param > planSession.horizonEnd) {
           await sink.reply('This shopping list is from a different plan week.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
           return;
         }
         targetDate = param;
+        scopeView = { surface: 'shopping', view: 'day', day: targetDate };
       }
 
       const cookBatchesForDay = plannedBatches.filter(b => b.eatingDays[0] === targetDate);
@@ -815,7 +818,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       });
       if (breakfastRecipe) scopeParts.push('Breakfast');
 
-      session.surfaceContext = 'shopping';
+      setLastRenderedView(session, scopeView);
       await sink.reply(
         formatShoppingList(list, targetDate, scopeParts.join(' + ')),
         { reply_markup: buildShoppingListKeyboard(), parse_mode: 'MarkdownV2' },
