@@ -15,6 +15,7 @@
  * Design doc: docs/design-docs/proposals/003-freeform-conversation-layer.md
  */
 
+import { randomUUID } from 'node:crypto';
 import type { Batch } from '../models/types.js';
 import type { ProposedBatch } from '../solver/types.js';
 import { toLocalISODate } from './helpers.js';
@@ -114,6 +115,52 @@ export function splitBatchAtCutoffs(batch: Batch, now: Date): SplitBatchResult {
     return { kind: 'past-only', pastBatch: batch };
   }
 
-  // Spanning — Task 9 fills this in.
-  throw new Error('splitBatchAtCutoffs: spanning batches not implemented yet (Task 9)');
+  // Spanning: past days keep their original scaled totals scaled down
+  // proportionally, and get a fresh id (the past half becomes a new row in
+  // the next session). Active days become a ProposedBatch for the re-proposer.
+  const pastBatch: Batch = {
+    id: randomUUID(),
+    recipeSlug: batch.recipeSlug,
+    mealType: batch.mealType,
+    eatingDays: pastDays,
+    servings: pastDays.length,
+    targetPerServing: batch.targetPerServing,
+    actualPerServing: batch.actualPerServing,
+    scaledIngredients: scaleIngredientTotals(batch.scaledIngredients, pastDays.length, batch.servings),
+    status: 'planned',
+    createdInPlanSessionId: batch.createdInPlanSessionId,
+  };
+
+  const activeBatch: ProposedBatch = {
+    recipeSlug: batch.recipeSlug,
+    recipeName: batch.recipeSlug,
+    mealType: batch.mealType,
+    days: activeDays,
+    servings: activeDays.length,
+    overflowDays: undefined,
+  };
+
+  return { kind: 'spanning', pastBatch, activeBatch };
+}
+
+/**
+ * Proportionally scale a batch's ingredient amounts for a reduced serving count.
+ *
+ * `scaledIngredients[i].totalForBatch` was computed at plan time as
+ * `recipe.ingredients[i].amount * originalServings` (see
+ * `src/agents/plan-flow.ts:911`). When we split a batch, each half gets a
+ * proportional share of the totals. Per-serving `amount` / `unit` stay
+ * unchanged.
+ */
+function scaleIngredientTotals<T extends { amount: number; totalForBatch: number }>(
+  items: T[],
+  newServings: number,
+  originalServings: number,
+): T[] {
+  if (originalServings === 0) return items;
+  const ratio = newServings / originalServings;
+  return items.map((it) => ({
+    ...it,
+    totalForBatch: Math.round(it.totalForBatch * ratio),
+  }));
 }

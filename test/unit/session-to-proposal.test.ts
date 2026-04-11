@@ -127,3 +127,62 @@ test('splitBatchAtCutoffs: pure past — today lunch batch after 15:00 is past',
   const result = splitBatchAtCutoffs(b, now);
   assert.equal(result.kind, 'past-only');
 });
+
+test('splitBatchAtCutoffs: spanning batch — split at the cutoff boundary', () => {
+  // Now = Friday 10am. Tagine batch with eating days Mon, Wed, Fri — all dinner.
+  // Mon and Wed are past (dates before today). Fri is active (today, 10am < 21:00 cutoff).
+  const now = at('2026-04-10', 10);
+  const b = batch({
+    id: 'tagine-spanning',
+    recipeSlug: 'tagine',
+    mealType: 'dinner',
+    eatingDays: ['2026-04-06', '2026-04-08', '2026-04-10'],
+    servings: 3,
+    scaledIngredients: [
+      { name: 'beef', amount: 200, unit: 'g', totalForBatch: 600, role: 'protein' },
+      { name: 'couscous', amount: 60, unit: 'g', totalForBatch: 180, role: 'carb' },
+    ],
+  });
+  const result = splitBatchAtCutoffs(b, now);
+  assert.equal(result.kind, 'spanning');
+  if (result.kind !== 'spanning') throw new Error('unreachable');
+
+  // Past half: Mon + Wed, 2 servings, totals proportionally scaled down.
+  assert.equal(result.pastBatch.recipeSlug, 'tagine');
+  assert.equal(result.pastBatch.mealType, 'dinner');
+  assert.deepStrictEqual(result.pastBatch.eatingDays, ['2026-04-06', '2026-04-08']);
+  assert.equal(result.pastBatch.servings, 2);
+  assert.equal(result.pastBatch.status, 'planned');
+  assert.equal(result.pastBatch.createdInPlanSessionId, 'sess-1');
+  assert.deepStrictEqual(result.pastBatch.scaledIngredients, [
+    { name: 'beef', amount: 200, unit: 'g', totalForBatch: 400, role: 'protein' },
+    { name: 'couscous', amount: 60, unit: 'g', totalForBatch: 120, role: 'carb' },
+  ]);
+  // Past half must get a NEW id — it becomes a new row in the next session.
+  assert.notEqual(result.pastBatch.id, 'tagine-spanning');
+
+  // Active half: Fri, 1 serving, as a ProposedBatch.
+  assert.deepStrictEqual(result.activeBatch, {
+    recipeSlug: 'tagine',
+    recipeName: 'tagine',
+    mealType: 'dinner',
+    days: ['2026-04-10'],
+    servings: 1,
+    overflowDays: undefined,
+  });
+});
+
+test('splitBatchAtCutoffs: spanning with today lunch past by cutoff', () => {
+  // Now = Wednesday 16:00. Lunch batch Mon / Tue / Wed. All three are past
+  // (Mon/Tue by date, Wed by cutoff at 16:00 > 15:00). Not actually spanning,
+  // but a regression guard that the lunch cutoff applies to today only.
+  const now = at('2026-04-08', 16);
+  const b = batch({
+    id: 'lunch-3day',
+    mealType: 'lunch',
+    eatingDays: ['2026-04-06', '2026-04-07', '2026-04-08'],
+    servings: 3,
+  });
+  const result = splitBatchAtCutoffs(b, now);
+  assert.equal(result.kind, 'past-only');
+});
