@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-04-08T10:00:00.000Z",
+  "specHash": "817cb21738c1b9d345530ecd1e99f417d659466ac3ed8cb4a78101d27ab0b8a6",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "Drop your weight (and waist if you track it):\n\nExamples: \"82.3 / 91\" or just \"82.3\""
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "progress",
+      "progressFlow": {
+        "phase": "awaiting_measurement"
+      },
+      "lastRenderedView": {
+        "surface": "progress",
+        "view": "log_prompt"
+      }
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [],
+      "batches": []
+    },
+    "sessionAt": [
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "progress",
+        "progressFlow": {
+          "phase": "awaiting_measurement"
+        },
+        "lastRenderedView": {
+          "surface": "progress",
+          "view": "log_prompt"
+        }
+      }
+    ]
+  }
+}
