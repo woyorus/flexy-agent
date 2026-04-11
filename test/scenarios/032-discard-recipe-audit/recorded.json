@@ -1,0 +1,122 @@
+{
+  "generatedAt": "2026-04-08T10:00:00.000Z",
+  "specHash": "58d3d74ad2f2d36eddd8b72401e224f55098e532c00c8e2650314811a202715e",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "Your recipes (7):",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa",
+                "callback": "rv_chicken-black-bean-avocado-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Creamy Salmon and Shrimp Linguine",
+                "callback": "rv_creamy-salmon-and-shrimp-linguine"
+              }
+            ],
+            [
+              {
+                "label": "Ground Beef Rigatoni Bolognese",
+                "callback": "rv_ground-beef-rigatoni-bolognese"
+              }
+            ],
+            [
+              {
+                "label": "Mediterranean Tuna, Chickpea and Feta Rice Bowl",
+                "callback": "rv_mediterranean-tuna-chickpea-feta-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Moroccan Beef Tagine-Style Skillet with Lemon Couscous",
+                "callback": "rv_moroccan-beef-tagine-style-skillet-with-lemon-couscous"
+              }
+            ],
+            [
+              {
+                "label": "1/2",
+                "callback": "rp_noop"
+              },
+              {
+                "label": "Next →",
+                "callback": "rp_1"
+              }
+            ],
+            [
+              {
+                "label": "Add new recipe",
+                "callback": "add_recipe"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "What type of recipe?",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Breakfast",
+                "callback": "meal_type_breakfast"
+              },
+              {
+                "label": "Lunch",
+                "callback": "meal_type_lunch"
+              },
+              {
+                "label": "Dinner",
+                "callback": "meal_type_dinner"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "Lunch recipe.\n\nDescribe what you want (cuisine, ingredients, style) or just say \"surprise me.\""
+      },
+      {
+        "text": "Discarded.",
+        "keyboard": {
+          "kind": "reply",
+          "buttons": [
+            [
+              "📋 Plan Week",
+              "🛒 Shopping List"
+            ],
+            [
+              "📖 My Recipes",
+              "📊 Progress"
+            ]
+          ],
+          "persistent": true,
+          "resized": true
+        }
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "recipes",
+      "progressFlow": null,
+      "lastRenderedView": {
+        "surface": "recipes",
+        "view": "library"
+      }
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [],
+      "batches": []
+    }
+  }
+}
