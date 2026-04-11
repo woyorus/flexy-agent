@@ -84,6 +84,38 @@ The surface context is what the user is currently looking at. It's a temporary l
 
 This two-dimensional model makes navigation cleaner: the lifecycle never changes because you opened a recipe or checked the shopping list. Back buttons always return to the previous surface context. The freeform layer becomes just another surface context, not a special case.
 
+### Navigation state (Plan 027)
+
+The bot's in-memory session carries two layers of navigation state:
+
+1. **`surfaceContext`** — coarse five-value enum (`'plan' | 'cooking' | 'shopping' | 'recipes' | 'progress' | null`) used by the free-text fallback to pick a contextual hint.
+2. **`lastRenderedView`** — precise discriminated union that captures the exact render target AND its parameters. Defined in `src/telegram/navigation-state.ts`.
+
+Every handler that produces a navigation render (Next Action, Week Overview, Day Detail, Cook view, Shopping list at any scope, Recipe library or detail, Progress log prompt or weekly report) calls `setLastRenderedView(session, view)` immediately before its `sink.reply(...)`. The helper mutates both fields atomically so `surfaceContext` always matches `lastRenderedView.surface`.
+
+**What `lastRenderedView` is for.** It is the source of truth for "what the user was last looking at" and will be read by the dispatcher in Plan C (freeform conversation layer) to compute dynamic back-button targets and to answer questions like "show me that recipe again". Plan 027 lays the state rails; the dispatcher that reads them is a later plan. **Back-button callbacks remain hardcoded in v0.0.5 Plan B** — `cookViewKeyboard` still targets `na_show`, `buildShoppingListKeyboard` still targets `na_show`, day detail still targets `wo_show`, etc.
+
+**What `lastRenderedView` does NOT track.**
+
+- In-flow transitional messages (breakfast confirmation, events prompt, proposal review, measurement confirmation, recipe generation review) are flow progressions, not navigation views. They do not update `lastRenderedView`.
+- Recipe library pagination is tracked separately on `session.recipeListPage`; `lastRenderedView` only records that the user is on the library page.
+- `lastRecipeSlug` (legacy field) continues to be managed independently by the recipe-view handler and the free-text fallback — `setLastRenderedView` does not touch it. This is deliberate to avoid changing the fallback behavior in Plan B.
+
+**Variants** (see `src/telegram/navigation-state.ts` for the authoritative definition):
+
+- `{ surface: 'plan', view: 'next_action' }`
+- `{ surface: 'plan', view: 'week_overview' }`
+- `{ surface: 'plan', view: 'day_detail', day: <ISO-date> }`
+- `{ surface: 'cooking', view: 'cook_view', batchId, recipeSlug }`
+- `{ surface: 'shopping', view: 'next_cook' }`
+- `{ surface: 'shopping', view: 'day', day: <ISO-date> }`
+- `{ surface: 'recipes', view: 'library' }`
+- `{ surface: 'recipes', view: 'recipe_detail', slug }`
+- `{ surface: 'progress', view: 'log_prompt' }`
+- `{ surface: 'progress', view: 'weekly_report' }`
+
+New render targets (e.g., `full_week` shopping scope in Plan E, product-question answers in a future plan) will be added here as new variants.
+
 ---
 
 ## Main menu (reply keyboard)
@@ -634,6 +666,8 @@ Minimal, scannable. The user reads the markers before the text.
 ## Freeform conversation layer
 
 This is one of the most important architectural decisions in the product. The product runs on deterministic state-machine rails — but it lives in a chat UI where users expect to type anything at any time and be understood. If the product can't handle this, it feels dumb, and that friction violates the #1 product principle.
+
+> **Plan 027 (Navigation state model)** lays the precise state-tracking rails this freeform layer will read. See the Navigation state section above.
 
 ### The core problem
 

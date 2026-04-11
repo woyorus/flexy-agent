@@ -297,13 +297,53 @@ The harness normalizes two sources of non-determinism so replays are byte-stable
 
 ## What the tests assert
 
-Every scenario asserts three things independently via `assert.deepStrictEqual`:
+Every scenario asserts three things independently via `assert.deepStrictEqual`, plus one optional fourth:
 
 1. **`outputs`** — the full captured Telegram transcript (text + keyboard shape for each reply).
 2. **`finalSession`** — `BotCore.session` at the end of the event loop.
 3. **`finalStore`** — the `TestStateStore.snapshot()` result at the end of the scenario.
+4. **`sessionAt`** (optional, opt-in per scenario) — a per-event snapshot of `BotCore.session` captured immediately after each dispatched event. Scenarios that need to verify **intermediate** state transitions (e.g., that every step of a navigation walkthrough set the right `lastRenderedView` variant) set `captureStepState: true` in their spec. See "Opt-in per-step session capture" below. Scenarios that don't opt in see no behavior change — their recording has no `sessionAt` field and the fourth assertion is skipped.
 
-A bug that produces a correct transcript but skips persistence still fires because `finalStore` diverges. A bug that persists correctly but sends the wrong message fires on `outputs`. Both assertions are load-bearing — the harness exists to catch the exact class of silent failure where one is right and the other isn't.
+A bug that produces a correct transcript but skips persistence still fires because `finalStore` diverges. A bug that persists correctly but sends the wrong message fires on `outputs`. A bug that's correct at end-state but wrong at an intermediate step (e.g., step 4 sets `cook_view` but scenario ends on `next_action`) is only caught by the per-step `sessionAt` assertion. All four assertions are load-bearing — the harness exists to catch the exact class of silent failure where one is right and another isn't.
+
+### Opt-in per-step session capture
+
+Plan 027 added a fourth, opt-in assertion for scenarios that need to verify session state AT each step, not just at the end. The use case: scenarios like `030-navigation-state-tracking` walk the user through every `LastRenderedView` variant in sequence, and the harness's `finalSession` check would only ever verify the terminal variant. Intermediate variants (each set and then overwritten) would have no end-to-end coverage. Per-step capture closes that gap.
+
+**How to opt in.** Add `captureStepState: true` to your scenario's `defineScenario({...})` call:
+
+```typescript
+export default defineScenario({
+  name: '030-navigation-state-tracking',
+  description: '…',
+  clock: '…',
+  recipeSet: 'six-balanced',
+  captureStepState: true,  // ← opt in
+  initialState: { … },
+  events: [ … ],
+});
+```
+
+**What it does.** When `captureStepState === true`, the runner captures `normalizeUuids(JSON.parse(JSON.stringify(core.session)))` immediately after every `core.dispatch(event, sink)` call and stores the snapshots in an array. The generator writes the array to `recorded.expected.sessionAt`. At replay time, the test runner adds a fourth `deepStrictEqual` comparing `result.sessionAt` to `recorded.expected.sessionAt`. The comparison fires only if `recorded.expected.sessionAt !== undefined`, so scenarios that don't opt in are completely unaffected.
+
+**When to use it.**
+
+- **Navigation walkthroughs** — verifying `lastRenderedView` (or `surfaceContext`, or any other field) changes correctly at every step as the user moves through subviews.
+- **Multi-phase flow transitions** — verifying a recipe flow correctly progresses through `awaiting_meal_type → awaiting_preferences → reviewing`, not just lands on the final phase.
+- **State-leak regression tests** — verifying that a sequence of events never sets a field that should stay untouched (e.g., `planFlow` remaining `null` across a 10-step recipe navigation).
+
+**When NOT to use it.**
+
+- **Most existing scenarios.** The final-state assertion is enough for scenarios whose purpose is "does the terminal outcome match expectations". Opt-in keeps recordings small — a non-navigation scenario with 15 events would add 15 full session snapshots to its `recorded.json` for no test signal.
+- **Scenarios with long event sequences where intermediate state is irrelevant.** If you only care about the final state, don't opt in.
+
+**Reviewing `sessionAt` in a recording.** When behaviorally reviewing a regenerated scenario with `captureStepState: true`, read through `recorded.expected.sessionAt[n]` entry-by-entry and verify each snapshot matches what you'd expect after event `n`. The array length should equal `spec.events.length`. A scenario asserting `lastRenderedView` variants should have one snapshot per step with the expected discriminated-union value set. Any mismatch at a particular index points directly at the handler that dispatched event `n`.
+
+**Authoritative example.** See `test/scenarios/030-navigation-state-tracking/spec.ts` — the canonical scenario that uses per-step capture to assert nine distinct `LastRenderedView` variants end-to-end in a single walkthrough. Sibling scenario 035 (`navigation-progress-log-prompt`) uses the same mechanism for a single-step terminal assertion. Scenario 036 (`day-detail-back-button-audit`) uses it to lock in a back-button routing outcome.
+
+### Asserting on `lastRenderedView` (Plan 027)
+
+Scenarios that exercise navigation can assert on `finalSession.lastRenderedView` (or any `sessionAt[n].lastRenderedView` entry when opted in) to verify what the user was last looking at. The field is a discriminated union defined in `src/telegram/navigation-state.ts`; the variant at the end of a scenario — or at any intermediate step — should match the last navigation render the scenario's events produced up to that point. See scenario 030 (`navigation-state-tracking`) for per-step variant coverage, scenario 035 (`navigation-progress-log-prompt`) for a single-step terminal, scenario 036 (`day-detail-back-button-audit`) for a back-button regression lock, and scenarios 031/032/033 (`shopping-list-mid-planning-audit`, `discard-recipe-audit`, `recipe-edit-clears-planflow-audit`) for regression locks that exercise the planFlow-clear audit decisions from Plan 027.
 
 ## Fixture handling for non-deterministic LLM calls
 
