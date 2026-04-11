@@ -1,0 +1,285 @@
+{
+  "generatedAt": "2026-04-08T10:00:00.000Z",
+  "specHash": "09e76d32c24cb46aff275e5fbeb4910a7b12ad1f2cdb567b100a1f2609b1b784",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "Planning Thu, Apr 9 – Wed, Apr 15.\n\nBreakfast: keep Salmon-Avocado Toast with Soft Eggs and Cinnamon Yogurt (658 cal/day)?",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Keep it",
+                "callback": "plan_keep_breakfast"
+              },
+              {
+                "label": "Change this week",
+                "callback": "plan_change_breakfast"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "Your recipes (7):",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa",
+                "callback": "rv_chicken-black-bean-avocado-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Creamy Salmon and Shrimp Linguine",
+                "callback": "rv_creamy-salmon-and-shrimp-linguine"
+              }
+            ],
+            [
+              {
+                "label": "Ground Beef Rigatoni Bolognese",
+                "callback": "rv_ground-beef-rigatoni-bolognese"
+              }
+            ],
+            [
+              {
+                "label": "Mediterranean Tuna, Chickpea and Feta Rice Bowl",
+                "callback": "rv_mediterranean-tuna-chickpea-feta-rice-bowl"
+              }
+            ],
+            [
+              {
+                "label": "Moroccan Beef Tagine-Style Skillet with Lemon Couscous",
+                "callback": "rv_moroccan-beef-tagine-style-skillet-with-lemon-couscous"
+              }
+            ],
+            [
+              {
+                "label": "1/2",
+                "callback": "rp_noop"
+              },
+              {
+                "label": "Next →",
+                "callback": "rp_1"
+              }
+            ],
+            [
+              {
+                "label": "Add new recipe",
+                "callback": "add_recipe"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato\\-Lime Salsa*\n_893 cal \\| 56g P \\| 46g F \\| 68g C_\nMexican\\-inspired · 40 min · meal\\-prep, high\\-protein, microwave\\-friendly, gluten\\-free, rice\\-bowl, latin\\-inspired\n\n*Ingredients \\(per serving\\)*\n\n*smoky chicken with black beans, corn and avocado:*\n  chicken breast, raw: 190g\n  black beans, canned, drained: 75g\n  sweetcorn kernels, frozen: 40g\n  small avocado: 1whole\n  olive oil: 22g\n  ground cumin: 2g\n  smoked paprika: 2g\n  salt: 2g\n  black pepper: 1g\n\n*basmati rice:*\n  basmati rice, dry: 38g\n\n*tomato\\-lime salsa:*\n  large tomato: 1whole\n  small red onion: 0\\.5whole\n  lime, juiced: 1whole\n  fresh coriander \\(cilantro\\): 5g\n\nA bright, meal\\-prep\\-friendly rice bowl with smoky chicken, black beans, sweetcorn, creamy avocado, and a fresh tomato\\-lime salsa\\. It reheats well and stays satisfying without feeling heavy\\.\n\nEquipment: saucepan with lid, frying pan or skillet, chopping board, knife, and a mixing bowl\\.\n\n1\\. Cook the basmati rice until tender, then keep it covered while you finish the rest\\.\n2\\. Season the chicken breast with cumin, smoked paprika, salt, and black pepper\\.\n3\\. Heat olive oil in a skillet and cook the chicken breast until golden and cooked through\\. Rest it briefly, then slice\\.\n4\\. Add the black beans and sweetcorn kernels to the skillet and warm them through\\.\n5\\. Mix the tomato, red onion, lime, fresh coriander, and a pinch of salt to make the salsa\\.\n6\\. Build bowls with the rice, chicken, black beans, sweetcorn, avocado, and tomato\\-lime salsa\\.\n7\\. For meal prep, cool the components before sealing\\. Store in the fridge for up to 3 days, and reheat the rice, chicken, black beans, and sweetcorn before adding the salsa and avocado\\. If you want a brighter finish, squeeze over a little extra lime right before eating\\.",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "← Back to recipes",
+                "callback": "recipe_back"
+              },
+              {
+                "label": "Edit",
+                "callback": "re_chicken-black-bean-avocado-rice-bowl"
+              },
+              {
+                "label": "Delete",
+                "callback": "rd_chicken-black-bean-avocado-rice-bowl"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "What would you like to change? (e.g., \"swap beef for chicken\", \"less oil\", \"add a side salad\")"
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": {
+        "phase": "awaiting_refinement",
+        "mealType": "lunch",
+        "currentRecipe": {
+          "name": "Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa",
+          "shortName": "Chicken Black Bean Bowl",
+          "slug": "chicken-black-bean-avocado-rice-bowl",
+          "mealTypes": [
+            "lunch"
+          ],
+          "cuisine": "Mexican-inspired",
+          "tags": [
+            "meal-prep",
+            "high-protein",
+            "microwave-friendly",
+            "gluten-free",
+            "rice-bowl",
+            "latin-inspired"
+          ],
+          "prepTimeMinutes": 40,
+          "structure": [
+            {
+              "type": "main",
+              "name": "smoky chicken with black beans, corn and avocado"
+            },
+            {
+              "type": "carb_side",
+              "name": "basmati rice"
+            },
+            {
+              "type": "side",
+              "name": "tomato-lime salsa"
+            }
+          ],
+          "perServing": {
+            "calories": 893,
+            "protein": 56,
+            "fat": 46,
+            "carbs": 68
+          },
+          "ingredients": [
+            {
+              "name": "chicken breast, raw",
+              "amount": 190,
+              "unit": "g",
+              "role": "protein",
+              "component": "smoky chicken with black beans, corn and avocado"
+            },
+            {
+              "name": "black beans, canned, drained",
+              "amount": 75,
+              "unit": "g",
+              "role": "carb",
+              "component": "smoky chicken with black beans, corn and avocado"
+            },
+            {
+              "name": "sweetcorn kernels, frozen",
+              "amount": 40,
+              "unit": "g",
+              "role": "carb",
+              "component": "smoky chicken with black beans, corn and avocado"
+            },
+            {
+              "name": "small avocado",
+              "amount": 1,
+              "unit": "whole",
+              "role": "fat",
+              "component": "smoky chicken with black beans, corn and avocado"
+            },
+            {
+              "name": "olive oil",
+              "amount": 22,
+              "unit": "g",
+              "role": "fat",
+              "component": "smoky chicken with black beans, corn and avocado"
+            },
+            {
+              "name": "ground cumin",
+              "amount": 2,
+              "unit": "g",
+              "role": "seasoning",
+              "component": "smoky chicken with black beans, corn and avocado"
+            },
+            {
+              "name": "smoked paprika",
+              "amount": 2,
+              "unit": "g",
+              "role": "seasoning",
+              "component": "smoky chicken with black beans, corn and avocado"
+            },
+            {
+              "name": "salt",
+              "amount": 2,
+              "unit": "g",
+              "role": "seasoning",
+              "component": "smoky chicken with black beans, corn and avocado"
+            },
+            {
+              "name": "black pepper",
+              "amount": 1,
+              "unit": "g",
+              "role": "seasoning",
+              "component": "smoky chicken with black beans, corn and avocado"
+            },
+            {
+              "name": "basmati rice, dry",
+              "amount": 38,
+              "unit": "g",
+              "role": "base",
+              "component": "basmati rice"
+            },
+            {
+              "name": "large tomato",
+              "amount": 1,
+              "unit": "whole",
+              "role": "vegetable",
+              "component": "tomato-lime salsa"
+            },
+            {
+              "name": "small red onion",
+              "amount": 0.5,
+              "unit": "whole",
+              "role": "vegetable",
+              "component": "tomato-lime salsa"
+            },
+            {
+              "name": "lime, juiced",
+              "amount": 1,
+              "unit": "whole",
+              "role": "seasoning",
+              "component": "tomato-lime salsa"
+            },
+            {
+              "name": "fresh coriander (cilantro)",
+              "amount": 5,
+              "unit": "g",
+              "role": "seasoning",
+              "component": "tomato-lime salsa"
+            }
+          ],
+          "storage": {
+            "fridgeDays": 3,
+            "freezable": false,
+            "reheat": "Microwave the rice, chicken, black beans, and sweetcorn until hot, then add the salsa and avocado. Finish with a little extra lime if you want it brighter."
+          },
+          "body": "A bright, meal-prep-friendly rice bowl with smoky chicken, black beans, sweetcorn, creamy avocado, and a fresh tomato-lime salsa. It reheats well and stays satisfying without feeling heavy.\n\nEquipment: saucepan with lid, frying pan or skillet, chopping board, knife, and a mixing bowl.\n\n1. Cook the basmati rice until tender, then keep it covered while you finish the rest.\n2. Season the chicken breast with cumin, smoked paprika, salt, and black pepper.\n3. Heat olive oil in a skillet and cook the chicken breast until golden and cooked through. Rest it briefly, then slice.\n4. Add the black beans and sweetcorn kernels to the skillet and warm them through.\n5. Mix the tomato, red onion, lime, fresh coriander, and a pinch of salt to make the salsa.\n6. Build bowls with the rice, chicken, black beans, sweetcorn, avocado, and tomato-lime salsa.\n7. For meal prep, cool the components before sealing. Store in the fridge for up to 3 days, and reheat the rice, chicken, black beans, and sweetcorn before adding the salsa and avocado. If you want a brighter finish, squeeze over a little extra lime right before eating."
+        },
+        "conversationHistory": [
+          {
+            "role": "system",
+            "content": "You are an expert chef and nutritionist who creates macro-controlled meal prep recipes.\n\nYOUR JOB: Create a recipe that hits specific macro targets while being delicious, practical, and easy to cook.\n\n## MACRO TARGETS (per serving)\n- Calories: 804 kcal (allowed range: 780-828)\n- Protein: 50g (allowed range: 47-54)\n- Fat: 43g (allowed range: 37-49)\n- Carbs: 54g (allowed range: 46-62)\n\nPriority if tradeoffs happen: 1) Calories 2) Protein 3) Fat 4) Carbs.\nIt is better to slightly undershoot than overshoot. Overshooting kills caloric deficit.\n\n## MEAL STRUCTURE RULES\n\n### Lunch: light, practical, one-container meals\n- Lunches are eaten during the day, often reheated at work. They should be LIGHTER in character than dinner — not heavy pasta dishes or rich stews.\n- Preferred styles:\n  - GRAIN/RICE BOWLS: Protein + vegetables + grain base + light dressing/sauce. The default lunch format.\n  - SALADS WITH WARM PROTEIN: Hearty salads with grilled chicken, fish, or legumes. Not sad diet salads — filling and satisfying.\n  - LIGHTER STEWS/SOUPS: Lentil soups, chicken and vegetable stews, lighter curries. Not heavy cream-based.\n  - WRAPS/STUFFED MEALS: When practical and reheatable.\n- The meal has clear, separable parts:\n  - MAIN: Protein + vegetables with a light sauce or dressing. Clear identity (e.g., \"lemon herb chicken\", \"sesame tofu and vegetables\").\n  - BASE (often separate): Rice, quinoa, couscous, bulgur, or mixed grains.\n  - SIDE (optional): Fresh component — salad, pickled vegetables, salsa.\n- Sauces should be LIGHT: vinaigrettes, tahini, soy-based, salsa, lemon-herb. Avoid heavy cream sauces, cheese-heavy preparations, or rich meat gravies for lunch.\n- Must be microwave-friendly and hold 2-3 days in the fridge. One-container packing preferred.\n- Do NOT default to pasta, bolognese, traybakes, or other dinner-style meals unless the user specifically asks for them.\n- 6-10 ingredients in the main. Cohesive flavor profile.\n- The base (grain/rice) is the natural calorie scaling lever.\n- Prep time must be REALISTIC. Minimums:\n  - Simple bowl assembly (pre-cooked protein + grain): 25-35 min\n  - Skillet protein + grain side: 35-45 min\n  - Anything with 10+ ingredients: at least 40 min\n  When in doubt, round UP.\n\n## INGREDIENT RULES\n- Use metric grams/ml with exact quantities per serving — EXCEPT for naturally countable items.\n- **Countable items use whole units, not grams.** The user can't weigh an egg.\n  - Eggs: \"2 eggs\" (unit: \"whole\"), NOT \"90g eggs\"\n  - Limes/lemons: \"1 lime\" (unit: \"whole\") or \"juice of 1 lime\" — NOT \"30g lime\"\n  - Garlic: \"2 cloves\" (unit: \"cloves\"), NOT \"6g garlic\"\n  - Bananas, avocados, onions: use count or fraction (\"1 avocado\", \"½ onion\") when the natural unit is obvious\n  - For macro calculations, use standard sizes: 1 large egg ≈ 60g, 1 clove garlic ≈ 3g, 1 medium avocado ≈ 150g flesh\n- **ALL amounts must be RAW / UNCOOKED / DRY weight.** This is critical for accurate macro counting and shopping.\n  - Meat and fish: RAW weight (e.g., \"chicken breast, raw: 200g\")\n  - Pasta, rice, grains: DRY/UNCOOKED weight (e.g., \"rigatoni, dry: 65g\", \"jasmine rice, uncooked: 80g\")\n  - Legumes: DRAINED weight for canned (e.g., \"canned chickpeas, drained: 100g\"), DRY weight for dried\n  - Vegetables: raw/uncooked weight\n  - Your macro calculations MUST be based on the raw/dry weights you specify. Do NOT calculate macros from cooked weights.\n- Every ingredient has a role: protein, carb, fat, vegetable, base, or seasoning.\n- Every ingredient belongs to a component (main, carb_side, side, or a breakfast component name).\n- Prefer: olive oil, nuts, avocado, fish for fats. Minimize butter, cream, fatty processed meats.\n- Keep ultra-processed foods low. Minimize added sugar.\n- Be PRECISE about ingredient variants that affect macros. The user will shop for exactly what you specify, and will calculate macros from it. If the fat/calorie content varies significantly by type, you MUST specify which type:\n  - Dairy: \"cooking cream (20% fat)\", \"Greek yogurt (2%)\", \"whole milk\", \"semi-skimmed milk\"\n  - Meat: \"ground beef (10% fat)\", \"chicken thigh (skin-on)\" vs \"chicken breast\"\n  - Coconut: \"coconut milk (full fat)\" vs \"light coconut milk\"\n  - Cheese: \"mozzarella\" vs \"light mozzarella\", \"cream cheese (full fat)\"\n  - General rule: if two common variants of the same ingredient differ by more than 30% in calories, specify which one. Your macro calculations must match the specific variant you name.\n\n## USER FOOD PROFILE\nThe user lives in Southern Spain. Shopping access: Standard European supermarkets (Mercadona, Lidl, Carrefour). Good access to fresh seafood, Mediterranean produce, olive oil, Iberian pork, Spanish cheeses.\nPrefer ingredients commonly available in Spanish supermarkets. Mediterranean, Spanish, and Southern European ingredients are natural choices. Asian ingredients are fine if they are the common ones found in any supermarket (soy sauce, rice, ginger, coconut milk) — avoid specialty Asian grocery items. Avoid niche North American ingredients (Cotija cheese, chipotle en adobo, ranch seasoning, American-style BBQ sauces). When a recipe calls for cheese, prefer commonly available European options (manchego, mozzarella, parmesan, feta, goat cheese).\n\nALL ingredient choices must respect this profile. Do not suggest ingredients the user cannot easily find in their local stores.\n\n## RECIPE TEXT RULES\n- Write the recipe body as natural, human-readable text.\n- Include a brief description of the dish (1-2 sentences — what it is, what makes it good).\n- Steps are numbered and use `{ingredient_name}` placeholders for amounts:\n  CORRECT: \"Cook {penne pasta} until al dente, **10-11 min**.\"\n  CORRECT: \"Heat {olive oil} in a large skillet.\"\n  WRONG: \"Cook 65g penne pasta until al dente.\" (hardcoded amount)\n  WRONG: \"Cook the pasta until al dente.\" (no placeholder — user can't know the amount)\n  The placeholder name MUST exactly match an ingredient's `name` field in the ingredients array.\n  \"To-taste\" seasoning — ingredients that a cook applies freely without measuring (salt, pepper,\n  chili flakes) — stay as-is in prose even though they have YAML amounts. No placeholder.\n  Use `role: seasoning` as the signal: if it's a role-seasoning ingredient with a small nominal\n  YAML amount (e.g., 1g salt, 0.5g pepper) that doesn't materially affect macros, treat it as to-taste.\n  Only ingredients whose amount directly affects macros or cooking outcome get a placeholder:\n  proteins, carbs, oils, specific spices in meaningful amounts (e.g., \"2 tsp smoked paprika\")\n  → those DO get a placeholder: \"Add {smoked paprika}, stir **1 min**.\"\n- Every heat step MUST include an explicit duration:\n  CORRECT: \"Sear salmon cubes without moving, **2 min per side**.\"\n  CORRECT: \"Cook **4-5 min** until softened.\"\n  WRONG: \"Cook until golden.\" (no time anchor)\n  WRONG: \"Simmer until thickened.\" (needs \"**15-20 min** until thickened\")\n- Group to-taste seasonings on one line in the prose:\n  CORRECT: \"Season with salt, pepper, and chili flakes.\"\n  WRONG: \"Add the salt. Add the pepper. Add the chili flakes.\" (three lines for to-taste items)\n  Only seasonings with specific amounts (e.g., \"2 tsp smoked paprika\") get called out individually.\n- Include: prep time, equipment needed, storage, reheating instructions.\n- Include practical tips or simple variations if relevant.\n\n## OUTPUT FORMAT\nRespond with ONLY valid JSON matching this schema:\n{\n  \"name\": \"string — the dish name, clear identity\",\n  \"short_name\": \"string — max 25 chars, 2-3 word recognizable identity (e.g., 'Beef Tagine', 'Salmon Pasta')\",\n  \"slug\": \"string — kebab-case, max 50 chars (e.g. 'chicken-pepperonata-rice', not 'chicken-pepperonata-with-rice-and-roasted-vegetables-mediterranean-style')\",\n  \"meal_types\": [\"breakfast\" | \"lunch\" | \"dinner\"],\n  \"cuisine\": \"string\",\n  \"tags\": [\"string\"],\n  \"prep_time_minutes\": number,\n  \"structure\": [{ \"type\": \"main\"|\"carb_side\"|\"side\"|\"breakfast_component\", \"name\": \"string\" }],\n  \"per_serving\": { \"calories\": number, \"protein\": number, \"fat\": number, \"carbs\": number },\n  \"ingredients\": [{ \"name\": \"string\", \"amount\": number, \"unit\": \"string\", \"role\": \"protein|carb|fat|vegetable|base|seasoning\", \"component\": \"string — matching a structure name\" }],\n  \"storage\": { \"fridge_days\": number, \"freezable\": boolean, \"reheat\": \"string\" },\n  \"body\": \"string — the full recipe text (description + steps + storage notes + tips). Use {ingredient_name} placeholders in steps (see RECIPE TEXT RULES). Use newlines for formatting. Steps as numbered list.\"\n}"
+          },
+          {
+            "role": "user",
+            "content": "Create a lunch recipe."
+          },
+          {
+            "role": "assistant",
+            "content": "{\"name\":\"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\",\"short_name\":\"Chicken Black Bean Bowl\",\"slug\":\"chicken-black-bean-avocado-rice-bowl\",\"meal_types\":[\"lunch\"],\"cuisine\":\"Mexican-inspired\",\"tags\":[\"meal-prep\",\"high-protein\",\"microwave-friendly\",\"gluten-free\",\"rice-bowl\",\"latin-inspired\"],\"prep_time_minutes\":40,\"structure\":[{\"type\":\"main\",\"name\":\"smoky chicken with black beans, corn and avocado\"},{\"type\":\"carb_side\",\"name\":\"basmati rice\"},{\"type\":\"side\",\"name\":\"tomato-lime salsa\"}],\"per_serving\":{\"calories\":893,\"protein\":56,\"fat\":46,\"carbs\":68},\"ingredients\":[{\"name\":\"chicken breast, raw\",\"amount\":190,\"unit\":\"g\",\"role\":\"protein\",\"component\":\"smoky chicken with black beans, corn and avocado\"},{\"name\":\"black beans, canned, drained\",\"amount\":75,\"unit\":\"g\",\"role\":\"carb\",\"component\":\"smoky chicken with black beans, corn and avocado\"},{\"name\":\"sweetcorn kernels, frozen\",\"amount\":40,\"unit\":\"g\",\"role\":\"carb\",\"component\":\"smoky chicken with black beans, corn and avocado\"},{\"name\":\"small avocado\",\"amount\":1,\"unit\":\"whole\",\"role\":\"fat\",\"component\":\"smoky chicken with black beans, corn and avocado\"},{\"name\":\"olive oil\",\"amount\":22,\"unit\":\"g\",\"role\":\"fat\",\"component\":\"smoky chicken with black beans, corn and avocado\"},{\"name\":\"ground cumin\",\"amount\":2,\"unit\":\"g\",\"role\":\"seasoning\",\"component\":\"smoky chicken with black beans, corn and avocado\"},{\"name\":\"smoked paprika\",\"amount\":2,\"unit\":\"g\",\"role\":\"seasoning\",\"component\":\"smoky chicken with black beans, corn and avocado\"},{\"name\":\"salt\",\"amount\":2,\"unit\":\"g\",\"role\":\"seasoning\",\"component\":\"smoky chicken with black beans, corn and avocado\"},{\"name\":\"black pepper\",\"amount\":1,\"unit\":\"g\",\"role\":\"seasoning\",\"component\":\"smoky chicken with black beans, corn and avocado\"},{\"name\":\"basmati rice, dry\",\"amount\":38,\"unit\":\"g\",\"role\":\"base\",\"component\":\"basmati rice\"},{\"name\":\"large tomato\",\"amount\":1,\"unit\":\"whole\",\"role\":\"vegetable\",\"component\":\"tomato-lime salsa\"},{\"name\":\"small red onion\",\"amount\":0.5,\"unit\":\"whole\",\"role\":\"vegetable\",\"component\":\"tomato-lime salsa\"},{\"name\":\"lime, juiced\",\"amount\":1,\"unit\":\"whole\",\"role\":\"seasoning\",\"component\":\"tomato-lime salsa\"},{\"name\":\"fresh coriander (cilantro)\",\"amount\":5,\"unit\":\"g\",\"role\":\"seasoning\",\"component\":\"tomato-lime salsa\"}],\"storage\":{\"fridge_days\":3,\"freezable\":false,\"reheat\":\"Microwave the rice, chicken, black beans, and sweetcorn until hot, then add the salsa and avocado. Finish with a little extra lime if you want it brighter.\"},\"body\":\"A bright, meal-prep-friendly rice bowl with smoky chicken, black beans, sweetcorn, creamy avocado, and a fresh tomato-lime salsa. It reheats well and stays satisfying without feeling heavy.\\n\\nEquipment: saucepan with lid, frying pan or skillet, chopping board, knife, and a mixing bowl.\\n\\n1. Cook the basmati rice until tender, then keep it covered while you finish the rest.\\n2. Season the chicken breast with cumin, smoked paprika, salt, and black pepper.\\n3. Heat olive oil in a skillet and cook the chicken breast until golden and cooked through. Rest it briefly, then slice.\\n4. Add the black beans and sweetcorn kernels to the skillet and warm them through.\\n5. Mix the tomato, red onion, lime, fresh coriander, and a pinch of salt to make the salsa.\\n6. Build bowls with the rice, chicken, black beans, sweetcorn, avocado, and tomato-lime salsa.\\n7. For meal prep, cool the components before sealing. Store in the fridge for up to 3 days, and reheat the rice, chicken, black beans, and sweetcorn before adding the salsa and avocado. If you want a brighter finish, squeeze over a little extra lime right before eating.\"}"
+          }
+        ]
+      },
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "recipes",
+      "progressFlow": null,
+      "lastRecipeSlug": "chicken-black-bean-avocado-rice-bowl",
+      "lastRenderedView": {
+        "surface": "recipes",
+        "view": "recipe_detail",
+        "slug": "chicken-black-bean-avocado-rice-bowl"
+      }
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [],
+      "batches": []
+    }
+  }
+}
