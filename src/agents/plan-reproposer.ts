@@ -34,6 +34,23 @@ export interface ReProposerInput {
   preCommittedSlots: PreCommittedSlot[];
   breakfast: { name: string; caloriesPerDay: number; proteinPerDay: number };
   weeklyTargets: { calories: number; protein: number };
+  /**
+   * Plan 026: which execution context the re-proposer is running in.
+   *
+   * - 'in-session': during an active planning conversation, before the user
+   *   has confirmed the plan. The meal-type lane rule is enforced; the
+   *   near-future safety rule is NOT (there's no real-world prep yet).
+   * - 'post-confirmation': the user has a confirmed plan running and is
+   *   asking to adjust it. Both rules are enforced. The caller MUST provide
+   *   `nearFutureDays` (≤2 ISO dates) representing the soft-locked window.
+   */
+  mode: 'in-session' | 'post-confirmation';
+  /**
+   * Plan 026: soft-locked window under 'post-confirmation' mode. Present only
+   * (and required) when mode === 'post-confirmation'. Up to 2 ISO dates:
+   * today and tomorrow, intersected with the horizon.
+   */
+  nearFutureDays?: string[];
 }
 
 // MutationRecord moved to models/types.ts in Plan 026. Re-exported here so the
@@ -168,7 +185,7 @@ export async function reProposePlan(
 // ─── Prompt builders ────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(input: ReProposerInput): string {
-  return `You are a meal plan adjustment agent. You receive a current plan and a user's change request. Your job is to adjust the plan according to the request and return a COMPLETE new plan.
+  const base = `You are a meal plan adjustment agent. You receive a current plan and a user's change request. Your job is to adjust the plan according to the request and return a COMPLETE new plan.
 
 ## OUTPUT TYPE
 
@@ -217,6 +234,14 @@ You MUST return one of two JSON shapes:
 - Cook day = first eating day (always)
 - Days must be in ascending ISO order within each batch
 
+## MEAL-TYPE LANE RULE (load-bearing, never crossed)
+
+Each batch has a mealType ('lunch' or 'dinner'), and each recipe in the available list has a "mealTypes" array listing which meal contexts it was authored for. A batch's mealType MUST be one of its recipe's mealTypes — specifically, batch.mealType ∈ recipe.mealTypes must hold for every batch you emit. You MUST NOT place a dinner-only recipe into a lunch batch, or a lunch-only recipe into a dinner batch.
+
+This rule is NOT cosmetic. Lunch and dinner are physically different meals: lunch is portable, no-reheat, and light (midday energy matters); dinner can be heavy, sauce-heavy, cooked-to-reheat. Silently crossing lanes produces a plan the user cannot actually execute.
+
+If the user asks for a swap that would violate this, pick a different recipe in the permitted mealTypes, or return a clarification explaining the constraint.
+
 ## CROSS-HORIZON BATCHES
 
 Batches near the horizon edge can extend into the next session:
@@ -235,6 +260,25 @@ If the user asks for a recipe not in the available recipes list, return a clarif
 ## COMPLETENESS
 
 Always output a COMPLETE plan — every lunch and dinner slot in the horizon must be covered by exactly one of: batch, flex, event, or pre-committed slot. No gaps, no overlaps.`;
+
+  if (input.mode !== 'post-confirmation') {
+    return base;
+  }
+
+  const nearFuture = (input.nearFutureDays ?? []).join(', ') || '(none)';
+  return `${base}
+
+## NEAR-FUTURE SAFETY (post-confirmation mode)
+
+You are running on a CONFIRMED plan that the user is already living through. The user has likely shopped, portioned, or prepared meals for the next couple of days. The following ISO dates are "near-future" and are SOFT-LOCKED: ${nearFuture}
+
+Rules for near-future days:
+- You MUST NOT silently rearrange meals on near-future days. Leave them exactly as they are unless the user's request explicitly targets a near-future slot.
+- You MAY change a near-future slot when the user's request clearly names it — examples of explicit targeting: "move today's dinner to tomorrow", "skip tomorrow's lunch — I'm eating out", "swap the lunch I'm about to make for something else".
+- Days strictly outside the near-future window can be rearranged freely within the other rules (fridge-life, pre-committed slots, meal-type lanes, mutation history, flex count).
+- If absorbing the user's request would force a silent change to a near-future day that the user did not explicitly target, return a clarification asking the user to confirm the near-future impact — do NOT make the change unilaterally.
+
+This rule exists because the user's real-world preparation must be respected unless they explicitly override it themselves.`;
 }
 
 function buildUserPrompt(input: ReProposerInput): string {

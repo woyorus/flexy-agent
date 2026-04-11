@@ -672,6 +672,7 @@ export async function handleMutationText(
     preCommittedSlots: state.preCommittedSlots ?? [],
     breakfast: state.breakfast,
     weeklyTargets: config.targets.weekly,
+    mode: 'in-session',
   }, llm, recipes);
 
   // 3. Handle clarification — store context, stay in proposal phase
