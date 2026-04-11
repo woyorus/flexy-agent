@@ -15,6 +15,8 @@
  * Design doc: docs/design-docs/proposals/003-freeform-conversation-layer.md
  */
 
+import type { Batch } from '../models/types.js';
+import type { ProposedBatch } from '../solver/types.js';
 import { toLocalISODate } from './helpers.js';
 
 /**
@@ -53,4 +55,65 @@ export function classifySlot(day: string, mealType: 'lunch' | 'dinner', now: Dat
   const hour = now.getHours();
   if (mealType === 'lunch') return hour >= LUNCH_DONE_CUTOFF_HOUR ? 'past' : 'active';
   return hour >= DINNER_DONE_CUTOFF_HOUR ? 'past' : 'active';
+}
+
+/**
+ * Result of classifying a single batch against the current wall clock.
+ *
+ * - `past-only`: every eating day is strictly past. The batch is preserved
+ *   verbatim and flows into the write payload unchanged.
+ * - `active-only`: every eating day is strictly active. The batch is rendered
+ *   as a `ProposedBatch` for the re-proposer to see and potentially mutate.
+ * - `spanning`: some eating days are past, others active. Task 9 splits these
+ *   into a past half (Batch) and an active half (ProposedBatch).
+ */
+export type SplitBatchResult =
+  | { kind: 'past-only'; pastBatch: Batch }
+  | { kind: 'active-only'; activeBatch: ProposedBatch }
+  | { kind: 'spanning'; pastBatch: Batch; activeBatch: ProposedBatch };
+
+/**
+ * Split a single persisted batch across the (date, mealType) cutoff.
+ *
+ * Determines whether the batch is past-only, active-only, or spanning, and
+ * returns the pieces needed to reconstruct the plan after the re-proposer
+ * runs on the active portion. Pure — never reads real clocks or recipes.
+ *
+ * @param batch - A persisted Batch loaded from the store
+ * @param now - Current wall clock
+ */
+export function splitBatchAtCutoffs(batch: Batch, now: Date): SplitBatchResult {
+  const pastDays: string[] = [];
+  const activeDays: string[] = [];
+  for (const day of batch.eatingDays) {
+    if (classifySlot(day, batch.mealType, now) === 'past') {
+      pastDays.push(day);
+    } else {
+      activeDays.push(day);
+    }
+  }
+
+  if (pastDays.length === 0) {
+    return {
+      kind: 'active-only',
+      activeBatch: {
+        recipeSlug: batch.recipeSlug,
+        // Recipe display name isn't stored on Batch — caller resolves it later
+        // if needed. For now use the slug as a placeholder; downstream code
+        // resolves via RecipeDatabase when it prints anything.
+        recipeName: batch.recipeSlug,
+        mealType: batch.mealType,
+        days: activeDays,
+        servings: activeDays.length,
+        overflowDays: undefined,
+      },
+    };
+  }
+
+  if (activeDays.length === 0) {
+    return { kind: 'past-only', pastBatch: batch };
+  }
+
+  // Spanning — Task 9 fills this in.
+  throw new Error('splitBatchAtCutoffs: spanning batches not implemented yet (Task 9)');
 }
