@@ -723,6 +723,66 @@ Intent classifier (nano LLM, fast)
 
 The product is a Telegram bot. Users talk to bots. If the bot can only respond to button taps, it's an app wearing a chat costume — and a bad app at that, because it lacks the visual affordances of a real app. The freeform layer is what makes the chat format an advantage rather than a limitation. It's not a nice-to-have — it's what makes the product feel intelligent rather than scripted.
 
+### Inbound message routing (Plan 028 — dispatcher front door, v0.0.5 minimal slice)
+
+Plan 028 implements the infrastructure + the minimal action set for the freeform conversation layer. Every inbound text and voice message that isn't a slash command, an inline callback, or a reply-keyboard main-menu tap is routed through a single LLM-driven **dispatcher** that picks exactly one action from a small catalog. Plans D and E extend the catalog with `mutate_plan`, answers, navigation, and measurement logging.
+
+#### Where the dispatcher sits
+
+`core.dispatch()` branches by update type:
+
+- `command` → `handleCommand` (slash commands; bypass the dispatcher)
+- `callback` → `handleCallback` (inline button taps; bypass)
+- `text` → `matchMainMenu` first (reply-keyboard main-menu buttons bypass), then `runDispatcherFrontDoor`
+- `voice` → `runDispatcherFrontDoor` directly (transcription happens in `bot.ts`)
+
+`runDispatcherFrontDoor` (in `src/telegram/dispatcher-runner.ts`) is the integration layer. It:
+
+1. Runs the narrow **numeric pre-filter** — when `progressFlow.phase === 'awaiting_measurement'` and the text is parseable as a measurement, the measurement is logged inline without an LLM call and WITHOUT recentTurns bookkeeping. See `tryNumericPreFilter`.
+2. Short-circuits **planning meta-intents** — "nevermind", "forget it", "start over" etc. reach the existing cancel/restart handler BEFORE the dispatcher runs when `planFlow` is active. The raw sink is used here (not the bot-turn wrapper); cancel is a flow termination, not a conversational turn, so `recentTurns` stays untouched. See `matchPlanningMetaIntent` and the Plan 028 precedence doc comment in `plan-flow.ts`.
+3. Wraps the sink in `wrapSinkForBotTurnCapture` so every downstream action branch (flow_input, clarify, out_of_scope, return_to_flow) contributes a bot turn uniformly. The wrapper buffers each `sink.reply` (overwriting the previous capture) and the runner commits the most recent one via `flushBotTurn` in a `try/finally` after the action handler returns. This handles multi-message branches like the recipe flow (holding message + substantive reply) correctly: only the substantive reply lands in `recentTurns`.
+4. Builds the **context bundle** via `buildDispatcherContext` — surface, lifecycle, active flow summary, recent turns, plan summary, recipe index, allowed actions.
+5. Pushes the user turn onto `session.recentTurns` (ring-buffered at 6).
+6. Calls `dispatchMessage` (the pure agent in `src/agents/dispatcher.ts`) with the context and user text.
+7. Dispatches the returned `DispatcherDecision` to the action handler inside a `try/finally`. `flushBotTurn(sink)` runs in the `finally` block so the most recent `sink.reply` from the handler lands in `recentTurns` even if the handler throws.
+8. On `DispatcherFailure`, falls back to `replyFreeTextFallback` (still routed through the wrapped sink — the fallback message also lands in recentTurns so the dispatcher sees it on the next turn).
+
+#### v0.0.5 minimal action catalog (Plan 028)
+
+Only four actions are implemented. The dispatcher's prompt describes the full proposal-003 catalog (including deferred actions) with availability markers, so Plans D and E only flip the marker without rewriting the prompt.
+
+| Action | Implemented | Behavior |
+|---|---|---|
+| `flow_input` | ✅ Plan 028 | Forward text to the active flow's text handler unchanged. |
+| `clarify` | ✅ Plan 028 | Dispatcher asks a clarifying question; state unchanged. |
+| `out_of_scope` | ✅ Plan 028 | Dispatcher declines honestly and offers the menu. |
+| `return_to_flow` | ✅ Plan 028 | Re-render the active flow's last view, or `lastRenderedView`. |
+| `mutate_plan` | 🚧 Plan D | For v0.0.5 the dispatcher picks flow_input during active planning and clarify (honest deferral) post-confirmation. |
+| `answer_plan_question` / `answer_recipe_question` / `answer_domain_question` | 🚧 Plan E | Deferred; dispatcher clarifies honestly. |
+| `show_recipe` / `show_plan` / `show_shopping_list` / `show_progress` | 🚧 Plan E | Deferred; dispatcher declines with a "tap a button" hint. |
+| `log_measurement` | 🚧 Plan E | The numeric pre-filter handles the happy path during `awaiting_measurement`; other cases clarify. |
+| `log_eating_out` / `log_treat` | 🚫 Deferred beyond v0.0.5 | Proposal-committed but not scoped for v0.0.5. |
+
+#### State preservation invariants (Plan 028)
+
+The runner and its action handlers enforce:
+
+1. **The dispatcher never clears `planFlow` or `recipeFlow`.** Side conversations leave flow state untouched. Only explicit flow completions, explicit cancellations, and natural terminations clear flow state.
+2. **`flow_input` during an active planning proposal routes to the same `handleMutationText` path** — never starts a new planning session.
+3. **Cancel precedence:** meta-intent cancel phrases short-circuit the dispatcher when a planning flow is active. See the Plan 028 doc comment above `CANCEL_PATTERNS` in `src/agents/plan-flow.ts` and scenario 041's regression lock.
+4. **Pending sub-agent clarifications are preserved across side conversations.** The re-proposer's `pendingClarification` is carried into the dispatcher's context so the LLM knows there's an open question, and the clarification stays on `planFlow` state until the user eventually answers it via `flow_input`.
+5. **`return_to_flow` re-renders; it does not start fresh.** Fidelity is three-tiered in Plan 028:
+   - **Byte-identical** for `planFlow.phase === 'proposal'` (reads stored `proposalText`) and `recipeFlow.phase === 'reviewing'` (reads `currentRecipe` via `renderRecipe`). Scenarios 039 and 043 are the regression locks.
+   - **Phase-canonical prompt** for every other active-flow phase. The `getPlanFlowResumeView` / `getRecipeFlowResumeView` helpers (`src/telegram/flow-resume-views.ts`) emit a short re-entry prompt keyed on phase + structural state. Semantically correct, not byte-identical.
+   - **Placeholder reply** for the no-flow case — "Back to X. Tap 📋 My Plan for the current view." plus the main menu reply keyboard.
+   Plan E Task 19 promotes tiers 2 and 3 to byte-identical via `lastRenderedText` persistence + a view-renderers module.
+6. **Natural-language back commands are equivalent to back-button taps (invariant #7).** Both typed "back to the plan" and the inline `[← Back to planning]` button delegate to `handleReturnToFlowAction` from the runner, with the callback path wrapping its sink for `recentTurns` capture so both paths contribute equivalent context for the next dispatcher call. Scenarios 039 and 043 lock this in jointly.
+7. **Recent turns are ring-buffered at 6 entries and capture both sides.** `recentTurns` records the user's message plus the **last** bot reply for every dispatcher-handled turn — including replies produced by downstream flow handlers (`flow_input` → re-proposer output, recipe renders) via `wrapSinkForBotTurnCapture`. Bot turns are truncated to `BOT_TURN_TEXT_MAX` (500) chars at capture time. The cancel meta-intent short-circuit and the numeric pre-filter are the two documented bypasses: they run with the raw sink and add nothing to `recentTurns` because they are flow terminations / parse-only fast paths, not conversational turns.
+
+#### Numeric measurement pre-filter
+
+One narrow exception to "dispatcher is the front door": during `progressFlow.phase === 'awaiting_measurement'`, the runner first tries `parseMeasurementInput(text)`. If it returns a non-null result, the measurement is logged (possibly after disambiguation) and the runner returns WITHOUT calling the dispatcher. If parsing fails, the runner proceeds to the dispatcher normally. The `recentTurns` buffer is NOT updated for pre-filter-handled turns.
+
 ---
 
 ## First week experience

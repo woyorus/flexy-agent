@@ -227,6 +227,17 @@ The distinction matters:
 
 Get this wrong and the scenario exercises the wrong code path. The captured transcript diff catches the mistake loudly, but knowing up front saves a regenerate cycle.
 
+### Dispatcher fixtures in v0.0.5+ scenarios (Plan 028)
+
+Every scenario that fires free text (`text(...)` events with non-menu labels) produces at least one dispatcher LLM fixture per text turn. The fixture appears in `llmFixtures` with the dispatcher's system prompt as its first system message (it starts with "You are Flexie's conversation dispatcher"). Scenarios with recipe flow or planning flow text turns add exactly one dispatcher fixture PLUS their downstream agent fixtures (re-proposer, recipe generator, etc.). Cancel-phrase turns (the planning meta-intent short-circuit) do NOT produce a dispatcher fixture — see scenario 041 for the regression lock.
+
+When reviewing a regenerated recording, confirm that:
+
+- Each expected text turn has the correct number of fixtures (1 for dispatcher + downstream calls).
+- The dispatcher's chosen action matches your expectations for the conversational intent.
+- `finalSession.recentTurns` length reflects the user turns plus one bot turn per dispatcher call from ANY action branch. The runner's sink wrapper (`wrapSinkForBotTurnCapture`) buffers replies and commits the **last** one via `flushBotTurn` after the action handler returns, so every action — `flow_input`, `clarify`, `out_of_scope`, and `return_to_flow` — contributes one bot turn each. For multi-message branches like the recipe flow ("Generating your recipe…" then the rendered recipe), the recorded bot turn is the **substantive reply**, not the holding message. Two documented bypasses: the cancel meta-intent short-circuit (scenario 041) and the numeric pre-filter (scenario 042) both run with the raw sink and contribute nothing to `recentTurns`.
+- Scenarios that exercise the `plan_resume` / `recipe_resume` inline callback path should NOT have a dispatcher fixture for the click turn — the callback runs outside `runDispatcherFrontDoor`. Scenario 043 is the regression lock for the button-tap path.
+
 ## Updating a stale recording
 
 If the spec changes (new event, different initial state, different recipeSet, different clock), the `specHash` in `recorded.json` no longer matches the current spec. The runner detects this and fails with:
