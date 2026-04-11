@@ -415,8 +415,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       const slug = action.slice(3);
       const recipe = recipes.getBySlug(slug) ?? findBySlugPrefix(recipes, slug);
       if (recipe) {
-        session.surfaceContext = 'recipes';
         session.lastRecipeSlug = recipe.slug;
+        setLastRenderedView(session, { surface: 'recipes', view: 'recipe_detail', slug: recipe.slug });
         log.debug('FLOW', `recipe view: ${slug}`);
         await sink.reply(renderRecipe(recipe), { reply_markup: recipeViewKeyboard(slug), parse_mode: 'MarkdownV2' });
       } else {
