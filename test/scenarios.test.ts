@@ -109,5 +109,16 @@ for (const dir of scenarioDirs) {
       recorded.expected.finalStore,
       'finalStore diverged from recorded state',
     );
+    // Plan 027: per-step session assertions for scenarios that opt in.
+    // The recording's `sessionAt` is undefined for scenarios without
+    // `captureStepState: true`, and the check below is then skipped — so
+    // existing scenarios are unaffected.
+    if (recorded.expected.sessionAt !== undefined) {
+      assert.deepStrictEqual(
+        result.sessionAt,
+        recorded.expected.sessionAt,
+        'sessionAt diverged from recorded per-step state',
+      );
+    }
   });
 }

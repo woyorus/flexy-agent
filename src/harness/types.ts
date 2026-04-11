@@ -75,6 +75,15 @@ export interface Scenario {
   recipeSet: string;
   initialState: ScenarioInitialState;
   events: ScenarioEvent[];
+  /**
+   * Plan 027: if true, the runner captures a snapshot of `core.session`
+   * after every dispatched event and exposes it as `result.sessionAt`.
+   * The generator writes the same array to `recorded.expected.sessionAt`.
+   * The test file's fourth `deepStrictEqual` asserts them equal if
+   * `recorded.expected.sessionAt` is present. Opt-in so scenarios that
+   * don't need per-step state assertions don't inflate their recordings.
+   */
+  captureStepState?: boolean;
 }
 
 // ─── Captured outputs (comparison side) ───────────────────────────────────────
@@ -137,6 +146,13 @@ export interface ScenarioExpected {
    * snapshot-serialization contract as `finalSession`.
    */
   finalStore: unknown;
+  /**
+   * Plan 027: per-step snapshots of `core.session` captured after every
+   * dispatched event. Present only when the scenario opts in via
+   * `captureStepState: true`. Length equals `spec.events.length` when
+   * present.
+   */
+  sessionAt?: unknown[];
 }
 
 /**
@@ -166,4 +182,11 @@ export interface ScenarioResult {
   outputs: CapturedOutput[];
   finalSession: unknown;
   finalStore: unknown;
+  /**
+   * Plan 027: per-step snapshots of `core.session` captured after every
+   * dispatched event. Populated only when the scenario opts in via
+   * `captureStepState: true`. Length equals `spec.events.length` when
+   * populated.
+   */
+  sessionAt?: unknown[];
 }

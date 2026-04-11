@@ -116,8 +116,15 @@ export async function runScenario(
     const core = createBotCore(deps);
     const sink = new CapturingOutputSink();
 
+    const sessionAt: unknown[] = [];
     for (const event of spec.events) {
       await core.dispatch(toUpdate(event), sink);
+      if (spec.captureStepState) {
+        // Snapshot-serialize the session after every dispatched event so
+        // per-step assertions can verify navigation state transitions.
+        // Matches the same JSON+normalizeUuids contract as finalSession.
+        sessionAt.push(normalizeUuids(JSON.parse(JSON.stringify(core.session))));
+      }
     }
 
     // Snapshot-serialize both state fields via JSON round-trip, then
@@ -125,11 +132,15 @@ export async function runScenario(
     // the non-deterministic ids produced by `uuid.v4()` in plan-flow.
     // Output text may also contain UUIDs (e.g. inside error messages) —
     // normalize the outputs array too for symmetry with the recording.
-    return {
+    const result: ScenarioResult = {
       outputs: normalizeUuids(JSON.parse(JSON.stringify(sink.captured))),
       finalSession: normalizeUuids(JSON.parse(JSON.stringify(core.session))),
       finalStore: normalizeUuids(JSON.parse(JSON.stringify(store.snapshot()))),
     };
+    if (spec.captureStepState) {
+      result.sessionAt = sessionAt;
+    }
+    return result;
   } finally {
     clock.restore();
   }

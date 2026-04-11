@@ -276,26 +276,36 @@ async function generateScenario(args: CliArgs): Promise<void> {
 
     // ─── Drive the event loop ───────────────────────────────────────────
     console.log(`\nRunning ${spec.events.length} events through BotCore...`);
+    const sessionAt: unknown[] = [];
     for (let i = 0; i < spec.events.length; i++) {
       const event = spec.events[i]!;
       const summary = summarizeEvent(event);
       console.log(`  ${i + 1}/${spec.events.length}: ${summary}`);
       await core.dispatch(toUpdate(event), sink);
+      if (spec.captureStepState) {
+        // Plan 027: per-step session capture mirrors runner.ts so the
+        // recording carries one snapshot per dispatched event.
+        sessionAt.push(normalizeUuids(JSON.parse(JSON.stringify(core.session))));
+      }
     }
 
     // ─── Serialize and write ────────────────────────────────────────────
     // Normalize UUIDs to placeholder tokens before writing the recording,
     // matching the runner's normalization so replay comparisons succeed.
     // See `src/harness/normalize.ts` for the full rationale.
+    const expected: RecordedScenario['expected'] = {
+      outputs: normalizeUuids(JSON.parse(JSON.stringify(sink.captured))),
+      finalSession: normalizeUuids(JSON.parse(JSON.stringify(core.session))),
+      finalStore: normalizeUuids(JSON.parse(JSON.stringify(store.snapshot()))),
+    };
+    if (spec.captureStepState) {
+      expected.sessionAt = sessionAt;
+    }
     const recorded: RecordedScenario = {
       generatedAt: new Date().toISOString(),
       specHash: hashSpec(spec),
       llmFixtures: llm.fixtures,
-      expected: {
-        outputs: normalizeUuids(JSON.parse(JSON.stringify(sink.captured))),
-        finalSession: normalizeUuids(JSON.parse(JSON.stringify(core.session))),
-        finalStore: normalizeUuids(JSON.parse(JSON.stringify(store.snapshot()))),
-      },
+      expected,
     };
 
     await mkdir(dirname(recordedPath), { recursive: true });
