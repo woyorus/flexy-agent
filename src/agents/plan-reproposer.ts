@@ -16,7 +16,7 @@
 
 import type { LLMProvider } from '../ai/provider.js';
 import type { PlanProposal, ProposedBatch, PreCommittedSlot } from '../solver/types.js';
-import type { MealEvent, FlexSlot } from '../models/types.js';
+import type { MealEvent, FlexSlot, MutationRecord } from '../models/types.js';
 import type { RecipeSummary } from './plan-proposer.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import { validateProposal } from '../qa/validators/proposal.js';
@@ -36,12 +36,12 @@ export interface ReProposerInput {
   weeklyTargets: { calories: number; protein: number };
 }
 
-export interface MutationRecord {
-  /** Natural language description of what the user asked */
-  constraint: string;
-  /** ISO timestamp of when this mutation was applied */
-  appliedAt: string;
-}
+// MutationRecord moved to models/types.ts in Plan 026. Re-exported here so the
+// single existing importer (plan-flow.ts) keeps working without a widespread rename.
+// NOTE: this re-export form (without `from`) re-exports the LOCAL binding introduced
+// by the import above — a `export type { ... } from '../models/types.js';` form would
+// NOT create a local binding and would break `ReProposerInput.mutationHistory` at line 31.
+export type { MutationRecord };
 
 export type ReProposerOutput =
   | { type: 'proposal'; proposal: PlanProposal; reasoning: string }

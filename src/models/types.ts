@@ -145,6 +145,18 @@ export interface MealEvent {
   notes?: string;
 }
 
+/**
+ * A single user-approved plan mutation, recorded so the re-proposer respects
+ * prior choices on subsequent calls. Persisted on `PlanSession.mutationHistory`
+ * (Plan 026) so it survives save-before-destroy writes.
+ */
+export interface MutationRecord {
+  /** Natural-language description of what the user asked for */
+  constraint: string;
+  /** ISO timestamp (Date.toISOString()) when the mutation was applied */
+  appliedAt: string;
+}
+
 export interface ScaledIngredient {
   name: string;
   amount: number;
