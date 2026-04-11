@@ -1,0 +1,279 @@
+{
+  "generatedAt": "2026-04-08T10:00:00.000Z",
+  "specHash": "cc94a2da89d9c31de7dd259f5a9112d5f9b636ab1fa372bad222da8859fe22c4",
+  "llmFixtures": [],
+  "expected": {
+    "outputs": [
+      {
+        "text": "*Wed, Apr 8*\n—\n—\n\n*Thu, Apr 9*\n🔪 Cook Lunch: *Ground Beef Rigatoni Bolognese* — 3 servings\n—\n\n*Fri, Apr 10*\nGround Beef Rigatoni Bolognese _\\(reheat\\)_\n—",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "🔪 Beef Bolognese — 3 servings",
+                "callback": "cv_batch-036-lunch-0000-0000-000000000001"
+              }
+            ],
+            [
+              {
+                "label": "🛒 Get shopping list",
+                "callback": "sl_next"
+              },
+              {
+                "label": "📅 View full week",
+                "callback": "wo_show"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Your week: Mon, Apr 6 – Sun, Apr 12*\nBreakfast: Salmon\\-Avocado Toast with Soft Eggs and Cinnamon Yogurt \\(daily\\)\n\n*Mon* L: — · D: —\n*Tue* L: — · D: —\n*Wed* L: — · D: —\n*Thu* 🔪 L: 🔪 Ground Beef Rigatoni Bolognese · D: —\n*Fri* L: Ground Beef Rigatoni Bolognese · D: —\n*Sat* L: Ground Beef Rigatoni Bolognese · D: —\n*Sun* L: — · D: —\n\n*Weekly target: on track ✓*\n_Tap a day for details:_",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Mon",
+                "callback": "dd_2026-04-06"
+              },
+              {
+                "label": "Tue",
+                "callback": "dd_2026-04-07"
+              },
+              {
+                "label": "Wed",
+                "callback": "dd_2026-04-08"
+              },
+              {
+                "label": "Thu",
+                "callback": "dd_2026-04-09"
+              }
+            ],
+            [
+              {
+                "label": "Fri",
+                "callback": "dd_2026-04-10"
+              },
+              {
+                "label": "Sat",
+                "callback": "dd_2026-04-11"
+              },
+              {
+                "label": "Sun",
+                "callback": "dd_2026-04-12"
+              }
+            ],
+            [
+              {
+                "label": "← Back",
+                "callback": "na_show"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Thursday, Apr 9*\n\n🔪 Lunch: *Ground Beef Rigatoni Bolognese*\nCook 3 servings \\(Thu–Sat\\) · \\~780 cal each\nDinner: —",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "🔪 Beef Bolognese — 3 servings",
+                "callback": "cv_batch-036-lunch-0000-0000-000000000001"
+              }
+            ],
+            [
+              {
+                "label": "🛒 Get shopping list",
+                "callback": "sl_2026-04-09"
+              },
+              {
+                "label": "← Back to week",
+                "callback": "wo_show"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "*Your week: Mon, Apr 6 – Sun, Apr 12*\nBreakfast: Salmon\\-Avocado Toast with Soft Eggs and Cinnamon Yogurt \\(daily\\)\n\n*Mon* L: — · D: —\n*Tue* L: — · D: —\n*Wed* L: — · D: —\n*Thu* 🔪 L: 🔪 Ground Beef Rigatoni Bolognese · D: —\n*Fri* L: Ground Beef Rigatoni Bolognese · D: —\n*Sat* L: Ground Beef Rigatoni Bolognese · D: —\n*Sun* L: — · D: —\n\n*Weekly target: on track ✓*\n_Tap a day for details:_",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Mon",
+                "callback": "dd_2026-04-06"
+              },
+              {
+                "label": "Tue",
+                "callback": "dd_2026-04-07"
+              },
+              {
+                "label": "Wed",
+                "callback": "dd_2026-04-08"
+              },
+              {
+                "label": "Thu",
+                "callback": "dd_2026-04-09"
+              }
+            ],
+            [
+              {
+                "label": "Fri",
+                "callback": "dd_2026-04-10"
+              },
+              {
+                "label": "Sat",
+                "callback": "dd_2026-04-11"
+              },
+              {
+                "label": "Sun",
+                "callback": "dd_2026-04-12"
+              }
+            ],
+            [
+              {
+                "label": "← Back",
+                "callback": "na_show"
+              }
+            ]
+          ]
+        }
+      }
+    ],
+    "finalSession": {
+      "recipeFlow": null,
+      "planFlow": null,
+      "recipeListPage": 0,
+      "surfaceContext": "plan",
+      "progressFlow": null,
+      "lastRenderedView": {
+        "surface": "plan",
+        "view": "week_overview"
+      }
+    },
+    "finalStore": {
+      "session": null,
+      "planSessions": [
+        {
+          "id": "session-036-0000-0000-0000-000000000001",
+          "horizonStart": "2026-04-06",
+          "horizonEnd": "2026-04-12",
+          "breakfast": {
+            "locked": true,
+            "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
+            "caloriesPerDay": 390,
+            "proteinPerDay": 31
+          },
+          "treatBudgetCalories": 1050,
+          "flexSlots": [],
+          "events": [],
+          "mutationHistory": [],
+          "confirmedAt": "2026-04-06T08:00:00.000Z",
+          "superseded": false,
+          "createdAt": "2026-04-06T08:00:00.000Z",
+          "updatedAt": "2026-04-06T08:00:00.000Z"
+        }
+      ],
+      "batches": [
+        {
+          "id": "batch-036-lunch-0000-0000-000000000001",
+          "recipeSlug": "ground-beef-rigatoni-bolognese",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-09",
+            "2026-04-10",
+            "2026-04-11"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 780,
+            "protein": 52
+          },
+          "actualPerServing": {
+            "calories": 780,
+            "protein": 52,
+            "fat": 32,
+            "carbs": 78
+          },
+          "scaledIngredients": [
+            {
+              "name": "ground beef",
+              "amount": 180,
+              "unit": "g",
+              "totalForBatch": 540,
+              "role": "protein"
+            },
+            {
+              "name": "rigatoni",
+              "amount": 90,
+              "unit": "g",
+              "totalForBatch": 270,
+              "role": "carb"
+            },
+            {
+              "name": "olive oil",
+              "amount": 15,
+              "unit": "ml",
+              "totalForBatch": 45,
+              "role": "fat"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "session-036-0000-0000-0000-000000000001"
+        }
+      ]
+    },
+    "sessionAt": [
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "plan",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "plan",
+          "view": "next_action"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "plan",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "plan",
+          "view": "week_overview"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "plan",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "plan",
+          "view": "day_detail",
+          "day": "2026-04-09"
+        }
+      },
+      {
+        "recipeFlow": null,
+        "planFlow": null,
+        "recipeListPage": 0,
+        "surfaceContext": "plan",
+        "progressFlow": null,
+        "lastRenderedView": {
+          "surface": "plan",
+          "view": "week_overview"
+        }
+      }
+    ]
+  }
+}
