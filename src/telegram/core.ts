@@ -89,6 +89,11 @@ import {
 } from './keyboards.js';
 import { setLastRenderedView, type LastRenderedView } from './navigation-state.js';
 import type { ConversationTurn } from './dispatcher-runner.js';
+import {
+  handleReturnToFlowAction,
+  wrapSinkForBotTurnCapture,
+  flushBotTurn,
+} from './dispatcher-runner.js';
 import { getPlanFlowResumeView } from './flow-resume-views.js';
 import { getPlanLifecycle, getVisiblePlanSession, toLocalISODate, getNextCookDay } from '../plan/helpers.js';
 import type { PlanLifecycle } from '../plan/helpers.js';
@@ -531,6 +536,27 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     if (action === 'plan_replan_cancel') {
       session.pendingReplan = undefined;
       await sink.reply('Plan kept.', { reply_markup: await getMenuKeyboard() });
+      return;
+    }
+
+    // ─── Back-button callbacks (Plan 028) ─────────────────────────────
+    // Proposal 003 invariant #7: back-button taps and natural-language
+    // "back to X" commands are equivalent. Delegate to the SAME handler
+    // the dispatcher uses for `return_to_flow`, so the three-tier
+    // fidelity contract applies uniformly whether the user typed or
+    // tapped.
+    if (action === 'plan_resume' || action === 'recipe_resume') {
+      const wrappedSink = wrapSinkForBotTurnCapture(sink, session);
+      try {
+        await handleReturnToFlowAction(
+          { action: 'return_to_flow', params: {}, reasoning: 'back-button tap' },
+          { llm, recipes, store },
+          session,
+          wrappedSink,
+        );
+      } finally {
+        flushBotTurn(wrappedSink);
+      }
       return;
     }
 

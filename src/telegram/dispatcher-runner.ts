@@ -617,6 +617,145 @@ async function buildSideConversationKeyboard(
   return buildMainMenuKeyboard(lifecycle);
 }
 
+// ─── return_to_flow handler ──────────────────────────────────────────────────
+
+/**
+ * `return_to_flow` — re-render the user's last view.
+ *
+ * Two branches:
+ *   1. Active flow → re-render the flow's last view from flow state.
+ *   2. No active flow → re-render `session.lastRenderedView` (Plan 027).
+ *
+ * If neither branch has anything to show, fall back to the menu with a
+ * brief "you're at the menu" message.
+ */
+export async function handleReturnToFlowAction(
+  _decision: Extract<DispatcherDecision, { action: 'return_to_flow' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  // Branch 1: active flow.
+  if (session.planFlow) {
+    await rerenderPlanFlow(session, sink);
+    return;
+  }
+  if (session.recipeFlow) {
+    await rerenderRecipeFlow(session, sink);
+    return;
+  }
+
+  // Branch 2: no active flow, use lastRenderedView.
+  if (session.lastRenderedView) {
+    await rerenderLastView(session, deps, sink);
+    return;
+  }
+
+  // Branch 3: nothing to return to.
+  const { buildMainMenuKeyboard } = await import('./keyboards.js');
+  const today = toLocalISODate(new Date());
+  const lifecycle = await getPlanLifecycle(session as never, deps.store, today);
+  await sink.reply("You're at the menu.", { reply_markup: buildMainMenuKeyboard(lifecycle) });
+}
+
+/**
+ * Re-render the plan flow's current view by delegating to the leaf
+ * `getPlanFlowResumeView` helper from `flow-resume-views.ts` (Task 8b).
+ *
+ * Fidelity: byte-identical for `proposal` phase (reads stored
+ * `proposalText`); phase-canonical prompt for all other phases.
+ */
+async function rerenderPlanFlow(
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const { getPlanFlowResumeView } = await import('./flow-resume-views.js');
+  const view = getPlanFlowResumeView(
+    session.planFlow as unknown as import('../agents/plan-flow.js').PlanFlowState,
+  );
+  await sink.reply(view.text, {
+    ...(view.replyMarkup && { reply_markup: view.replyMarkup }),
+    ...(view.parseMode && { parse_mode: view.parseMode }),
+  });
+}
+
+/**
+ * Re-render the recipe flow's current view by delegating to the leaf
+ * `getRecipeFlowResumeView` helper from `flow-resume-views.ts` (Task 8b).
+ *
+ * Fidelity: byte-identical for `reviewing` phase (reads stored
+ * `currentRecipe` via `renderRecipe`); phase-canonical prompt for other
+ * phases.
+ */
+async function rerenderRecipeFlow(
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const { getRecipeFlowResumeView } = await import('./flow-resume-views.js');
+  const view = getRecipeFlowResumeView(
+    session.recipeFlow as unknown as import('../agents/recipe-flow.js').RecipeFlowState,
+  );
+  await sink.reply(view.text, {
+    ...(view.replyMarkup && { reply_markup: view.replyMarkup }),
+    ...(view.parseMode && { parse_mode: view.parseMode }),
+  });
+}
+
+/**
+ * Re-render the last navigation view the user was looking at. Reads
+ * `session.lastRenderedView` (set by Plan 027 handlers) and emits a
+ * minimal placeholder reply for each variant — the Tier 3 behavior
+ * documented in the Plan 028 decision log.
+ *
+ * Plan E Task 19 promotes this to full re-render parity with the
+ * original callback by delegating to the extracted view-renderers module.
+ */
+async function rerenderLastView(
+  session: DispatcherSession,
+  deps: DispatcherRunnerDeps,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const view = session.lastRenderedView!;
+  const { buildMainMenuKeyboard } = await import('./keyboards.js');
+  const today = toLocalISODate(new Date());
+  const lifecycle = await getPlanLifecycle(session as never, deps.store, today);
+  const menuKb = buildMainMenuKeyboard(lifecycle);
+
+  switch (view.surface) {
+    case 'plan':
+      await sink.reply('Back to your plan. Tap 📋 My Plan for the current view.', {
+        reply_markup: menuKb,
+      });
+      return;
+    case 'cooking':
+      await sink.reply('Back to cooking. Tap the cook-day button on your plan to return.', {
+        reply_markup: menuKb,
+      });
+      return;
+    case 'shopping':
+      await sink.reply('Back to the shopping list. Tap 🛒 Shopping List for the current view.', {
+        reply_markup: menuKb,
+      });
+      return;
+    case 'recipes':
+      await sink.reply('Back to your recipes. Tap 📖 My Recipes for the full library.', {
+        reply_markup: menuKb,
+      });
+      return;
+    case 'progress':
+      await sink.reply('Back to progress. Tap 📊 Progress to log or see your report.', {
+        reply_markup: menuKb,
+      });
+      return;
+    default:
+      log.warn(
+        'DISPATCHER',
+        `rerenderLastView: unknown surface ${String((view as { surface: string }).surface)}`,
+      );
+      await sink.reply('Back to the menu.', { reply_markup: menuKb });
+  }
+}
+
 // ─── Runner front-door stub (full body lands in Task 11) ─────────────────────
 
 /**
