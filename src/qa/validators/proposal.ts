@@ -168,6 +168,22 @@ export function validateProposal(
     }
   }
 
+  // --- Invariant 14: Meal-type lane ---
+  // Each batch's mealType must be in its recipe's authored mealTypes array.
+  // Plan 026: prevents the re-proposer from placing a dinner-only recipe into
+  // a lunch batch under post-confirmation rearrangement pressure. Skip batches
+  // whose recipe is missing — invariant #10 catches those separately.
+  for (const [i, batch] of proposal.batches.entries()) {
+    const recipe = recipeDb.getBySlug(batch.recipeSlug);
+    if (!recipe) continue;
+    if (!recipe.mealTypes.includes(batch.mealType)) {
+      errors.push(
+        `#14 Meal-type lane: batch[${i}] ${batch.recipeSlug} is placed in ${batch.mealType} ` +
+        `but recipe.mealTypes = [${recipe.mealTypes.join(', ')}]`,
+      );
+    }
+  }
+
   // --- Invariant 11: Event dates in horizon ---
   for (const event of proposal.events) {
     if (!horizonSet.has(event.day)) {

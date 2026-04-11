@@ -21,7 +21,13 @@ const HORIZON = [
 
 /** Minimal recipe stub with configurable fridgeDays. */
 function makeRecipe(slug: string, fridgeDays = 5): Partial<Recipe> {
-  return { slug, storage: { fridgeDays, freezable: false, reheat: 'microwave' } };
+  // Plan 026 invariant #14 reads recipe.mealTypes — default to both lanes so
+  // existing tests aren't constrained by lane mismatches they don't care about.
+  return {
+    slug,
+    mealTypes: ['lunch', 'dinner'],
+    storage: { fridgeDays, freezable: false, reheat: 'microwave' },
+  };
 }
 
 /** Mock RecipeDatabase that resolves slugs from a provided map. */
