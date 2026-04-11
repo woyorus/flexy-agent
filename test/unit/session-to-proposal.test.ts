@@ -455,6 +455,243 @@ test('buildReplacingDraft: carries mutationHistory, preserves past batches + fle
   assert.deepStrictEqual(activeBatch.targetPerServing, { calories: 720, protein: 50 });
 });
 
+test('end-to-end: confirmed plan → adapter → re-proposer (stubbed) → replacing draft → store', async () => {
+  // Setup: a confirmed plan with 2 dinner batches and 1 lunch batch, running
+  // across a full 7-day horizon. Wall clock: Tuesday 7pm. Monday has fully
+  // consumed slots; Tuesday lunch is past (after 15:00); Tuesday dinner is
+  // still active (19:00 < 21:00 dinner cutoff).
+  const { TestStateStore } = await import('../../src/harness/test-store.js');
+  const store = new TestStateStore();
+  const oldSessionId = 'old-session';
+  const now = at('2026-04-07', 19);
+
+  await store.confirmPlanSession(
+    {
+      id: oldSessionId,
+      horizonStart: '2026-04-06',
+      horizonEnd: '2026-04-12',
+      breakfast: { locked: true, recipeSlug: 'oatmeal', caloriesPerDay: 450, proteinPerDay: 25 },
+      treatBudgetCalories: 800,
+      // Past flex slot (Monday dinner — already consumed by Tue 19:00) and
+      // active flex slot (Saturday dinner). The past one must round-trip via
+      // preservedPastFlexSlots, the active one via the re-proposer.
+      flexSlots: [
+        { day: '2026-04-06', mealTime: 'dinner', flexBonus: 350, note: 'burger night' },
+        { day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 },
+      ],
+      // Past meal event (Monday lunch out) and active meal event (Friday lunch).
+      events: [
+        { name: 'team lunch out', day: '2026-04-06', mealTime: 'lunch', estimatedCalories: 850, notes: 'sushi place' },
+        { name: 'friend lunch', day: '2026-04-10', mealTime: 'lunch', estimatedCalories: 700 },
+      ],
+      mutationHistory: [{ constraint: 'initial plan', appliedAt: '2026-04-05T18:00:00.000Z' }],
+    },
+    [
+      // Tagine dinner batch — Mon/Tue/Wed. At Tue 19:00 this is spanning:
+      // Mon dinner past, Tue dinner active, Wed dinner active.
+      batch({
+        id: 'b-tagine',
+        recipeSlug: 'tagine',
+        mealType: 'dinner',
+        eatingDays: ['2026-04-06', '2026-04-07', '2026-04-08'],
+        servings: 3,
+        createdInPlanSessionId: oldSessionId,
+      }),
+      // Grain-bowl lunch batch — Mon/Tue/Wed. At Tue 19:00 Mon lunch and Tue
+      // lunch are past (19:00 > 15:00 cutoff), Wed lunch is active.
+      batch({
+        id: 'b-grain',
+        recipeSlug: 'grain-bowl',
+        mealType: 'lunch',
+        eatingDays: ['2026-04-06', '2026-04-07', '2026-04-08'],
+        servings: 3,
+        createdInPlanSessionId: oldSessionId,
+      }),
+      // Chicken dinner batch — Thu/Fri/Sat. All active.
+      batch({
+        id: 'b-chicken',
+        recipeSlug: 'chicken',
+        mealType: 'dinner',
+        eatingDays: ['2026-04-09', '2026-04-10', '2026-04-11'],
+        servings: 3,
+        createdInPlanSessionId: oldSessionId,
+      }),
+    ],
+  );
+
+  // 1. Load and run the forward adapter.
+  const loaded = await store.getPlanSession(oldSessionId);
+  assert.ok(loaded);
+  const loadedBatches = await store.getBatchesByPlanSessionId(oldSessionId);
+  const forward = sessionToPostConfirmationProposal(loaded, loadedBatches, now);
+
+  // Sanity: near-future is [Tue, Wed].
+  assert.deepStrictEqual(forward.nearFutureDays, ['2026-04-07', '2026-04-08']);
+
+  // Sanity: preserved past includes the Mon tagine half, Mon+Tue grain-bowl halves.
+  const pastSigs = forward.preservedPastBatches.map(
+    (b) => `${b.recipeSlug}:${b.mealType}:${b.eatingDays.join(',')}`,
+  ).sort();
+  assert.deepStrictEqual(pastSigs, [
+    'grain-bowl:lunch:2026-04-06,2026-04-07',
+    'tagine:dinner:2026-04-06',
+  ]);
+
+  // Sanity: the Monday past flex slot and Monday past lunch event split into
+  // preservedPast* arrays; the Saturday flex and Friday lunch event stay active.
+  assert.deepStrictEqual(forward.preservedPastFlexSlots, [
+    { day: '2026-04-06', mealTime: 'dinner', flexBonus: 350, note: 'burger night' },
+  ]);
+  assert.deepStrictEqual(forward.preservedPastEvents, [
+    { name: 'team lunch out', day: '2026-04-06', mealTime: 'lunch', estimatedCalories: 850, notes: 'sushi place' },
+  ]);
+  assert.deepStrictEqual(forward.activeProposal.flexSlots, [
+    { day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 },
+  ]);
+  assert.deepStrictEqual(forward.activeProposal.events, [
+    { name: 'friend lunch', day: '2026-04-10', mealTime: 'lunch', estimatedCalories: 700 },
+  ]);
+
+  // Sanity: active proposal has tagine (Tue,Wed/2), grain-bowl (Wed/1), chicken (Thu-Sat/3).
+  const activeSigs = forward.activeProposal.batches.map(
+    (b) => `${b.recipeSlug}:${b.mealType}:${b.days.join(',')}/${b.servings}`,
+  ).sort();
+  assert.deepStrictEqual(activeSigs, [
+    'chicken:dinner:2026-04-09,2026-04-10,2026-04-11/3',
+    'grain-bowl:lunch:2026-04-08/1',
+    'tagine:dinner:2026-04-07,2026-04-08/2',
+  ]);
+
+  // 2. Stub the re-proposer output: simulate "eating out tonight" by dropping
+  // the Tue tagine slot (keeping Wed), and adding an eat_out event on Tue
+  // dinner. Chicken and grain-bowl unchanged. Events now include BOTH the
+  // preserved active event (Friday friend lunch) from the forward adapter AND
+  // the new eat-out. Attach a minimal solverOutput so buildReplacingDraft has
+  // something to consume.
+  const reProposedActive: PlanProposal = {
+    batches: [
+      {
+        recipeSlug: 'grain-bowl', recipeName: 'grain-bowl', mealType: 'lunch',
+        days: ['2026-04-08'], servings: 1, overflowDays: undefined,
+      },
+      {
+        recipeSlug: 'tagine', recipeName: 'tagine', mealType: 'dinner',
+        days: ['2026-04-08'], servings: 1, overflowDays: undefined,
+      },
+      {
+        recipeSlug: 'chicken', recipeName: 'chicken', mealType: 'dinner',
+        days: ['2026-04-09', '2026-04-10', '2026-04-11'], servings: 3, overflowDays: undefined,
+      },
+    ],
+    flexSlots: forward.activeProposal.flexSlots,
+    events: [
+      ...forward.activeProposal.events,
+      { name: 'dinner with friends', day: '2026-04-07', mealTime: 'dinner', estimatedCalories: 900 },
+    ],
+    recipesToGenerate: [],
+    solverOutput: {
+      isValid: true,
+      weeklyTotals: { calories: 15000, protein: 900, treatBudget: 800, flexSlotCalories: 350 },
+      dailyBreakdown: [],
+      batchTargets: [
+        {
+          id: 'bt-grain',
+          recipeSlug: 'grain-bowl',
+          mealType: 'lunch',
+          days: ['2026-04-08'],
+          servings: 1,
+          targetPerServing: { calories: 600, protein: 35 },
+        },
+        {
+          id: 'bt-tagine',
+          recipeSlug: 'tagine',
+          mealType: 'dinner',
+          days: ['2026-04-08'],
+          servings: 1,
+          targetPerServing: { calories: 720, protein: 48 },
+        },
+        {
+          id: 'bt-chicken',
+          recipeSlug: 'chicken',
+          mealType: 'dinner',
+          days: ['2026-04-09', '2026-04-10', '2026-04-11'],
+          servings: 3,
+          targetPerServing: { calories: 700, protein: 50 },
+        },
+      ],
+      cookingSchedule: [],
+      warnings: [],
+    },
+  };
+
+  // 3. Run the round-trip back. Pass preserved past flex slots + events through
+  // as well — the end-to-end contract is "past state round-trips verbatim".
+  const { draft, batches: newBatches } = await buildReplacingDraft({
+    oldSession: loaded,
+    preservedPastBatches: forward.preservedPastBatches,
+    preservedPastFlexSlots: forward.preservedPastFlexSlots,
+    preservedPastEvents: forward.preservedPastEvents,
+    reProposedActive,
+    newMutation: { constraint: 'eating out tonight', appliedAt: '2026-04-07T19:30:00.000Z' },
+    recipeDb: fakeRecipeDb,
+    llm: throwingLLM,
+  });
+
+  // 4. Write via confirmPlanSessionReplacing.
+  const persisted = await store.confirmPlanSessionReplacing(draft, newBatches, oldSessionId);
+
+  // 5. Assert final store state.
+  // Old session superseded.
+  const oldReloaded = await store.getPlanSession(oldSessionId);
+  assert.ok(oldReloaded);
+  assert.equal(oldReloaded.superseded, true);
+
+  // New session active, mutationHistory = [initial plan, eating out tonight].
+  assert.equal(persisted.superseded, false);
+  assert.equal(persisted.mutationHistory.length, 2);
+  assert.equal(persisted.mutationHistory[1]!.constraint, 'eating out tonight');
+
+  // New session flexSlots: past (Mon burger night) + active (Sat flex).
+  assert.equal(persisted.flexSlots.length, 2);
+  assert.deepStrictEqual(
+    persisted.flexSlots.map((f) => `${f.day}:${f.mealTime}`).sort(),
+    ['2026-04-06:dinner', '2026-04-11:dinner'],
+  );
+  const pastFlex = persisted.flexSlots.find((f) => f.day === '2026-04-06');
+  assert.equal(pastFlex?.note, 'burger night', 'past flex slot metadata must survive');
+
+  // New session events: past (Mon team lunch) + preserved active (Fri friend
+  // lunch carried through the re-proposer) + newly-added (Tue dinner out).
+  assert.equal(persisted.events.length, 3);
+  const eventSigs = persisted.events.map((e) => `${e.day}:${e.mealTime}:${e.name}`).sort();
+  assert.deepStrictEqual(eventSigs, [
+    '2026-04-06:lunch:team lunch out',
+    '2026-04-07:dinner:dinner with friends',
+    '2026-04-10:lunch:friend lunch',
+  ]);
+  const pastEvent = persisted.events.find((e) => e.day === '2026-04-06');
+  assert.equal(pastEvent?.estimatedCalories, 850, 'past event calories must survive');
+  assert.equal(pastEvent?.notes, 'sushi place', 'past event notes must survive');
+
+  // New session's batches under the new id include: the preserved past
+  // halves + the re-proposed active batches. Old batches still exist but
+  // with status='cancelled' on the old session.
+  const newBatchesReloaded = await store.getBatchesByPlanSessionId(persisted.id);
+  const newSigs = newBatchesReloaded.map(
+    (b) => `${b.recipeSlug}:${b.mealType}:${b.eatingDays.join(',')}:${b.status}`,
+  ).sort();
+  assert.deepStrictEqual(newSigs, [
+    'chicken:dinner:2026-04-09,2026-04-10,2026-04-11:planned',
+    'grain-bowl:lunch:2026-04-06,2026-04-07:planned',
+    'grain-bowl:lunch:2026-04-08:planned',
+    'tagine:dinner:2026-04-06:planned',
+    'tagine:dinner:2026-04-08:planned',
+  ]);
+
+  const oldBatchesReloaded = await store.getBatchesByPlanSessionId(oldSessionId);
+  assert.ok(oldBatchesReloaded.every((b) => b.status === 'cancelled'));
+});
+
 test('buildReplacingDraft: throws when reProposedActive.solverOutput is missing', async () => {
   const reProposedWithoutSolver: PlanProposal = {
     batches: [
