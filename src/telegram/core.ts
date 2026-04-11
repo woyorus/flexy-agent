@@ -88,6 +88,7 @@ import {
   progressReportKeyboard,
 } from './keyboards.js';
 import { setLastRenderedView, type LastRenderedView } from './navigation-state.js';
+import type { ConversationTurn } from './dispatcher-runner.js';
 import { getPlanLifecycle, getVisiblePlanSession, toLocalISODate, getNextCookDay } from '../plan/helpers.js';
 import type { PlanLifecycle } from '../plan/helpers.js';
 import { getCalendarWeekBoundaries } from '../utils/dates.js';
@@ -201,6 +202,22 @@ export interface BotCoreSession {
    * session init and after `reset()`.
    */
   lastRenderedView?: LastRenderedView;
+  /**
+   * Plan 028: Last N conversation exchanges, ring-buffered at
+   * `RECENT_TURNS_MAX` (6 = three user+bot pairs). Consumed by the
+   * dispatcher's context-bundle builder so it can follow referential
+   * threads across turns ("what about the lamb?" after "can I freeze
+   * the tagine?") and carry clarification context. Written by
+   * `pushTurn` in `./dispatcher-runner.ts`. In-memory only — not
+   * persisted, dropped on bot restart.
+   *
+   * **Optional** so that scenarios that never fire free text keep their
+   * existing `recorded.json` files unchanged — `JSON.stringify` drops
+   * undefined fields, so only scenarios that actually populate turns
+   * grow a `recentTurns` entry in their recording. Same rationale and
+   * same pattern as Plan 027's `lastRenderedView` field.
+   */
+  recentTurns?: ConversationTurn[];
   /** Progress measurement flow — explicit phase prevents input hijacking after logging. */
   progressFlow: {
     phase: 'awaiting_measurement' | 'confirming_disambiguation';
@@ -1377,6 +1394,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     session.surfaceContext = null;
     session.lastRecipeSlug = undefined;
     session.lastRenderedView = undefined;
+    session.recentTurns = undefined;
     session.pendingReplan = undefined;
   }
 
