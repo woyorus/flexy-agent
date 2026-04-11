@@ -2813,26 +2813,26 @@ This is a pure verification step. If any of the above fails, jump back to the re
 
 ## Progress
 
-- [ ] Task 1 — Green baseline
-- [ ] Task 2 — Create `src/telegram/navigation-state.ts` with `LastRenderedView` + helper
-- [ ] Task 3 — Add `lastRenderedView` field to `BotCoreSession` + update `reset()` + clear in `/start` and `/cancel`
-- [ ] Task 4 — Unit test `setLastRenderedView` against every variant
-- [ ] Task 4b — Extend scenario harness with opt-in per-step session-state capture
-- [ ] Task 5 — Instrument `na_show`, `wo_show`, `dd_` plan-subview handlers
-- [ ] Task 6 — Instrument `cv_` cook-view handler
-- [ ] Task 7 — Instrument `sl_` shopping-list handler (both scopes)
-- [ ] Task 8 — Instrument `rv_` recipe-view handler
-- [ ] Task 8b — Instrument free-text recipe lookup render path
-- [ ] Task 9 — Instrument `showRecipeList` chokepoint
-- [ ] Task 10 — Instrument `my_plan` menu handler
-- [ ] Task 11 — Instrument `progress` menu + `pg_last_report`
-- [ ] Task 12 — Verification checklist: instrumented vs. not
-- [ ] Task 13 — Regenerate affected scenario recordings
-- [ ] Task 14 — PlanFlow-clear audit + scenarios 031/032/033 regression locks
-- [ ] Task 15 — New scenarios 030 (walkthrough with per-step assertions), 035 (log_prompt sibling), and 036 (day-detail back-button audit)
-- [ ] Task 16 — Update `test/scenarios/index.md`
-- [ ] Task 17 — Sync `docs/product-specs/ui-architecture.md` and `testing.md`
-- [ ] Task 18 — Final baseline
+- [x] Task 1 — Green baseline
+- [x] Task 2 — Create `src/telegram/navigation-state.ts` with `LastRenderedView` + helper
+- [x] Task 3 — Add `lastRenderedView` field to `BotCoreSession` + update `reset()` + clear in `/start` and `/cancel`
+- [x] Task 4 — Unit test `setLastRenderedView` against every variant
+- [x] Task 4b — Extend scenario harness with opt-in per-step session-state capture
+- [x] Task 5 — Instrument `na_show`, `wo_show`, `dd_` plan-subview handlers
+- [x] Task 6 — Instrument `cv_` cook-view handler
+- [x] Task 7 — Instrument `sl_` shopping-list handler (both scopes)
+- [x] Task 8 — Instrument `rv_` recipe-view handler
+- [x] Task 8b — Instrument free-text recipe lookup render path
+- [x] Task 9 — Instrument `showRecipeList` chokepoint
+- [x] Task 10 — Instrument `my_plan` menu handler
+- [x] Task 11 — Instrument `progress` menu + `pg_last_report`
+- [x] Task 12 — Verification checklist: instrumented vs. not
+- [x] Task 13 — Regenerate affected scenario recordings
+- [x] Task 14 — PlanFlow-clear audit + scenarios 031/032/033 regression locks
+- [x] Task 15 — New scenarios 030 (walkthrough with per-step assertions), 035 (log_prompt sibling), and 036 (day-detail back-button audit)
+- [x] Task 16 — Update `test/scenarios/index.md`
+- [x] Task 17 — Sync `docs/product-specs/ui-architecture.md` and `testing.md`
+- [x] Task 18 — Final baseline
 
 ---
 
