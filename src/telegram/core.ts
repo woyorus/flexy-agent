@@ -932,7 +932,6 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     switch (action) {
       case 'my_plan': {
         // "📋 My Plan" tapped with active or upcoming plan → show Next Action view
-        session.surfaceContext = 'plan';
         session.lastRecipeSlug = undefined;
         const today = toLocalISODate(new Date());
         const lifecycle = await getPlanLifecycle(session, store, today);
@@ -944,6 +943,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           const nextCookBatchViews = nextCook
             ? batchViews.filter(bv => bv.batch.eatingDays[0] === nextCook.date)
             : [];
+          setLastRenderedView(session, { surface: 'plan', view: 'next_action' });
           await sink.reply(text, { reply_markup: nextActionKeyboard(nextCookBatchViews, lifecycle), parse_mode: 'MarkdownV2' });
           return;
         }
