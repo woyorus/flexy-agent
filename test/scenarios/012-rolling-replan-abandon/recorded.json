@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-04-08T10:00:00.000Z",
-  "specHash": "bcbecc8549a5aef46ec3a1f1ac12ac13881151f302796e1c4f132fc6439c5832",
+  "specHash": "5f1a228a5d9d1ef60e48a48a23e16d6dcbe562d4c225b70dc3e2036918421ce8",
   "llmFixtures": [],
   "expected": {
     "outputs": [
@@ -100,6 +100,7 @@
           "treatBudgetCalories": 853,
           "flexSlots": [],
           "events": [],
+          "mutationHistory": [],
           "confirmedAt": "2026-04-05T10:00:00.000Z",
           "superseded": false,
           "createdAt": "2026-04-05T10:00:00.000Z",
@@ -118,6 +119,7 @@
           "treatBudgetCalories": 853,
           "flexSlots": [],
           "events": [],
+          "mutationHistory": [],
           "confirmedAt": "2026-04-06T10:00:00.000Z",
           "superseded": false,
           "createdAt": "2026-04-06T10:00:00.000Z",

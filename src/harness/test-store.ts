@@ -98,9 +98,12 @@ export class TestStateStore implements StateStoreLike {
     batches: Array<Omit<Batch, 'createdAt' | 'updatedAt'>>,
   ): Promise<PlanSession> {
     const now = new Date().toISOString();
-    // Step 1: insert session
+    // Step 1: insert session. `mutationHistory` falls through from the draft,
+    // or defaults to [] when the draft leaves it unset. Mirrors the production
+    // `toPlanSessionRow` default at src/state/store.ts.
     const persisted: PlanSession = {
       ...cloneDeep(session),
+      mutationHistory: session.mutationHistory ?? [],
       confirmedAt: now,
       superseded: false,
       createdAt: now,
@@ -128,9 +131,11 @@ export class TestStateStore implements StateStoreLike {
   ): Promise<PlanSession> {
     const now = new Date().toISOString();
 
-    // Step 1: insert NEW session
+    // Step 1: insert NEW session. `mutationHistory` falls through from the
+    // draft, or defaults to [] when the draft leaves it unset.
     const persisted: PlanSession = {
       ...cloneDeep(session),
+      mutationHistory: session.mutationHistory ?? [],
       confirmedAt: now,
       superseded: false,
       createdAt: now,

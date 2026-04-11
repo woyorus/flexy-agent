@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-04-07T10:00:00.000Z",
-  "specHash": "cd8bee10e6f4929178a377828ecdac001aae0c2a0a60dff104002964777304ba",
+  "specHash": "655608e503bd484136cdb72ca0b54929b8a0fab7a7bf100511bd76cccde5d489",
   "llmFixtures": [],
   "expected": {
     "outputs": [
@@ -198,6 +198,7 @@
               "estimatedCalories": 900
             }
           ],
+          "mutationHistory": [],
           "confirmedAt": "2026-04-07T08:00:00.000Z",
           "superseded": false,
           "createdAt": "2026-04-07T08:00:00.000Z",

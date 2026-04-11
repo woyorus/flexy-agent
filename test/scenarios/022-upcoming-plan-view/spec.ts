@@ -38,6 +38,7 @@ const futureSession: PlanSession = {
   events: [
     { name: 'Sunday dinner out', day: '2026-04-14', mealTime: 'dinner' as const, estimatedCalories: 900 },
   ],
+  mutationHistory: [],
   confirmedAt: '2026-04-07T08:00:00.000Z',
   superseded: false,
   createdAt: '2026-04-07T08:00:00.000Z',

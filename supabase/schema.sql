@@ -11,6 +11,7 @@ create table plan_sessions (
   treat_budget_calories int not null,
   flex_slots        jsonb not null default '[]',
   events            jsonb not null default '[]',
+  mutation_history  jsonb not null default '[]',
   confirmed_at      timestamptz not null default now(),
   superseded        boolean not null default false,
   created_at        timestamptz default now(),

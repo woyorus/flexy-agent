@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-04-09T10:00:00.000Z",
-  "specHash": "3818257e8ce8f7fe0aa46e75bc45b7d82d18657215e757f262baed0991a1c2c5",
+  "specHash": "1b7e87bc1cb2995e55411b50b4181e677706ddffaaf90c9a6b70d4790d0df2e1",
   "llmFixtures": [
     {
       "hash": "7b53484446e1cc02a03bc50a21837dd3dde03cdf625b8093bb56e7fb85b2bf5b",
@@ -302,6 +302,7 @@
           "treatBudgetCalories": 853,
           "flexSlots": [],
           "events": [],
+          "mutationHistory": [],
           "confirmedAt": "2026-03-29T10:00:00.000Z",
           "superseded": false,
           "createdAt": "2026-03-29T10:00:00.000Z",
@@ -327,6 +328,7 @@
             }
           ],
           "events": [],
+          "mutationHistory": [],
           "confirmedAt": "2026-04-09T10:00:00.000Z",
           "superseded": false,
           "createdAt": "2026-04-09T10:00:00.000Z",

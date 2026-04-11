@@ -176,6 +176,10 @@ export interface ScaledIngredient {
  * Batches are not embedded; they reference this session via createdInPlanSessionId.
  *
  * "What's in this session" is a query: `WHERE created_in_plan_session_id = id`.
+ *
+ * Plan 026: `mutationHistory` is persisted here (new jsonb column) so
+ * post-confirmation mutations can respect every prior user-approved change
+ * across save-before-destroy writes.
  */
 export interface PlanSession {
   id: string;
@@ -192,6 +196,13 @@ export interface PlanSession {
   treatBudgetCalories: number;
   flexSlots: FlexSlot[];
   events: MealEvent[];
+  /**
+   * Accumulated record of user-approved plan mutations on this session and its
+   * ancestors. Carried across save-before-destroy writes by the adapter in
+   * `src/plan/session-to-proposal.ts` (Plan 026). May be empty on sessions that
+   * were confirmed without any in-session mutations.
+   */
+  mutationHistory: MutationRecord[];
   /** Populated by DB default now() on insert */
   confirmedAt: string;
   /** Tombstone flag for D27's replace-future-only flow */
@@ -209,11 +220,15 @@ export interface PlanSession {
  *
  * The id is assigned client-side at draft creation time so batches can reference
  * their parent via createdInPlanSessionId before the confirm sequence writes.
+ *
+ * Plan 026: `mutationHistory` is optional at the draft stage so existing draft
+ * builders (plan-flow.ts `buildNewPlanSession`) don't need to set it. The
+ * store's row mapper writes `[]` as the default when it's absent.
  */
 export type DraftPlanSession = Omit<
   PlanSession,
-  'confirmedAt' | 'superseded' | 'createdAt' | 'updatedAt'
->;
+  'confirmedAt' | 'superseded' | 'createdAt' | 'updatedAt' | 'mutationHistory'
+> & { mutationHistory?: MutationRecord[] };
 
 /**
  * A first-class batch — one recipe, 1-3 servings, 1-3 eating days.

@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-04-12T10:00:00.000Z",
-  "specHash": "2a15f84ef85208264f4b1af545fa6f090dca9b9ff406a40f84924724a8c00f78",
+  "specHash": "cc66192aa9ce2c0d6e3c0673fcc87464435b257ad4da009d37d4c303cae8ba47",
   "llmFixtures": [
     {
       "hash": "2e4522fc25873a14c6fae74b0d818865f66abbfef0a28cfdbb3b376a02425203",
@@ -257,6 +257,7 @@
             }
           ],
           "events": [],
+          "mutationHistory": [],
           "confirmedAt": "2026-04-05T10:00:00.000Z",
           "superseded": false,
           "createdAt": "2026-04-05T10:00:00.000Z",
@@ -282,6 +283,7 @@
             }
           ],
           "events": [],
+          "mutationHistory": [],
           "confirmedAt": "2026-04-12T10:00:00.000Z",
           "superseded": false,
           "createdAt": "2026-04-12T10:00:00.000Z",

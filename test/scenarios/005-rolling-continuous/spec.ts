@@ -31,6 +31,7 @@ const sessionA: PlanSession = {
   treatBudgetCalories: 853,
   flexSlots: [{ day: '2026-04-10', mealTime: 'dinner' as const, flexBonus: 350, note: 'flex dinner' }],
   events: [],
+  mutationHistory: [],
   confirmedAt: '2026-04-05T10:00:00.000Z',
   superseded: false,
   createdAt: '2026-04-05T10:00:00.000Z',

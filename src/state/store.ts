@@ -399,6 +399,7 @@ function toPlanSessionRow(session: DraftPlanSession): Record<string, any> {
     treat_budget_calories: session.treatBudgetCalories,
     flex_slots: session.flexSlots,
     events: session.events,
+    mutation_history: session.mutationHistory ?? [],
   };
 }
 
@@ -412,6 +413,7 @@ function fromPlanSessionRow(row: any): PlanSession {
     treatBudgetCalories: row.treat_budget_calories,
     flexSlots: row.flex_slots ?? [],
     events: row.events ?? [],
+    mutationHistory: row.mutation_history ?? [],
     confirmedAt: row.confirmed_at,
     superseded: row.superseded,
     createdAt: row.created_at,
