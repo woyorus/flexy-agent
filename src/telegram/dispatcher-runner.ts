@@ -508,6 +508,115 @@ export function flushBotTurn(sink: DispatcherOutputSink): void {
   }
 }
 
+// ─── Action handlers ─────────────────────────────────────────────────────────
+
+/**
+ * `flow_input` — forward the text to the active flow's existing text
+ * handler. The handler is injected by the caller (`core.ts`) so the runner
+ * does not import `routeTextToActiveFlow` directly.
+ *
+ * Defensive check: if no flow is active, this is a dispatcher classification
+ * error. Log and fall back to the generic hint — the user gets the same UX
+ * as today's fallback path, not a silent drop.
+ */
+export async function handleFlowInputAction(
+  decision: Extract<DispatcherDecision, { action: 'flow_input' }>,
+  _deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+  userText: string,
+  routeToActiveFlow: (text: string, sink: DispatcherOutputSink) => Promise<void>,
+  fallback: (sink: DispatcherOutputSink) => Promise<void>,
+): Promise<void> {
+  void decision;
+  const hasActiveFlow =
+    session.planFlow !== null ||
+    session.recipeFlow !== null ||
+    (session.progressFlow !== null &&
+      session.progressFlow.phase === 'confirming_disambiguation');
+  if (!hasActiveFlow) {
+    log.warn(
+      'DISPATCHER',
+      'flow_input picked but no active flow — classification error, falling back to hint',
+    );
+    await fallback(sink);
+    return;
+  }
+  await routeToActiveFlow(userText, sink);
+}
+
+/**
+ * `clarify` — send the dispatcher-authored question as a reply. Leaves
+ * session state unchanged. The user's next message will be dispatched
+ * fresh with this question in `recentTurns`.
+ *
+ * **Proposal 003 state-preservation invariant #3:** when a flow is
+ * active, the reply MUST include a `[← Back to X]` inline button
+ * pointing back to the flow — satisfied here via
+ * `buildSideConversationKeyboard`, which emits `plan_resume` /
+ * `recipe_resume` callbacks. When no flow is active, invariant #3 says
+ * the back button should point at the main view for the current
+ * surface context (plan / recipes / shopping / progress); Plan C's
+ * minimal implementation falls back to the main menu reply keyboard
+ * instead.
+ */
+export async function handleClarifyAction(
+  decision: Extract<DispatcherDecision, { action: 'clarify' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const kb = await buildSideConversationKeyboard(session, deps.store);
+  // `sink` is the wrapped sink from `runDispatcherFrontDoor`. This
+  // reply is buffered by `wrapSinkForBotTurnCapture` and committed to
+  // `session.recentTurns` after the handler returns via `flushBotTurn`
+  // in the runner's `try/finally`.
+  await sink.reply(decision.response, { reply_markup: kb });
+}
+
+/**
+ * `out_of_scope` — send the dispatcher's decline. Same keyboard logic as
+ * clarify: inline `[← Back to X]` when a flow is active, main menu
+ * reply keyboard otherwise.
+ */
+export async function handleOutOfScopeAction(
+  decision: Extract<DispatcherDecision, { action: 'out_of_scope' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const kb = await buildSideConversationKeyboard(session, deps.store);
+  await sink.reply(decision.response, { reply_markup: kb });
+}
+
+/**
+ * Build the keyboard for a side-conversation reply (clarify / out_of_scope).
+ *
+ * Proposal 003 state-preservation invariant #3: when a flow is active, the
+ * reply includes an inline `[← Back to X]` button pointing back to the
+ * flow's last view (so the user can return with a tap as well as via
+ * natural language). When no flow is active, the reply uses the
+ * lifecycle-aware main menu reply keyboard.
+ */
+async function buildSideConversationKeyboard(
+  session: DispatcherSession,
+  store: StateStoreLike,
+): Promise<import('grammy').Keyboard | import('grammy').InlineKeyboard> {
+  const { InlineKeyboard } = await import('grammy');
+  const { buildMainMenuKeyboard } = await import('./keyboards.js');
+
+  if (session.planFlow) {
+    return new InlineKeyboard().text('← Back to planning', 'plan_resume');
+  }
+  if (session.recipeFlow) {
+    return new InlineKeyboard().text('← Back to recipe', 'recipe_resume');
+  }
+
+  const today = toLocalISODate(new Date());
+  const lifecycle = await getPlanLifecycle(session as never, store, today);
+  return buildMainMenuKeyboard(lifecycle);
+}
+
 // ─── Runner front-door stub (full body lands in Task 11) ─────────────────────
 
 /**
