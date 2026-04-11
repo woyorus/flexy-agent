@@ -328,7 +328,9 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       case 'voice':
         // Voice is just pre-transcribed text routed through the same path.
-        await handleTextInput(update.transcribedText, sink);
+        // Plan 028 Task 6 transitional: still calls routeTextToActiveFlow
+        // directly. Task 11 rewires through runDispatcherFrontDoor.
+        await routeTextToActiveFlow(update.transcribedText, sink);
         return;
       case 'text': {
         // Main menu reply-keyboard taps arrive as text (the button label).
@@ -338,7 +340,9 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           await handleMenu(menuAction, sink);
           return;
         }
-        await handleTextInput(update.text, sink);
+        // Plan 028 Task 6 transitional: still calls routeTextToActiveFlow
+        // directly. Task 11 rewires through runDispatcherFrontDoor.
+        await routeTextToActiveFlow(update.text, sink);
         return;
       }
     }
@@ -1165,78 +1169,13 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     return lastWeekData.length > 0 ? progressReportKeyboard : undefined;
   }
 
-  async function handleTextInput(text: string, sink: OutputSink): Promise<void> {
-    // Progress flow — measurement input
-    if (session.progressFlow) {
-      if (session.progressFlow.phase === 'awaiting_measurement') {
-        const parsed = parseMeasurementInput(text);
-        if (!parsed) {
-          await sink.reply('I\'m expecting a number like 82.3 or 82.3 / 91');
-          return;
-        }
-
-        const today = toLocalISODate(new Date());
-
-        if (parsed.values.length === 1) {
-          // Single number — weight only
-          const weight = parsed.values[0];
-          const isFirst = (await store.getLatestMeasurement('default')) === null;
-          await store.logMeasurement('default', today, weight, null);
-          session.progressFlow = null;
-          let confirmText = formatMeasurementConfirmation(weight, null);
-          if (isFirst) {
-            confirmText += '\n\nWe track weekly averages, not daily -- so don\'t worry about day-to-day swings. Come back tomorrow -- we\'ll start tracking your trend.';
-          }
-          const reportKb = await getProgressReportKeyboardIfAvailable();
-          if (reportKb) {
-            await sink.reply(confirmText, { reply_markup: reportKb });
-          } else {
-            await sink.reply(confirmText);
-          }
-          return;
-        }
-
-        // Two numbers — may need disambiguation
-        const [a, b] = parsed.values;
-        const lastMeasurement = await store.getLatestMeasurement('default');
-        const assignment = assignWeightWaist(a, b, lastMeasurement);
-
-        if (!assignment.ambiguous) {
-          // Unambiguous — log immediately
-          const isFirst = lastMeasurement === null;
-          await store.logMeasurement('default', today, assignment.weight, assignment.waist);
-          session.progressFlow = null;
-          let confirmText = formatMeasurementConfirmation(assignment.weight, assignment.waist);
-          if (isFirst) {
-            confirmText += '\n\nWe track weekly averages, not daily -- so don\'t worry about day-to-day swings. Come back tomorrow -- we\'ll start tracking your trend.';
-          }
-          const reportKb = await getProgressReportKeyboardIfAvailable();
-          if (reportKb) {
-            await sink.reply(confirmText, { reply_markup: reportKb });
-          } else {
-            await sink.reply(confirmText);
-          }
-          return;
-        }
-
-        // Ambiguous — ask for confirmation
-        session.progressFlow = {
-          phase: 'confirming_disambiguation',
-          pendingWeight: assignment.weight,
-          pendingWaist: assignment.waist,
-          pendingDate: today,
-        };
-        await sink.reply(
-          formatDisambiguationPrompt(assignment.weight, assignment.waist),
-          { reply_markup: progressDisambiguationKeyboard },
-        );
-        return;
-      }
-
-      if (session.progressFlow.phase === 'confirming_disambiguation') {
-        await sink.reply('Use the buttons above to confirm.');
-        return;
-      }
+  async function routeTextToActiveFlow(text: string, sink: OutputSink): Promise<void> {
+    // Progress flow — only the disambiguation fallthrough remains. The numeric
+    // pre-filter in dispatcher-runner handles awaiting_measurement before
+    // control reaches this function (Plan 028 Task 6 / Task 8).
+    if (session.progressFlow && session.progressFlow.phase === 'confirming_disambiguation') {
+      await sink.reply('Use the buttons above to confirm.');
+      return;
     }
 
     // Recipe flow checked first: when both planFlow and recipeFlow are active
@@ -1366,22 +1305,13 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       return;
     }
 
-    // Not in a flow — check if they want to view a specific recipe
-    const recipe = recipes
-      .getAll()
-      .find(
-        (r) =>
-          r.name.toLowerCase().includes(text.toLowerCase()) ||
-          r.slug.includes(text.toLowerCase()),
-      );
-    if (recipe) {
-      log.debug('FLOW', `recipe lookup: "${text}" → ${recipe.slug}`);
-      session.lastRecipeSlug = recipe.slug;
-      setLastRenderedView(session, { surface: 'recipes', view: 'recipe_detail', slug: recipe.slug });
-      await sink.reply(renderRecipe(recipe), { parse_mode: 'MarkdownV2' });
-      return;
-    }
-
+    // If we reach here, the dispatcher picked flow_input but no flow is active.
+    // This is a classification error in the dispatcher. The runner logs and
+    // falls back, so this path should be unreachable in normal operation.
+    log.warn(
+      'FLOW',
+      'routeTextToActiveFlow reached end with no active flow — dispatcher classification error',
+    );
     await replyFreeTextFallback(sink);
   }
 
