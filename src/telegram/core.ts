@@ -743,8 +743,13 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         await sink.reply('Recipe not found.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
         return;
       }
-      session.surfaceContext = 'cooking';
       session.lastRecipeSlug = batch.recipeSlug;
+      setLastRenderedView(session, {
+        surface: 'cooking',
+        view: 'cook_view',
+        batchId,
+        recipeSlug: batch.recipeSlug,
+      });
       await sink.reply(
         renderCookView(recipe, batch),
         { reply_markup: cookViewKeyboard(batch.recipeSlug), parse_mode: 'MarkdownV2' },
