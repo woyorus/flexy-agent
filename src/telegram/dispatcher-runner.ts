@@ -779,23 +779,93 @@ export async function runDispatcherFrontDoor(
   text: string,
   deps: DispatcherRunnerDeps,
   session: DispatcherSession,
-  sink: DispatcherOutputSink,
+  rawSink: DispatcherOutputSink,
   routeToActiveFlow: (text: string, sink: DispatcherOutputSink) => Promise<void>,
   fallback: (sink: DispatcherOutputSink) => Promise<void>,
 ): Promise<void> {
-  void deps;
-  void session;
-  void sink;
-  void routeToActiveFlow;
-  void fallback;
-  void text;
-  // Reference the imports so they survive tree-shaking before Task 11
-  // replaces this scaffold with the full body that actually uses them.
-  void dispatchMessage;
-  void DispatcherFailure;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _decisionRef: DispatcherDecision | null = null;
-  void _decisionRef;
-  log.debug('DISPATCHER', 'runDispatcherFrontDoor scaffold (Task 8) — handlers land in Task 9');
-  throw new Error('runDispatcherFrontDoor is not yet wired (Plan 028 Task 8 scaffold)');
+  // ── Numeric pre-filter (narrow bypass for progress measurement) ──
+  // Runs BEFORE the bot-turn wrapper because pre-filter replies are not
+  // conversational turns — they're flow outputs that the proposer does
+  // not need to see again.
+  if (await tryNumericPreFilter(text, session, deps.store, rawSink)) {
+    return;
+  }
+
+  // ── Planning meta-intents fire BEFORE the dispatcher ──
+  // Proposal 003 § "Precedence with existing cancel semantics" is load-bearing:
+  // cancel phrases must reach the planning cancel handler, not the dispatcher's
+  // return_to_flow. Running the existing matcher early short-circuits the
+  // dispatcher when a planning flow is active.
+  //
+  // No `pushTurn` and no bot-turn wrapper around the sink — the cancel
+  // short-circuit is a flow termination, not a conversational turn, and
+  // scenario 041 asserts `recentTurns` stays absent on the recording.
+  if (session.planFlow) {
+    const { matchPlanningMetaIntent } = await import('../agents/plan-flow.js');
+    const metaIntent = matchPlanningMetaIntent(text);
+    if (metaIntent === 'start_over' || metaIntent === 'cancel') {
+      await routeToActiveFlow(text, rawSink);
+      return;
+    }
+  }
+
+  // ── Wrap the sink so the LAST bot reply on any branch below lands in
+  // `recentTurns` uniformly. ──
+  const sink = wrapSinkForBotTurnCapture(rawSink, session);
+
+  // ── Build context bundle ──
+  const context = await buildDispatcherContext(session, deps.store, deps.recipes, new Date());
+
+  // ── Push user turn before the LLM call so the dispatcher sees its own
+  // message in the recent-turns list (for multi-turn clarify flows). ──
+  pushTurn(session, 'user', text);
+
+  // ── Dispatcher call ──
+  let decision: DispatcherDecision;
+  try {
+    decision = await dispatchMessage(context, text, deps.llm);
+  } catch (err) {
+    if (err instanceof DispatcherFailure) {
+      log.error('DISPATCHER', `dispatcher failed; falling back: ${err.message.slice(0, 200)}`);
+      try {
+        await fallback(sink);
+      } finally {
+        flushBotTurn(sink);
+      }
+      return;
+    }
+    throw err;
+  }
+
+  // ── Route the decision to its handler. The `try/finally` guarantees
+  // `flushBotTurn` runs even if a downstream handler throws — the most
+  // recent `sink.reply` is committed to `recentTurns` so the dispatcher
+  // sees the actual bot output (not a holding message that came before
+  // it) on the next call. ──
+  try {
+    switch (decision.action) {
+      case 'flow_input':
+        await handleFlowInputAction(
+          decision,
+          deps,
+          session,
+          sink,
+          text,
+          routeToActiveFlow,
+          fallback,
+        );
+        return;
+      case 'clarify':
+        await handleClarifyAction(decision, deps, session, sink);
+        return;
+      case 'out_of_scope':
+        await handleOutOfScopeAction(decision, deps, session, sink);
+        return;
+      case 'return_to_flow':
+        await handleReturnToFlowAction(decision, deps, session, sink);
+        return;
+    }
+  } finally {
+    flushBotTurn(sink);
+  }
 }

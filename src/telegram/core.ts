@@ -93,6 +93,7 @@ import {
   handleReturnToFlowAction,
   wrapSinkForBotTurnCapture,
   flushBotTurn,
+  runDispatcherFrontDoor,
 } from './dispatcher-runner.js';
 import { getPlanFlowResumeView } from './flow-resume-views.js';
 import { getPlanLifecycle, getVisiblePlanSession, toLocalISODate, getNextCookDay } from '../plan/helpers.js';
@@ -333,10 +334,15 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         await handleCallback(update.data, sink);
         return;
       case 'voice':
-        // Voice is just pre-transcribed text routed through the same path.
-        // Plan 028 Task 6 transitional: still calls routeTextToActiveFlow
-        // directly. Task 11 rewires through runDispatcherFrontDoor.
-        await routeTextToActiveFlow(update.transcribedText, sink);
+        // Voice is just pre-transcribed text routed through the dispatcher.
+        await runDispatcherFrontDoor(
+          update.transcribedText,
+          { llm, recipes, store },
+          session,
+          sink,
+          routeTextToActiveFlow,
+          replyFreeTextFallback,
+        );
         return;
       case 'text': {
         // Main menu reply-keyboard taps arrive as text (the button label).
@@ -346,9 +352,14 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           await handleMenu(menuAction, sink);
           return;
         }
-        // Plan 028 Task 6 transitional: still calls routeTextToActiveFlow
-        // directly. Task 11 rewires through runDispatcherFrontDoor.
-        await routeTextToActiveFlow(update.text, sink);
+        await runDispatcherFrontDoor(
+          update.text,
+          { llm, recipes, store },
+          session,
+          sink,
+          routeTextToActiveFlow,
+          replyFreeTextFallback,
+        );
         return;
       }
     }
