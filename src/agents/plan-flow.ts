@@ -966,6 +966,19 @@ const START_OVER_PATTERNS: RegExp[] = [
   /\bcancel\s+the\s+plan\b/i,
 ];
 
+/**
+ * Plan 028 precedence rule (Plan C): cancel phrases always win over the
+ * dispatcher's `return_to_flow` action. The runner (`dispatcher-runner.ts`
+ * `runDispatcherFrontDoor`) calls `matchPlanningMetaIntent` BEFORE invoking
+ * the dispatcher when `session.planFlow` is active, so a "nevermind" typed
+ * during planning reaches the cancel branch below — never the dispatcher.
+ *
+ * The phrase sets are disjoint: cancel phrases contain "never", "forget",
+ * "later", "stop", or bare "cancel"; return_to_flow phrases contain "back",
+ * "continue", "resume", "keep going", or "again". Any new phrase added to
+ * either set must preserve this disjointness — see Plan 028 Task 12 for
+ * the verification protocol.
+ */
 const CANCEL_PATTERNS: RegExp[] = [
   /\bnever\s*mind\b/i,
   /\bnevermind\b/i,
