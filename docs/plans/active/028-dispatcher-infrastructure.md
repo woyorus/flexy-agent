@@ -8,7 +8,7 @@
 
 **Goal:** Put a single structured LLM call in front of every inbound text/voice message, route the message to one of four minimal catalog actions (`flow_input`, `clarify`, `out_of_scope`, `return_to_flow`), preserve all existing in-flow text behavior, and leave every other capability (plan mutations, answers, navigation, measurement logging) for later plans. **This is Plan C from proposal `003-freeform-conversation-layer.md`.** After this plan, the dispatcher is live end-to-end for the minimal action set: typed "back to planning" routes through `return_to_flow`, off-topic messages route through `out_of_scope`, ambiguous requests hit `clarify`, and in-flow text still reaches the active flow via `flow_input`.
 
-**Architecture:** A pure LLM agent lives in `src/agents/dispatcher.ts` and exposes `dispatchMessage(context, text, llm): Promise<DispatcherDecision>`. It builds a system prompt describing the four actions and a user prompt carrying a compact context bundle (surface, lifecycle, active flow summary, recent conversation turns, plan summary, recipe index), calls `llm.complete` with `model: 'mini'`, `reasoning: 'high'`, `json: true`, and parses a discriminated-union output (`action` + `params` + optional `response` + `reasoning`). A thin runner in `src/telegram/dispatcher-runner.ts` owns everything that touches `BotCoreSession`: it builds the context bundle, invokes the agent, pushes recent turns, and dispatches the chosen action to a deterministic handler. Handlers either forward to the existing flow text router (`flow_input`), send a dispatcher-written reply with the current menu (`clarify`, `out_of_scope`), or re-render the last view the user was looking at (`return_to_flow`, reading Plan 027's `lastRenderedView` and planFlow/recipeFlow state). The front door in `core.dispatch` is rewired so text/voice messages go through the runner **after** the reply-keyboard main-menu match and **after** a narrow numeric pre-filter that handles the `progressFlow.phase === 'awaiting_measurement'` happy path without an LLM call. Every other entry point (commands, inline callbacks, reply-keyboard menu buttons) stays untouched.
+**Architecture:** A pure LLM agent lives in `src/agents/dispatcher.ts` and exposes `dispatchMessage(context, text, llm): Promise<DispatcherDecision>`. It builds a system prompt describing the four actions and a user prompt carrying a compact context bundle (surface, lifecycle, active flow summary, recent conversation turns, plan summary, recipe index), calls `llm.complete` with `model: 'mini'`, `reasoning: 'high'`, `json: true`, and parses a discriminated-union output (`action` + `params` + optional `response` + `reasoning`). A thin runner in `src/telegram/dispatcher-runner.ts` owns everything that touches `BotCoreSession`: it builds the context bundle, invokes the agent, pushes recent turns, and dispatches the chosen action to a deterministic handler. Handlers either forward to the existing flow text router (`flow_input`), send a dispatcher-written reply with the current menu (`clarify`, `out_of_scope`), or handle `return_to_flow` with two distinct branches: when `planFlow` or `recipeFlow` is active, `rerenderPlanFlow` / `rerenderRecipeFlow` emit the stored `proposalText` / `currentRecipe` at full fidelity from flow state (scenario 034 locks this in, satisfying proposal 003 state preservation invariant #6); when no flow is active, `rerenderLastView` emits a **minimal placeholder** ("Back to plan. Tap 📋 My Plan for the current view.") keyed on Plan 027's `lastRenderedView`, deliberately deferring full-fidelity re-rendering of plan/shopping/progress/library views to Plan E where the extracted view-renderers already exist. The front door in `core.dispatch` is rewired so text/voice messages go through the runner **after** the reply-keyboard main-menu match and **after** a narrow numeric pre-filter that handles the `progressFlow.phase === 'awaiting_measurement'` happy path without an LLM call. Every other entry point (commands, inline callbacks, reply-keyboard menu buttons) stays untouched.
 
 **Tech Stack:** TypeScript, `LLMProvider` via the existing `src/ai/provider.ts` interface, `FixtureLLMProvider` for scenario replay, Node's built-in `node:test`, the existing scenario harness (`src/harness/runner.ts` + `test/scenarios/`). No database changes, no new external dependencies, no changes to the grammY adapter.
 
@@ -56,8 +56,8 @@ None of these problems are bugs in the existing code. They are the shape of a ro
   - `ConversationTurn` — `{ role: 'user' | 'bot'; text: string; at: string }`. One line per saved exchange.
   - `buildDispatcherContext(session, store, recipes, now)` — pure function that reads current state (lifecycle, active flow summary, plan summary, recipe index, recent turns, last rendered view, surface) and returns a `DispatcherContext`. No LLM calls, no side effects.
   - `runDispatcherFrontDoor(text, deps, session, sink, routeToActiveFlow)` — the front-door entry point called from `core.dispatch`. Runs the numeric pre-filter, builds context, calls `dispatchMessage`, pushes the inbound user turn, dispatches to the chosen action handler, and on dispatcher failure falls back to `replyFreeTextFallback`. `routeToActiveFlow` is injected by `core.ts` so the runner doesn't import `handleTextInput` directly (keeps the runner testable in isolation).
-  - `handleFlowInputAction`, `handleClarifyAction`, `handleOutOfScopeAction`, `handleReturnToFlowAction` — the four action handlers. Each takes `(decision, deps, session, sink, routeToActiveFlow)` and does its side effect. Handlers use Plan 027's `lastRenderedView` and planFlow/recipeFlow state to compute back buttons and re-renders.
-  - `rerenderLastView(session, deps, sink, now)` — helper used by `handleReturnToFlowAction` when no flow is active. Reads `session.lastRenderedView` and re-dispatches through the existing render functions (delegates by synthesizing handler calls via small render-dispatch switch). Documented exhaustively so a future plan can collapse it into the dispatcher's own navigation actions.
+  - `handleFlowInputAction`, `handleClarifyAction`, `handleOutOfScopeAction`, `handleReturnToFlowAction` — the four action handlers. Each takes `(decision, deps, session, sink, routeToActiveFlow)` and does its side effect. `handleReturnToFlowAction` has two branches: (1) active-flow (planFlow or recipeFlow present) re-renders the flow's current view at full fidelity from stored flow state via `rerenderPlanFlow` / `rerenderRecipeFlow`; (2) no-flow reads Plan 027's `lastRenderedView` and emits a minimal placeholder reply via `rerenderLastView` (see below). `clarify` / `out_of_scope` handlers also use `planFlow` / `recipeFlow` state to decide whether to attach a `[← Back to X]` inline button via `plan_resume` / `recipe_resume` callbacks.
+  - `rerenderLastView(session, deps, sink, now)` — helper used by `handleReturnToFlowAction` **only when no flow is active**. Reads `session.lastRenderedView` and emits a minimal placeholder text reply per variant ("Back to plan. Tap 📋 My Plan for the current view.", "Back to the shopping list. Tap 🛒 Shopping List for the current view.", etc.) rather than fully reproducing the view. This is a **deliberate Plan C limitation** — real re-render parity for the no-flow case requires the extracted view-renderers Plan E builds (`src/telegram/view-renderers.ts`), at which point Plan E's Task 20 promotes `rerenderLastView` to dispatch through those renderers. The placeholder is strictly better than today's behavior (which does nothing for "back to plan" typed while no flow is active) and clearly flagged in the decision log for Plan E upgrade. Scenario 034 exercises the active-flow branch (full fidelity), not this one.
   - `pushTurn(session, role, text)` — ring-buffer append onto `session.recentTurns`, capped at `RECENT_TURNS_MAX = 6` (3 user+bot pairs).
   - `tryNumericPreFilter(text, session, deps, sink)` — returns `true` if the text was parseable as a measurement AND `session.progressFlow?.phase === 'awaiting_measurement'`, after handling the measurement inline. Returns `false` otherwise.
 
@@ -93,9 +93,9 @@ None of these problems are bugs in the existing code. They are the shape of a ro
 
 - `src/telegram/core.ts`:
   - **Imports block (~lines 66–133)**: add imports from `./dispatcher-runner.js` (`runDispatcherFrontDoor`, `ConversationTurn`) and update the import line from `./navigation-state.js` (added in Plan 027) to also re-export what the runner needs if necessary. Add an import of `log.addOperationEvent` consumer for the dispatcher path, if not already present.
-  - **`BotCoreSession` interface (~lines 183–201)**: add `recentTurns: ConversationTurn[]` (required, initialized to `[]`).
-  - **`createBotCore` initializer (~lines 228–234)**: initialize `recentTurns: []` on the session object.
-  - **`reset()` (~lines 1343–1351 post-Plan-027)**: clear `recentTurns = []`.
+  - **`BotCoreSession` interface (~lines 183–201)**: add `recentTurns?: ConversationTurn[]` (optional, initialized on first write by `pushTurn`). This mirrors Plan 027's `lastRenderedView` pattern — the field is absent on fresh/reset sessions so existing scenario recordings do NOT grow a `recentTurns` entry until a turn is actually pushed. See the decision log entry "`recentTurns` is optional on `BotCoreSession`" for the rationale.
+  - **`createBotCore` initializer (~lines 228–234)**: no change required — the optional field is absent until `pushTurn` writes for the first time, and `JSON.stringify` drops `undefined`.
+  - **`reset()` (~lines 1343–1351 post-Plan-027)**: clear `recentTurns = undefined`.
   - **`dispatch()` text branch (~lines 305–315)**: call `runDispatcherFrontDoor(update.text, { llm, recipes, store }, session, sink, routeTextToActiveFlow)` instead of `handleTextInput(update.text, sink)`. Same for the voice branch (~line 303). `routeTextToActiveFlow` is the renamed-and-trimmed `handleTextInput`.
   - **`handleTextInput` → `routeTextToActiveFlow` (~lines 1124–1340)**: rename the function. Remove:
     - The entire `session.progressFlow && phase === 'awaiting_measurement'` branch (moved to the numeric pre-filter in the runner).
@@ -2372,9 +2372,17 @@ export async function handleFlowInputAction(
  *
  * **Proposal 003 state-preservation invariant #3:** when a flow is
  * active, the reply MUST include a `[← Back to X]` inline button
- * pointing back to the flow. When no flow is active, the reply uses
- * the main menu reply keyboard so the user has navigation escape
- * hatches. `buildSideConversationKeyboard` handles both cases.
+ * pointing back to the flow — this branch is satisfied here by
+ * `buildSideConversationKeyboard` emitting the `plan_resume` /
+ * `recipe_resume` inline callbacks. When no flow is active, invariant
+ * #3 says the back button should point at the main view for the
+ * current surface context (plan / recipes / shopping / progress);
+ * Plan C's minimal implementation falls back to the main menu reply
+ * keyboard instead, which is a navigation escape hatch but NOT a
+ * surface-scoped back target. Full compliance for the no-flow branch
+ * arrives with Plan E's view-renderers (Plan 030 Task 5 + Task 19 —
+ * see the Plan 028 decision log entry documenting this deviation).
+ * `buildSideConversationKeyboard` handles both cases today.
  */
 export async function handleClarifyAction(
   decision: Extract<DispatcherDecision, { action: 'clarify' }>,
@@ -3096,7 +3104,7 @@ Per CLAUDE.md's "Verifying recorded output" protocol (`docs/product-specs/testin
 
 2. **`020-planning-intents-from-text`:** the mutation request ("Put the flex meal on Sunday instead") now goes through the dispatcher, which should pick `flow_input` and forward to the existing re-proposer path. The final outputs should be byte-for-byte identical to the pre-Plan-028 recording. If the captured output differs (e.g., slightly different phrasing from the re-proposer due to clock drift, or different batch ordering), investigate — the only intended change is the new dispatcher fixture upstream. For "Start over", the cancel-precedence rule kicks in BEFORE the dispatcher; this turn should have NO dispatcher fixture.
 
-3. **`021-planning-cancel-intent`:** the "nevermind" turn is caught by `matchPlanningMetaIntent` in the runner's pre-dispatcher short-circuit. Verify there is NO dispatcher fixture for this turn. The `finalSession` should show `planFlow === null` (cancelled) and `recentTurns === []` because the cancel path short-circuits `pushTurn`. If `recentTurns` has an entry, Task 11's `pushTurn` placement is wrong — fix it.
+3. **`021-planning-cancel-intent`:** the "nevermind" turn is caught by `matchPlanningMetaIntent` in the runner's pre-dispatcher short-circuit. Verify there is NO dispatcher fixture for this turn. The `finalSession` should show `planFlow === null` (cancelled) and `recentTurns` absent from the recording (the field is optional; `pushTurn` was never called so `JSON.stringify` drops the `undefined`). If `recentTurns` appears in the recording with an entry, Task 11's `pushTurn` placement is wrong — fix it.
 
 4. **`029-recipe-flow-happy-path`:** each free-text turn during the recipe flow (preferences description, refinement text) adds a dispatcher fixture upstream. The recipe generation / refinement LLM calls are unchanged. Verify the captured replies are byte-for-byte identical except for the new dispatcher fixtures in `llmFixtures`.
 
@@ -3844,7 +3852,7 @@ Confirm the following invariants hold in the final tree:
 - `grep -n "runDispatcherFrontDoor" src/telegram/core.ts` should return exactly 2 matches: one for the `voice` case and one for the `text` case in `dispatch()`.
 - `grep -n "tryNumericPreFilter" src/telegram/` should return exactly 2 matches: the definition in `dispatcher-runner.ts` and the call site in `runDispatcherFrontDoor`.
 - `grep -n "DispatcherFailure" src/` should show: the class definition in `agents/dispatcher.ts`, the throw sites in `dispatchMessage`, and the catch site in `runDispatcherFrontDoor`.
-- `grep -rn "recentTurns" src/` should show at minimum: the field on `BotCoreSession`, the initializer in `createBotCore`, the clear in `reset`, the reads in `buildDispatcherContext`, the writes in `pushTurn` and `runDispatcherFrontDoor` and the clarify/out_of_scope handlers.
+- `grep -rn "recentTurns" src/` should show at minimum: the optional field on `BotCoreSession`, the `= undefined` clear in `reset`, the reads in `buildDispatcherContext` (always guarded with `?? []`), the writes in `pushTurn` (lazily initializes the array on first call) and `runDispatcherFrontDoor` and the clarify/out_of_scope handlers. No initialization line should appear in `createBotCore`.
 
 - [ ] **Step 5: No commit needed**
 
@@ -3907,10 +3915,6 @@ This is a pure verification step. If any of the above fails, jump back to the re
   **Rationale:** `core.ts` imports `runDispatcherFrontDoor` from `dispatcher-runner.ts`, so a direct import back from `core.ts` would create a circular dependency. TypeScript tolerates some circulars at the type level but not at the value level. Declaring structural slices avoids the cycle entirely and lets unit tests pass plain objects without constructing a BotCore. The real `OutputSink` / `BotCoreSession` conform structurally at call sites.
   **Date:** 2026-04-10
 
-- **Decision:** `recentTurns` is required (not optional) on `BotCoreSession`.
-  **Rationale:** The dispatcher ALWAYS reads the turns list — there's no code path that inspects session state without needing it. Making the field optional would force every reader to handle `undefined` defensively, which is noise. Unlike `lastRenderedView` (Plan 027), which is genuinely optional because the field only exists after a render has happened, `recentTurns` is meaningful from session creation onward (empty array = no history yet). Initial empty array is the clean, well-defined starting state.
-  **Date:** 2026-04-10
-
 - **Decision:** The ring buffer cap is `RECENT_TURNS_MAX = 6` (3 user+bot pairs).
   **Rationale:** Proposal 003 § "Context hydration" specifies "Last 3–5 user/bot exchanges". 6 turns = 3 pairs, the middle of the stated range. At mini-tier prices with turn text truncated to 300 chars, this adds ~200 tokens per call — negligible compared to the recipe index and plan summary. Larger buffers risk crowding the prompt and introducing stale referents; smaller buffers break multi-turn clarify flows.
   **Date:** 2026-04-10
@@ -3919,9 +3923,11 @@ This is a pure verification step. If any of the above fails, jump back to the re
   **Rationale:** The short-circuit must run BEFORE the dispatcher LLM call (otherwise a user types "nevermind" and the LLM may still pick `out_of_scope` or `return_to_flow`, which is a precedence violation). Placing it in the runner gives the precedence rule a single, testable home. The existing `routeTextToActiveFlow` branch for meta-intents stays in place so the `flow_input` path also handles them when routed through — a belt-and-suspenders design. Scenario 036 locks in the precedence behavior.
   **Date:** 2026-04-10
 
-- **Decision:** Plan 028's `rerenderLastView` is intentionally minimal ("Back to plan." + menu keyboard) rather than fully re-rendering the exact prior view.
-  **Rationale:** Full re-render requires duplicating the render logic from every Plan 027 handler (or factoring those handlers into helpers the dispatcher can call — which is Plan E's natural home because Plan E's `show_plan` / `show_recipe` / `show_shopping_list` / `show_progress` actions have exactly the same render requirements). Doing it in Plan 028 would either (a) duplicate code and decay over time, or (b) pre-implement Plan E's actions, which inflates Plan 028's scope. The minimal helper is strictly better than today's behavior (which is "nothing happens for 'back to plan'") and clearly marked for Plan E upgrade.
-  **Date:** 2026-04-10
+- **Decision:** Plan 028's `rerenderLastView` (no-flow branch) ships a placeholder "Back to X. Tap the corresponding menu button for the current view." + main menu keyboard, rather than fully re-rendering the exact prior view. This is a **deliberate, documented deviation from proposal 003 state preservation invariants #3 and #6 for the no-flow case only.**
+  **What the design doc requires** (invariant #3 at proposal 003 line 451): "When no flow is active, the back button points at the main view for the current surface context (plan / recipes / shopping / progress). The target is computed from active flow state, not from the previous surface alone." Invariant #6 (line 457) adds: "`return_to_flow` restores the exact view, not a fresh render."
+  **What Plan 028 ships**: a hint message ("Back to plan. Tap 📋 My Plan for the current view.") plus the main menu reply keyboard. The user is one tap away from the main view, but the view is not re-rendered in place. The `[← Back to X]` affordance for clarify / out_of_scope side-conversation replies (handleClarifyAction / handleOutOfScopeAction at Task 9) uses the same main menu keyboard in the no-flow case instead of a surface-scoped back button. The active-flow branches DO satisfy invariants #3 and #6 — `rerenderPlanFlow` emits the stored `proposalText` and `rerenderRecipeFlow` emits the stored `currentRecipe.name` + keyboard, both scenarios locked in by scenario 034.
+  **Rationale:** Full re-render for the no-flow case requires the extracted view-renderers module (`src/telegram/view-renderers.ts`) that Plan E's Task 5 creates. Pre-implementing the renderers inside Plan 028 would either (a) duplicate render code between `core.ts`'s callback cases and the runner (decays over time), or (b) inflate Plan C's scope to cover Plan E's structural refactor. Plan E's Task 19 promotes `rerenderLastView` from this placeholder to real renderer dispatch, closing the deviation. Plan C intentionally ships the placeholder because the alternative is "nothing happens for 'back to plan' when no flow is active" (today's behavior), and a placeholder + menu keyboard is strictly better than nothing. The deviation is bounded (no-flow case only), documented here, and has a concrete Plan E task that reverts it.
+  **Date:** 2026-04-10 (revised after second-round review to explicitly flag the invariant deviation)
 
 - **Decision:** Scenario 017 (`free-text-fallback`) is regenerated with new dispatcher-authored replies, NOT preserved as a legacy-fallback lock.
   **Rationale:** The legacy fallback code path is gone after Plan 028 Task 6. Preserving scenario 017 would require either keeping the legacy fallback alive as dead code behind a flag (ugly) or rewriting the scenario to hit a path that no longer exists (wrong). Regenerating it captures what users actually see after Plan 028 and locks in the dispatcher's clarify / out_of_scope behavior for those canonical inputs. The behavioral review step in Task 13 is where the new copy gets signed off on.
@@ -3956,9 +3962,9 @@ After every task: `npm test` stays green (or red only in ways explicitly expecte
 - `src/agents/dispatcher.ts` exists and exports: `DispatcherAction`, `AVAILABLE_ACTIONS_V0_0_5`, `DispatcherContext`, `DispatcherDecision`, `DispatcherFailure`, `DispatcherTurn`, `ActiveFlowSummary`, `DispatcherRecipeRow`, `DispatcherPlanSummary`, `dispatchMessage`.
 - `src/telegram/dispatcher-runner.ts` exists and exports: `ConversationTurn`, `RECENT_TURNS_MAX`, `pushTurn`, `DispatcherSession`, `DispatcherOutputSink`, `DispatcherRunnerDeps`, `buildDispatcherContext`, `tryNumericPreFilter`, `runDispatcherFrontDoor`, `handleFlowInputAction`, `handleClarifyAction`, `handleOutOfScopeAction`, `handleReturnToFlowAction`.
 - `src/telegram/core.ts`:
-  - `BotCoreSession` has a required `recentTurns: ConversationTurn[]` field.
-  - `createBotCore` initializes `recentTurns: []`.
-  - `reset()` clears `recentTurns = []`.
+  - `BotCoreSession` has an optional `recentTurns?: ConversationTurn[]` field.
+  - `createBotCore` does NOT initialize the field — it starts as `undefined` and is lazily created on first `pushTurn` call.
+  - `reset()` clears `recentTurns = undefined`.
   - `dispatch()` calls `runDispatcherFrontDoor` for both `text` (after menu match) and `voice`.
   - `routeTextToActiveFlow` exists (the renamed former `handleTextInput`) without the numeric branch, the recipe-name fuzzy match, or the generic fallback at the end.
   - `replyFreeTextFallback` is still reachable from the runner's failure catch path.
@@ -3967,7 +3973,7 @@ After every task: `npm test` stays green (or red only in ways explicitly expecte
 - `docs/product-specs/testing.md` contains the "Dispatcher fixtures in v0.0.5+ scenarios (Plan 028)" subsection.
 - `test/scenarios/index.md` lists scenarios 032–037.
 - For scenarios 032, 033, 034, 035, 037: `llmFixtures` contains at least one fixture whose system message mentions "Flexie's conversation dispatcher" (the dispatcher prompt's signature phrase). For scenario 036: NO such fixture exists (cancel precedence short-circuit).
-- For scenario 036: `finalSession.planFlow === null` AND `finalSession.recentTurns === []`.
+- For scenario 036: `finalSession.planFlow === null` AND `finalSession.recentTurns` is absent from the recording (the field is optional and `pushTurn` is never called because the cancel short-circuit fires before the dispatcher runs).
 - For scenario 037: `finalStore.measurements` has exactly one entry for the clock date with weight 82.3.
 - Every existing scenario that was not regenerated in Task 13 still has its original output byte-for-byte — no unintended collateral changes.
 - Typing "ok back to the plan" mid-planning (scenario 034) produces a reply whose text contains the same proposal text shown after the previous proposal render, with the `planProposalKeyboard` attached — proving `return_to_flow`'s flow re-render path works end-to-end.

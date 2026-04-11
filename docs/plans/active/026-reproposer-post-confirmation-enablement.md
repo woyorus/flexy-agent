@@ -8,11 +8,11 @@
 
 **Goal:** Make the re-proposer runnable against a confirmed plan session — not just an in-memory draft — so post-confirmation plan mutations become structurally possible. This is Plan A from proposal `003-freeform-conversation-layer.md`.
 
-**Architecture:** A pure adapter converts a persisted `PlanSession + Batch[]` into the in-memory `PlanProposal` shape the re-proposer already accepts, splitting the plan at the **(date, mealType)** level with server-local wall-clock cutoffs. Past slots are preserved verbatim; active slots go through the re-proposer; spanning batches (a batch with both past and active slots) are split at the boundary. A round-trip helper concatenates preserved past batches with the re-proposer's output into a write payload for `confirmPlanSessionReplacing`. Mutation history is persisted as a new JSONB column on `plan_sessions` so it survives save-before-destroy writes. Two new rules are added to the re-proposer (meal-type lane — always; near-future safety — post-confirmation only), and a new invariant enforces `batch.mealType ∈ recipe.mealTypes` in the proposal validator.
+**Architecture:** A pure adapter converts a persisted `PlanSession + Batch[]` into the in-memory `PlanProposal` shape the re-proposer already accepts, splitting the plan at the **(date, mealType)** level with server-local wall-clock cutoffs. Past slots are preserved verbatim — not just past batches, but also past flex slots and past meal events — so the user's historical record survives every mutate. Active slots go through the re-proposer; spanning batches (a batch with both past and active slots) are split at the boundary. The adapter returns three parallel past arrays (`preservedPastBatches`, `preservedPastFlexSlots`, `preservedPastEvents`) alongside the active `PlanProposal`. A round-trip helper concatenates each preserved past array with its re-proposer counterpart into the write payload for `confirmPlanSessionReplacing`. Mutation history is persisted as a new JSONB column on `plan_sessions` so it survives save-before-destroy writes. Two new rules are added to the re-proposer (meal-type lane — always; near-future safety — post-confirmation only), and a new invariant enforces `batch.mealType ∈ recipe.mealTypes` in the proposal validator.
 
-**Tech Stack:** TypeScript, Node's built-in `node:test`, Supabase (JSONB column addition), OpenAI via the existing `LLMProvider` interface (used through `FixtureLLMProvider` in the re-proposer unit tests).
+**Tech Stack:** TypeScript, Node's built-in `node:test`, Supabase (JSONB column addition), OpenAI via the existing `LLMProvider` interface. The re-proposer rule unit tests use lightweight local `LLMProvider` stubs (a capturing stub that snapshots the last system prompt; a queue-based stub that dispenses scripted JSON responses for driving the validator retry loop) — not the scenario-harness `FixtureLLMProvider`, which is hash-keyed and designed for full scenario replay rather than unit-level rule verification.
 
-**Scope:** Backend enablement only. No dispatcher, no Telegram UI, no new entry points. All verification is via direct function calls in `test/unit/`. `npm test` must stay green throughout. The actual wiring of post-confirmation mutations into a user-facing flow is **Plan D** — not this plan.
+**Scope:** Backend enablement only. No dispatcher, no Telegram UI, no new entry points. The primary verification surface is direct function calls in `test/unit/` (adapter forward/round-trip, validator invariant #14, re-proposer rules). Because Task 13 changes the re-proposer's system prompt (adding the meal-type lane rule and the optional near-future safety section), the existing in-session scenario fixtures that captured the old prompt's hash go stale — Task 13 regenerates exactly that set (`002`, `013`, `023`–`028`) and requires a manual behavioral review of each regenerated `recorded.json`. This is a targeted side-effect of the prompt change, not a primary verification path: no new scenarios are authored by Plan 026, and every scenario that survives regeneration should capture byte-for-byte the same user-facing behavior (the prompt is additive — the new rules don't conflict with any existing in-session test input). `npm test` must stay green after every task, including after the Task 13 regeneration. The actual wiring of post-confirmation mutations into a user-facing flow is **Plan D** — not this plan.
 
 ---
 
@@ -27,6 +27,8 @@ Two additional rules must land alongside the adapter, or the re-proposer will ge
 
 Finally, mutation history must start persisting on plan sessions. Today it lives on in-memory `PlanFlowState.mutationHistory` (`src/agents/plan-flow.ts:104`) and is cleared on confirm (`src/agents/plan-flow.ts:570`). For post-confirmation mutations, history must survive save-before-destroy writes so the re-proposer can see every earlier decision the user has already approved.
 
+**Two separate write paths, with ownership split between Plans A and D.** Plan A (this plan) adds the column, the model-side type, the store serialization, the harness round-trip, and the round-trip into `buildReplacingDraft` for **post-confirmation** writes — i.e., once post-confirmation mutations exist, each new session rewrite carries its predecessor's history plus the just-approved mutation. Plan A **does not** rewire the **first-confirmation** write path that runs when the user taps `[Looks good]` at the end of a planning session (`handleApprove()` → `buildNewPlanSession` → `DraftPlanSession`). That path still drops `state.mutationHistory` on the floor after this plan lands, which means a plan confirmed immediately after several in-session mutations starts post-confirmation life with an empty history. This is a known gap and is explicitly closed by **Plan 029 Task 7 Step 6**, which threads `state.mutationHistory ?? []` into the `DraftPlanSession` literal inside `buildNewPlanSession`. The split-ownership rationale is in the decision log below. The net effect is that by the time Plan D ships, every post-confirmation mutation the re-proposer runs on sees the full approved history — both from in-session accumulation and from post-confirmation writebacks.
+
 This plan does not wire anything into a user-facing flow. It makes the moving parts correct and independently testable so Plan D can pick them up.
 
 ---
@@ -40,12 +42,12 @@ This plan does not wire anything into a user-facing flow. It makes the moving pa
 - `src/plan/session-to-proposal.ts` — Adapter. Pure functions:
   - `classifySlot(day: string, mealType: 'lunch' | 'dinner', now: Date): 'past' | 'active'`
   - `splitBatchAtCutoffs(batch: Batch, now: Date): SplitBatchResult` — where `SplitBatchResult` is a discriminated union `{ kind: 'past-only'; pastBatch: Batch } | { kind: 'active-only'; activeBatch: ProposedBatch } | { kind: 'spanning'; pastBatch: Batch; activeBatch: ProposedBatch }`
-  - `sessionToPostConfirmationProposal(session: PlanSession, batches: Batch[], now: Date): PostConfirmationProposal` — returning `{ activeProposal: PlanProposal; preservedPastBatches: Batch[]; horizonDays: string[]; nearFutureDays: string[] }`
-  - `buildReplacingDraft(args: BuildReplacingDraftArgs): Promise<BuildReplacingDraftResult>` — accepting `{ oldSession: PlanSession; preservedPastBatches: Batch[]; reProposedActive: PlanProposal; newMutation: MutationRecord; recipeDb: RecipeDatabase; llm: LLMProvider }` and returning `{ draft: DraftPlanSession; batches: Omit<Batch, 'createdAt' | 'updatedAt'>[] }`
+  - `sessionToPostConfirmationProposal(session: PlanSession, batches: Batch[], now: Date): PostConfirmationProposal` — returning `{ activeProposal: PlanProposal; preservedPastBatches: Batch[]; preservedPastFlexSlots: FlexSlot[]; preservedPastEvents: MealEvent[]; horizonDays: string[]; nearFutureDays: string[] }`. The past-slot flex slots and meal events are filtered OUT of `activeProposal` (the re-proposer never sees them) and OUT into `preservedPastFlexSlots` / `preservedPastEvents` so the round-trip in `buildReplacingDraft` can splice them back into the rewritten session. Dropping them on the floor would erase the user's historical record — e.g., "Sunday dinner was a flex slot", "I ate out on Monday" — on every mutate.
+  - `buildReplacingDraft(args: BuildReplacingDraftArgs): Promise<BuildReplacingDraftResult>` — accepting `{ oldSession: PlanSession; preservedPastBatches: Batch[]; preservedPastFlexSlots: FlexSlot[]; preservedPastEvents: MealEvent[]; reProposedActive: PlanProposal; newMutation: MutationRecord; recipeDb: RecipeDatabase; llm: LLMProvider }` and returning `{ draft: DraftPlanSession; batches: Omit<Batch, 'createdAt' | 'updatedAt'>[] }`. **The caller MUST run the solver on `reProposedActive` before passing it in** (Plan 029's post-confirmation branch does this — see `docs/plans/active/029-mutate-plan-action.md` § Architecture "runs the solver on the active proposal"), so `reProposedActive.solverOutput?.batchTargets` is populated. `buildReplacingDraft` looks up each re-proposed batch's `BatchTarget` from the solver output (by `(recipeSlug, mealType, days[0])` — the same tuple key `plan-flow.ts:878-882` uses for first-confirmation), reads `batchTarget.targetPerServing` as the scaler input (matching `plan-flow.ts:897-899`), and writes `targetPerServing: batchTarget.targetPerServing` unchanged into the new Batch row. This mirrors the existing first-confirmation write path so persisted post-confirmation batches use the solver-backed macro targets, not recipe defaults. If `solverOutput` is missing or a `BatchTarget` can't be matched, `buildReplacingDraft` throws with a descriptive error — Plan D's applier is expected to always provide a solved proposal. The draft's `flexSlots` is `[...preservedPastFlexSlots, ...reProposedActive.flexSlots]` and its `events` is `[...preservedPastEvents, ...reProposedActive.events]` — past state concatenates verbatim with the re-proposed active state, exactly like batches.
 
 - `test/unit/session-to-proposal.test.ts` — Pure unit tests for every helper above plus the end-to-end round-trip. Uses `TestStateStore` to seed + snapshot and asserts against `deepStrictEqual`.
 
-- `test/unit/post-confirmation-reproposer.test.ts` — Fixture-LLM unit tests for the new re-proposer rules. Uses `FixtureLLMProvider` with hand-authored fixtures that exercise meal-type lane violations and near-future safety violations.
+- `test/unit/post-confirmation-reproposer.test.ts` — Unit tests for the new re-proposer rules. Each test constructs a minimal `LLMProvider` stub (either `capturingLLM` — snapshots the last system prompt after returning a stub proposal — or `queuedFixtureLLM` — dispenses a queue of scripted JSON responses) to drive `reProposePlan` through its validator retry loop. The scripted-queue approach is a lighter-weight alternative to `FixtureLLMProvider` (which is hash-keyed scenario replay from `src/ai/fixture.ts` and requires pre-computed request hashes — overkill for unit-level rule verification). Test coverage: two prompt-string assertions (meal-type lane copy is present in both modes; near-future safety copy is conditionally present and carries the soft-locked dates) plus three behavioral tests (lane violation caught by validator → retry succeeds with lane-safe recipe; lane violation caught twice → reProposePlan surfaces `failure`; near-future prompt carries the dates and a rule-respecting response round-trips cleanly).
 
 - `supabase/migrations/005_plan_session_mutation_history.sql` — Adds `mutation_history jsonb not null default '[]'` to `plan_sessions`.
 
@@ -65,11 +67,16 @@ This plan does not wire anything into a user-facing flow. It makes the moving pa
 
 - `docs/product-specs/data-models.md` — Sync the `PlanSession` and `DraftPlanSession` interfaces. Add a short subsection on mutation history persistence and one on the meal-type lane invariant.
 
+**Files with narrow, intentional modifications (NOT full scope):**
+
+- `src/agents/plan-flow.ts` — **One-line change only, at the existing `reProposePlan` call site (`src/agents/plan-flow.ts:666-675`).** Task 13 Step 5 adds `mode: 'in-session'` as the last field of the call so the re-proposer's new `mode`-gated prompt behavior is exercised by every existing in-session scenario (which is how Task 13 Step 7 verifies the meal-type lane rule ships in both modes). No other line in `plan-flow.ts` is touched. In particular:
+  - `handleApprove()` is NOT modified. It continues to build the draft without setting `mutationHistory`, which falls through to `[]` in `fromPlanSessionRow`. `state.mutationHistory = undefined` on line 570 stays as-is. **The first-confirmation write path — threading `state.mutationHistory` into `buildNewPlanSession`'s draft — is explicitly deferred to Plan D (see Plan 029 Task 7 Step 6 which owns this write).** See the decision log entry below for the rationale.
+  - `handleMutationText()` and its `reProposePlan` call site are NOT touched beyond the single-field addition.
+
 **Files NOT modified (deliberate scope guard):**
 
-- `src/agents/plan-flow.ts` — No changes. `handleApprove()` continues to build the draft without setting `mutationHistory`, which falls through to `[]` in `fromPlanSessionRow`. `state.mutationHistory = undefined` on line 570 stays as-is. Plan D will rewire this.
 - `src/telegram/*` — No changes. No new entry points.
-- Existing scenarios — no modifications. `npm test` must stay green after every task.
+- Existing scenarios — no modifications beyond the regeneration in Task 13 Step 8 (required because the Task 13 prompt change invalidates the re-proposer fixture hash). `npm test` must stay green after every task.
 
 ### Task order rationale
 
@@ -123,23 +130,28 @@ export interface MutationRecord {
 }
 ```
 
-- [ ] **Step 2: Replace the `MutationRecord` definition in `plan-reproposer.ts` with a re-export**
+- [ ] **Step 2: Replace the `MutationRecord` definition in `plan-reproposer.ts` with an import + re-export**
 
-In `src/agents/plan-reproposer.ts`, replace lines 39-44 with:
+Two edits in `src/agents/plan-reproposer.ts`:
 
-```typescript
-// MutationRecord moved to models/types.ts in Plan 026. Re-exported here so the
-// single existing importer (plan-flow.ts) keeps working without a widespread rename.
-export type { MutationRecord } from '../models/types.js';
-```
-
-Also add `MutationRecord` to the existing `models/types.js` import at line 19:
+1. **Extend the existing `models/types.js` import at line 19** to include `MutationRecord` so the local `ReProposerInput.mutationHistory: MutationRecord[]` at line 31 has a binding after the local type is deleted:
 
 ```typescript
 import type { MealEvent, FlexSlot, MutationRecord } from '../models/types.js';
 ```
 
-Wait — the file currently only imports `MealEvent, FlexSlot` from there. The `MutationRecord` re-export line itself does the import, so the `import type { MutationRecord }` isn't needed elsewhere in the file. Leave line 19 as `import type { MealEvent, FlexSlot } from '../models/types.js';` — unchanged.
+2. **Replace lines 39-44** (the local `MutationRecord` interface definition) with a re-export that exposes the type to the single existing downstream importer (`plan-flow.ts`) without a rename:
+
+```typescript
+// MutationRecord moved to models/types.ts in Plan 026. Re-exported here so the
+// single existing importer (plan-flow.ts) keeps working without a widespread rename.
+// NOTE: this re-export form (without `from`) re-exports the LOCAL binding introduced
+// by the import above — a `export type { ... } from '../models/types.js';` form would
+// NOT create a local binding and would break `ReProposerInput.mutationHistory` at line 31.
+export type { MutationRecord };
+```
+
+Both edits are required. The import on line 19 gives the file a local `MutationRecord` symbol that `ReProposerInput` can reference; the `export type { MutationRecord }` line re-exports that local symbol so `plan-flow.ts:19` (`import { MutationRecord } from './plan-reproposer.js'` or similar — check the real import at Task 2 time) still resolves.
 
 - [ ] **Step 3: Run tests**
 
@@ -1099,25 +1111,50 @@ test('sessionToPostConfirmationProposal: Tuesday 7pm with Monday dinner fully pa
   ]);
 
   // Active proposal carries flex slots and events that fall on active slots only.
+  // The seed session's sole flex slot is on Saturday (active), so it lands in activeProposal.
   assert.deepStrictEqual(result.activeProposal.flexSlots, sess.flexSlots);
   assert.deepStrictEqual(result.activeProposal.events, []);
   assert.deepStrictEqual(result.activeProposal.recipesToGenerate, []);
+
+  // No past flex slots or events in this seed (events is empty, the one flex slot is active).
+  assert.deepStrictEqual(result.preservedPastFlexSlots, []);
+  assert.deepStrictEqual(result.preservedPastEvents, []);
 
   // Near-future days: today + tomorrow = 2026-04-07, 2026-04-08.
   assert.deepStrictEqual(result.nearFutureDays, ['2026-04-07', '2026-04-08']);
 });
 
-test('sessionToPostConfirmationProposal: flex slot on a past day is NOT carried into active proposal', () => {
+test('sessionToPostConfirmationProposal: past flex slots and events split into preservedPast* arrays', () => {
   const now = at('2026-04-09', 10); // Thursday morning
   const sess = session({
     flexSlots: [
       { day: '2026-04-06', mealTime: 'dinner', flexBonus: 350 }, // past (Monday)
       { day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 }, // active (Saturday)
     ],
+    // MealEvent shape: { name, day, mealTime, estimatedCalories, notes? }
+    // — real type from src/models/types.ts:139.
+    events: [
+      { name: 'indian restaurant', day: '2026-04-07', mealTime: 'dinner', estimatedCalories: 1200, notes: 'saag paneer' }, // past (Tuesday)
+      { name: 'work lunch out', day: '2026-04-10', mealTime: 'lunch', estimatedCalories: 800 }, // active (Friday)
+    ],
   });
   const result = sessionToPostConfirmationProposal(sess, [], now);
+
+  // Active proposal carries ONLY future/today-active flex slots and events.
   assert.deepStrictEqual(result.activeProposal.flexSlots, [
     { day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 },
+  ]);
+  assert.deepStrictEqual(result.activeProposal.events, [
+    { name: 'work lunch out', day: '2026-04-10', mealTime: 'lunch', estimatedCalories: 800 },
+  ]);
+
+  // Preserved past arrays carry the dropped ones so the round-trip can splice
+  // them back into the rewritten session without erasing the user's record.
+  assert.deepStrictEqual(result.preservedPastFlexSlots, [
+    { day: '2026-04-06', mealTime: 'dinner', flexBonus: 350 },
+  ]);
+  assert.deepStrictEqual(result.preservedPastEvents, [
+    { name: 'indian restaurant', day: '2026-04-07', mealTime: 'dinner', estimatedCalories: 1200, notes: 'saag paneer' },
   ]);
 });
 ```
@@ -1132,19 +1169,25 @@ Expected: FAIL — function does not exist.
 Append to `src/plan/session-to-proposal.ts`:
 
 ```typescript
-import type { PlanSession } from '../models/types.js';
+import type { PlanSession, FlexSlot, MealEvent } from '../models/types.js';
 import type { PlanProposal } from '../solver/types.js';
 
 /**
  * Forward-adapter result. `activeProposal` is the shape the re-proposer accepts;
  * `preservedPastBatches` are the batches (and split halves of spanning batches)
  * that belong entirely to past slots and must be written unchanged into the
- * new session at round-trip time. `nearFutureDays` captures the 2-day
- * soft-locked window for the re-proposer's post-confirmation safety rule.
+ * new session at round-trip time. `preservedPastFlexSlots` and
+ * `preservedPastEvents` are the flex slots and meal events whose `day`+`mealTime`
+ * classify as past at `now` — the re-proposer never sees them but they must
+ * round-trip into the rewritten session so the user's historical record is not
+ * erased on every mutate. `nearFutureDays` captures the 2-day soft-locked
+ * window for the re-proposer's post-confirmation safety rule.
  */
 export interface PostConfirmationProposal {
   activeProposal: PlanProposal;
   preservedPastBatches: Batch[];
+  preservedPastFlexSlots: FlexSlot[];
+  preservedPastEvents: MealEvent[];
   horizonDays: string[];
   nearFutureDays: string[];
 }
@@ -1223,14 +1266,32 @@ export function sessionToPostConfirmationProposal(
     return a.mealType < b.mealType ? -1 : 1;
   });
 
-  // Flex slots and events: drop any that fall on past slots. The re-proposer
-  // only ever sees live future/today-active commitments.
-  const activeFlexSlots = session.flexSlots.filter(
-    (fs) => classifySlot(fs.day, fs.mealTime, now) === 'active',
-  );
-  const activeEvents = session.events.filter(
-    (ev) => classifySlot(ev.day, ev.mealTime, now) === 'active',
-  );
+  // Flex slots and events: partition by classification at `now`. Active ones
+  // go to `activeProposal` (the re-proposer can see and rearrange them);
+  // past ones go to `preservedPast*` (frozen historical record that the
+  // round-trip splices back into the rewritten session). Dropping past ones
+  // on the floor would erase the user's record of "Sunday dinner was a flex
+  // slot" or "I ate out Monday" on every mutate — exactly the kind of silent
+  // data loss the save-before-destroy model exists to prevent.
+  const activeFlexSlots: FlexSlot[] = [];
+  const preservedPastFlexSlots: FlexSlot[] = [];
+  for (const fs of session.flexSlots) {
+    if (classifySlot(fs.day, fs.mealTime, now) === 'active') {
+      activeFlexSlots.push(fs);
+    } else {
+      preservedPastFlexSlots.push(fs);
+    }
+  }
+
+  const activeEvents: MealEvent[] = [];
+  const preservedPastEvents: MealEvent[] = [];
+  for (const ev of session.events) {
+    if (classifySlot(ev.day, ev.mealTime, now) === 'active') {
+      activeEvents.push(ev);
+    } else {
+      preservedPastEvents.push(ev);
+    }
+  }
 
   const activeProposal: PlanProposal = {
     batches: activeBatches,
@@ -1242,6 +1303,8 @@ export function sessionToPostConfirmationProposal(
   return {
     activeProposal,
     preservedPastBatches,
+    preservedPastFlexSlots,
+    preservedPastEvents,
     horizonDays,
     nearFutureDays: computeNearFutureDays(now, horizonDays),
   };
@@ -1269,7 +1332,9 @@ git commit -m "Plan 026: sessionToPostConfirmationProposal — forward adapter"
 
 ### Task 11: `buildReplacingDraft` — round-trip back to the store
 
-**Rationale:** After the re-proposer runs on the active proposal and the user confirms, the system needs to write a new session that covers the full horizon (preserved past + re-proposed active). The new draft's `mutationHistory` is the old session's history plus the just-approved mutation. `buildReplacingDraft` is the pure-ish adapter that produces the draft + batch array that gets handed to `store.confirmPlanSessionReplacing` by Plan D. It is "pure-ish" because it has to call the recipe scaler to populate `scaledIngredients` for the active-half batches the re-proposer returned — the scaler is async and takes an LLMProvider.
+**Rationale:** After the re-proposer runs on the active proposal AND the solver runs on top of the re-proposer's output, the system needs to write a new session that covers the full horizon (preserved past + re-proposed active). The new draft's `mutationHistory` is the old session's history plus the just-approved mutation. `buildReplacingDraft` is the pure-ish adapter that produces the draft + batch array that gets handed to `store.confirmPlanSessionReplacing` by Plan D. It is "pure-ish" because it has to call the recipe scaler to populate `scaledIngredients` for the active-half batches the re-proposer returned — the scaler is async and takes an LLMProvider.
+
+**Critical: consume solver output, do NOT re-derive targets from `recipe.perServing`.** The existing first-confirmation write path in `plan-flow.ts:851-942` reads `solver.batchTargets` and uses each `batchTarget.targetPerServing` as (a) the scaler's input target and (b) the `Batch.targetPerServing` that lands in the store. The solver is what translates the re-proposer's raw batches into per-batch macro targets aware of the weekly totals, flex bonuses, event offsets, and treat budget. Discarding the solver's output and re-scaling from `recipe.perServing` would produce batches whose `targetPerServing` disagrees with every other persisted batch in the codebase and would silently erase the solver's allocation math. `buildReplacingDraft` must match `plan-flow.ts`'s shape exactly. Plan D's applier owns calling `solve()` on the re-proposer's output before passing the proposal into `buildReplacingDraft` — Plan A's contract is "if `reProposedActive.solverOutput?.batchTargets` is missing, throw" (same error shape as the in-session flow does today via `solver.batchTargets!`).
 
 **Files:**
 - Modify: `src/plan/session-to-proposal.ts`
@@ -1277,10 +1342,21 @@ git commit -m "Plan 026: sessionToPostConfirmationProposal — forward adapter"
 
 - [ ] **Step 1: Read the existing scaler signature**
 
-Run: `npx grep -n "export.*scaleRecipe" src/recipes/scaler.ts || grep -rn "export.*scaleRecipe" src/`
-Expected: a function signature in `src/recipes/scaler.ts` (or wherever the current `scaleRecipe` lives — it is already called from `plan-flow.ts:895`). Read that file now to confirm the exact signature before writing the new code below.
+Use the Grep tool to find `scaleRecipe` — the current definition lives at `src/agents/recipe-scaler.ts:54` (NOT `src/recipes/scaler.ts` — `src/recipes/` only contains `database.ts`, `parser.ts`, `renderer.ts`). The function is already called from `plan-flow.ts:895` via `import { scaleRecipe } from './recipe-scaler.js';`. Read `src/agents/recipe-scaler.ts` now to confirm the exact signature before writing the new code below.
 
-If the real signature differs from what this task assumes (`scaleRecipe({ recipe, targetCalories, calorieTolerance, targetProtein, servings }, llm)`), match the real one in the code blocks below rather than this plan's assumption. **Do not invent a new wrapper** — just use the existing function.
+Expected signature (verified against `src/agents/recipe-scaler.ts:28-57` at plan-writing time):
+```typescript
+interface ScaleRecipeInput {
+  recipe: Recipe;
+  targetCalories: number;
+  calorieTolerance: number;
+  targetProtein: number;
+  servings: number;
+}
+async function scaleRecipe(input: ScaleRecipeInput, llm: LLMProvider): Promise<ScaleRecipeOutput>
+```
+
+If the real signature has drifted since the plan was written, match the real one in the code blocks below rather than this plan's assumption. **Do not invent a new wrapper** — just use the existing function.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -1289,7 +1365,7 @@ Append to `test/unit/session-to-proposal.test.ts`:
 ```typescript
 import { buildReplacingDraft } from '../../src/plan/session-to-proposal.js';
 import type { PlanProposal } from '../../src/solver/types.js';
-import type { MutationRecord } from '../../src/models/types.js';
+import type { MealEvent, MutationRecord } from '../../src/models/types.js';
 
 // Small fake LLM + fake recipe DB for this test — we only need the scaler's
 // fallback branch to kick in (which does not call the LLM). The real scaler
@@ -1319,14 +1395,14 @@ const fakeRecipeDb = {
   getAll() { return []; },
 } as unknown as import('../../src/recipes/database.js').RecipeDatabase;
 
-test('buildReplacingDraft: carries mutationHistory, preserves past, new batches for active', async () => {
+test('buildReplacingDraft: carries mutationHistory, preserves past batches + flex slots + events, writes new batches using solver-backed targets', async () => {
   const oldSess = session({
     id: 'old',
     mutationHistory: [
       { constraint: 'initial plan', appliedAt: '2026-04-05T18:00:00.000Z' },
     ],
   });
-  const preservedPast: Batch[] = [
+  const preservedPastBatches: Batch[] = [
     batch({
       id: 'past-grainbowl',
       recipeSlug: 'grain-bowl',
@@ -1335,6 +1411,21 @@ test('buildReplacingDraft: carries mutationHistory, preserves past, new batches 
       servings: 2,
     }),
   ];
+  // Past flex slot (Sunday dinner) and past event (Monday lunch out) — both
+  // must survive the rewrite or the user's historical record is erased.
+  // MealEvent shape: { name, day, mealTime, estimatedCalories, notes? }
+  // — real type from src/models/types.ts, NOT the Plan 024 event kind union.
+  const preservedPastFlexSlots = [
+    { day: '2026-04-05', mealTime: 'dinner', flexBonus: 350 } as const,
+  ];
+  const preservedPastEvents: MealEvent[] = [
+    { name: 'office lunch out', day: '2026-04-06', mealTime: 'lunch', estimatedCalories: 850, notes: 'team lunch' },
+  ];
+  // The caller (Plan D applier) runs the solver on the re-proposer output
+  // before invoking buildReplacingDraft. We attach a minimal solver output
+  // with one BatchTarget matching the single re-proposed batch so the test
+  // can assert that buildReplacingDraft consumes the solver's targetPerServing
+  // (not recipe.perServing) as the Batch's targetPerServing.
   const reProposed: PlanProposal = {
     batches: [
       {
@@ -1349,6 +1440,29 @@ test('buildReplacingDraft: carries mutationHistory, preserves past, new batches 
     flexSlots: [{ day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 }],
     events: [],
     recipesToGenerate: [],
+    solverOutput: {
+      isValid: true,
+      weeklyTotals: { calories: 15000, protein: 900, treatBudget: 800, flexSlotCalories: 350 },
+      dailyBreakdown: [],
+      batchTargets: [
+        {
+          id: 'bt-tagine',
+          recipeSlug: 'tagine',
+          mealType: 'dinner',
+          days: ['2026-04-08', '2026-04-09'],
+          servings: 2,
+          // Solver target deliberately DIFFERS from recipe.perServing (the fake
+          // DB returns calories: 800, protein: 45). If buildReplacingDraft wrote
+          // recipe.perServing instead of the solver target, the assertion below
+          // would fail. Macros shape is `{ calories, protein }` only — fat/carbs
+          // are deliberately NOT on BatchTarget.targetPerServing (see
+          // src/models/types.ts:74 and src/solver/types.ts:102).
+          targetPerServing: { calories: 720, protein: 50 },
+        },
+      ],
+      cookingSchedule: [],
+      warnings: [],
+    },
   };
   const newMutation: MutationRecord = {
     constraint: 'eating out tonight',
@@ -1357,7 +1471,9 @@ test('buildReplacingDraft: carries mutationHistory, preserves past, new batches 
 
   const { draft, batches: newBatches } = await buildReplacingDraft({
     oldSession: oldSess,
-    preservedPastBatches: preservedPast,
+    preservedPastBatches,
+    preservedPastFlexSlots,
+    preservedPastEvents,
     reProposedActive: reProposed,
     newMutation,
     recipeDb: fakeRecipeDb,
@@ -1372,8 +1488,16 @@ test('buildReplacingDraft: carries mutationHistory, preserves past, new batches 
     { constraint: 'initial plan', appliedAt: '2026-04-05T18:00:00.000Z' },
     { constraint: 'eating out tonight', appliedAt: '2026-04-07T19:30:00.000Z' },
   ]);
-  assert.deepStrictEqual(draft.flexSlots, reProposed.flexSlots);
-  assert.deepStrictEqual(draft.events, []);
+
+  // Draft's flexSlots and events concatenate preserved past + re-proposed active.
+  // Past first, then active — matches the order the round-trip wants.
+  assert.deepStrictEqual(draft.flexSlots, [
+    { day: '2026-04-05', mealTime: 'dinner', flexBonus: 350 },
+    { day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 },
+  ]);
+  assert.deepStrictEqual(draft.events, [
+    { name: 'office lunch out', day: '2026-04-06', mealTime: 'lunch', estimatedCalories: 850, notes: 'team lunch' },
+  ]);
 
   // Batches: preserved past + new re-proposed active. Past batches get a
   // new createdInPlanSessionId pointing at the new draft, and a new id.
@@ -1393,6 +1517,38 @@ test('buildReplacingDraft: carries mutationHistory, preserves past, new batches 
   assert.equal(activeBatch.servings, 2);
   assert.equal(activeBatch.createdInPlanSessionId, draft.id);
   assert.equal(activeBatch.mealType, 'dinner');
+  // CRITICAL: targetPerServing must come from the solver's BatchTarget, NOT
+  // from recipe.perServing. This is the assertion that would have caught the
+  // Round-4 bug where buildReplacingDraft silently re-derived targets.
+  assert.deepStrictEqual(activeBatch.targetPerServing, { calories: 720, protein: 50 });
+});
+
+test('buildReplacingDraft: throws when reProposedActive.solverOutput is missing', async () => {
+  const reProposedWithoutSolver: PlanProposal = {
+    batches: [
+      {
+        recipeSlug: 'tagine', recipeName: 'tagine', mealType: 'dinner',
+        days: ['2026-04-08'], servings: 1, overflowDays: undefined,
+      },
+    ],
+    flexSlots: [],
+    events: [],
+    recipesToGenerate: [],
+    // solverOutput deliberately omitted — caller forgot to run the solver.
+  };
+  await assert.rejects(
+    () => buildReplacingDraft({
+      oldSession: session({ id: 'old' }),
+      preservedPastBatches: [],
+      preservedPastFlexSlots: [],
+      preservedPastEvents: [],
+      reProposedActive: reProposedWithoutSolver,
+      newMutation: { constraint: 'x', appliedAt: '2026-04-08T12:00:00.000Z' },
+      recipeDb: fakeRecipeDb,
+      llm: throwingLLM,
+    }),
+    /solverOutput is missing/,
+  );
 });
 ```
 
@@ -1406,7 +1562,7 @@ Expected: FAIL — `buildReplacingDraft` not exported.
 Append to `src/plan/session-to-proposal.ts`:
 
 ```typescript
-import type { DraftPlanSession, MutationRecord, ScaledIngredient } from '../models/types.js';
+import type { DraftPlanSession, FlexSlot, MealEvent, MutationRecord, ScaledIngredient } from '../models/types.js';
 import type { LLMProvider } from '../ai/provider.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 
@@ -1415,6 +1571,19 @@ export interface BuildReplacingDraftArgs {
   oldSession: PlanSession;
   /** Past batches to preserve verbatim (re-pointed at the new session id). */
   preservedPastBatches: Batch[];
+  /**
+   * Past flex slots to preserve verbatim. These are the user's historical
+   * "I put a flex meal on Sunday dinner" decisions — dropping them on the
+   * floor would erase the user's record of what actually happened in the
+   * earlier half of the week. Sourced from `sessionToPostConfirmationProposal`.
+   */
+  preservedPastFlexSlots: FlexSlot[];
+  /**
+   * Past meal events to preserve verbatim. These are the user's historical
+   * "I ate out on Monday" / "breakfast out Tuesday" records — also must
+   * survive the rewrite. Sourced from `sessionToPostConfirmationProposal`.
+   */
+  preservedPastEvents: MealEvent[];
   /** The re-proposer's output for the active window. */
   reProposedActive: PlanProposal;
   /** The just-approved mutation to append to history. */
@@ -1453,8 +1622,12 @@ export async function buildReplacingDraft(
     horizonEnd: args.oldSession.horizonEnd,
     breakfast: args.oldSession.breakfast,
     treatBudgetCalories: args.oldSession.treatBudgetCalories,
-    flexSlots: args.reProposedActive.flexSlots,
-    events: args.reProposedActive.events,
+    // Concatenate preserved past + re-proposed active for both flex slots
+    // and events. The past arrays are frozen historical records that must
+    // round-trip into the rewritten session (the re-proposer never saw them
+    // and did not touch them; they simply pass through).
+    flexSlots: [...args.preservedPastFlexSlots, ...args.reProposedActive.flexSlots],
+    events: [...args.preservedPastEvents, ...args.reProposedActive.events],
     mutationHistory: [...args.oldSession.mutationHistory, args.newMutation],
   };
 
@@ -1469,10 +1642,37 @@ export async function buildReplacingDraft(
     });
   }
 
-  // 2. Re-proposed active batches — scale each one fresh via the recipe scaler.
-  for (const rp of args.reProposedActive.batches) {
-    const recipe = args.recipeDb.getBySlug(rp.recipeSlug);
-    const eatingDays = [...rp.days, ...(rp.overflowDays ?? [])];
+  // 2. Re-proposed active batches — use solver output, scale each batch fresh.
+  // This mirrors plan-flow.ts:874-938 (first-confirmation write path) so the
+  // two code paths produce structurally identical Batch rows.
+  const solverOutput = args.reProposedActive.solverOutput;
+  if (!solverOutput) {
+    throw new Error(
+      'buildReplacingDraft: reProposedActive.solverOutput is missing. ' +
+      'The caller (Plan D applier) must run the solver on the re-proposer output ' +
+      'before invoking buildReplacingDraft.',
+    );
+  }
+
+  for (const batchTarget of solverOutput.batchTargets) {
+    // Match plan-flow.ts:878-882's tuple key: (recipeSlug, mealType, days[0]).
+    // days[0] disambiguates when the same (recipeSlug, mealType) appears in
+    // two batches after re-batching (Plan 009).
+    const proposedBatch = args.reProposedActive.batches.find(
+      (b) =>
+        b.recipeSlug === batchTarget.recipeSlug &&
+        b.mealType === batchTarget.mealType &&
+        b.days[0] === batchTarget.days[0],
+    );
+    if (!proposedBatch) {
+      throw new Error(
+        `buildReplacingDraft: solver BatchTarget ${batchTarget.recipeSlug}:${batchTarget.mealType}:${batchTarget.days[0]} ` +
+        `has no matching re-proposed batch — solver output and re-proposer output are out of sync.`,
+      );
+    }
+    const recipe = batchTarget.recipeSlug ? args.recipeDb.getBySlug(batchTarget.recipeSlug) : undefined;
+    const overflowDays = proposedBatch.overflowDays ?? [];
+    const eatingDays = [...batchTarget.days, ...overflowDays];
 
     let actualPerServing = { calories: 0, protein: 0, fat: 0, carbs: 0 };
     let scaledIngredients: ScaledIngredient[] = [];
@@ -1481,13 +1681,16 @@ export async function buildReplacingDraft(
       // Fallback branch matches plan-flow.ts:904-914 exactly: on any scaler
       // failure, fall back to per-serving amounts multiplied by servings.
       try {
-        const { scaleRecipe } = await import('../recipes/scaler.js');
+        const { scaleRecipe } = await import('../agents/recipe-scaler.js');
         const scaled = await scaleRecipe({
           recipe,
-          targetCalories: recipe.perServing.calories,
-          calorieTolerance: 50, // conservative default; Plan D will wire the real tolerance from config
-          targetProtein: recipe.perServing.protein,
-          servings: eatingDays.length,
+          // Use the SOLVER-produced target, not recipe.perServing — the solver
+          // has already allocated macros across the week's batches given the
+          // weekly totals, flex bonuses, event offsets, and treat budget.
+          targetCalories: batchTarget.targetPerServing.calories,
+          calorieTolerance: 50, // Plan D will thread config.planning.scalerCalorieTolerance
+          targetProtein: batchTarget.targetPerServing.protein,
+          servings: eatingDays.length, // Plan 010: total portions, not solver servings
         }, args.llm);
         actualPerServing = scaled.actualPerServing;
         scaledIngredients = scaled.scaledIngredients;
@@ -1505,11 +1708,14 @@ export async function buildReplacingDraft(
 
     writeBatches.push({
       id: randomUUID(),
-      recipeSlug: rp.recipeSlug,
-      mealType: rp.mealType,
+      recipeSlug: batchTarget.recipeSlug ?? '',
+      mealType: batchTarget.mealType,
       eatingDays,
       servings: eatingDays.length,
-      targetPerServing: { calories: actualPerServing.calories, protein: actualPerServing.protein },
+      // Write the solver's target as-is. `actualPerServing` is what the scaler
+      // produced; `targetPerServing` is the solver's allocation target. These
+      // are allowed to differ within the scaler's calorie tolerance.
+      targetPerServing: batchTarget.targetPerServing,
       actualPerServing,
       scaledIngredients,
       status: 'planned',
@@ -1848,14 +2054,241 @@ test('near-future safety rule is present ONLY in post-confirmation mode', async 
   assert.match(post, /2026-04-07/, 'near-future days must be inlined into the prompt');
   assert.match(post, /2026-04-08/);
 });
+
+/*
+ * Behavioral tests — fixture-LLM drives a real reProposePlan call through the
+ * validator retry loop. These are the tests the file-structure section promises
+ * at the top of this plan ("Fixture-LLM unit tests for the new re-proposer
+ * rules... hand-authored fixtures that exercise meal-type lane violations and
+ * near-future safety violations"). Prompt-string assertions above prove the
+ * prompt was changed; the tests below prove the validator actually catches a
+ * lane-crossing LLM response and either retries into a clean proposal or
+ * returns failure — i.e., the rules are load-bearing end-to-end, not just
+ * lint-level copy in the system prompt.
+ */
+
+/**
+ * Queue-based fixture LLM: returns one scripted response per complete() call.
+ * Used to simulate the LLM producing a rule-violating proposal first and then
+ * correcting on the retry, so we can assert the validator caught the first
+ * round and prompt-feedback worked.
+ */
+function queuedFixtureLLM(responses: string[]): LLMProvider {
+  const queue = [...responses];
+  return {
+    async complete() {
+      const next = queue.shift();
+      if (next === undefined) {
+        throw new Error('queuedFixtureLLM: no more scripted responses');
+      }
+      return { content: next, usage: { inputTokens: 0, outputTokens: 0 } } as any;
+    },
+  } as unknown as LLMProvider;
+}
+
+/** Minimal recipe DB with a dinner-only and a lunch+dinner recipe so invariant #14 has something to compare against. */
+const behavioralRecipeDb: RecipeDatabase = {
+  getBySlug(slug: string) {
+    if (slug === 'tagine') {
+      return {
+        slug: 'tagine', name: 'tagine', shortName: 'tagine',
+        mealTypes: ['dinner'] as const, // dinner-only
+        cuisine: 'moroccan', tags: [], prepTimeMinutes: 45,
+        structure: [{ type: 'main' as const, name: 'Main' }],
+        perServing: { calories: 700, protein: 40, fat: 25, carbs: 60 },
+        ingredients: [{ name: 'lamb', amount: 150, unit: 'g', role: 'protein' as const, component: 'Main' }],
+        storage: { fridgeDays: 4, freezable: true, reheat: 'microwave 3m' },
+        body: '',
+      } as any;
+    }
+    if (slug === 'grain-bowl') {
+      return {
+        slug: 'grain-bowl', name: 'grain bowl', shortName: 'grain-bowl',
+        mealTypes: ['lunch', 'dinner'] as const,
+        cuisine: 'modern', tags: [], prepTimeMinutes: 20,
+        structure: [{ type: 'main' as const, name: 'Main' }],
+        perServing: { calories: 600, protein: 35, fat: 20, carbs: 70 },
+        ingredients: [{ name: 'quinoa', amount: 100, unit: 'g', role: 'carb' as const, component: 'Main' }],
+        storage: { fridgeDays: 3, freezable: false, reheat: 'room temp' },
+        body: '',
+      } as any;
+    }
+    return undefined;
+  },
+  getAll() { return []; },
+} as unknown as RecipeDatabase;
+
+test('meal-type lane violation: validator catches dinner-only recipe in lunch batch and forces retry', async () => {
+  // First LLM call: produce an invalid proposal that puts tagine (dinner-only)
+  // into a lunch batch — invariant #14 should reject it.
+  // Second LLM call (retry): produce a valid proposal that swaps to grain-bowl,
+  // which is valid in both lunch and dinner lanes.
+  const badProposal = {
+    type: 'proposal',
+    batches: [
+      { recipe_slug: 'tagine', recipe_name: 'tagine', meal_type: 'lunch', days: ['2026-04-08'], servings: 1 },
+    ],
+    flex_slots: [],
+    events: [],
+    reasoning: 'naive first-try (should fail invariant #14)',
+  };
+  const goodProposal = {
+    type: 'proposal',
+    batches: [
+      { recipe_slug: 'grain-bowl', recipe_name: 'grain bowl', meal_type: 'lunch', days: ['2026-04-08'], servings: 1 },
+    ],
+    flex_slots: [],
+    events: [],
+    reasoning: 'corrected after retry — lane-safe',
+  };
+  const llm = queuedFixtureLLM([JSON.stringify(badProposal), JSON.stringify(goodProposal)]);
+
+  const result = await reProposePlan(
+    {
+      currentProposal: {
+        batches: [{ recipeSlug: 'tagine', recipeName: 'tagine', mealType: 'dinner', days: ['2026-04-08'], servings: 1, overflowDays: undefined }],
+        flexSlots: [],
+        events: [],
+        recipesToGenerate: [],
+      },
+      userMessage: 'put that in lunch instead',
+      mutationHistory: [],
+      availableRecipes: [
+        // RecipeSummary shape (src/agents/plan-proposer.ts:39):
+        // { slug, name, mealTypes, cuisine, tags, calories, protein, proteinSource, fridgeDays }
+        // No `perServing` field — calories and protein are flat at the top level.
+        { slug: 'tagine', name: 'tagine', mealTypes: ['dinner'], cuisine: 'moroccan', tags: ['one-pot'], calories: 700, protein: 40, proteinSource: 'lamb', fridgeDays: 4 },
+        { slug: 'grain-bowl', name: 'grain bowl', mealTypes: ['lunch', 'dinner'], cuisine: 'modern', tags: ['bowl', 'portable'], calories: 600, protein: 35, proteinSource: 'chicken', fridgeDays: 3 },
+      ],
+      horizonDays: ['2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10', '2026-04-11', '2026-04-12'],
+      preCommittedSlots: [],
+      breakfast: { name: 'oatmeal', caloriesPerDay: 450, proteinPerDay: 25 },
+      weeklyTargets: { calories: 17000, protein: 1050 },
+      mode: 'post-confirmation',
+      nearFutureDays: ['2026-04-08', '2026-04-09'],
+    },
+    llm,
+    behavioralRecipeDb,
+  );
+
+  // The retry succeeds — result is a valid proposal using the lane-safe recipe.
+  assert.equal(result.type, 'proposal');
+  if (result.type !== 'proposal') throw new Error('unreachable');
+  assert.equal(result.proposal.batches.length, 1);
+  assert.equal(result.proposal.batches[0]!.recipeSlug, 'grain-bowl');
+  assert.equal(result.proposal.batches[0]!.mealType, 'lunch');
+});
+
+test('meal-type lane violation: two retries both fail → reProposePlan returns failure', async () => {
+  // Both the first and second LLM responses put a dinner-only recipe in a lunch
+  // batch. After two validator-driven retries, reProposePlan must surface a
+  // failure rather than silently returning the bad proposal.
+  const bad = {
+    type: 'proposal',
+    batches: [
+      { recipe_slug: 'tagine', recipe_name: 'tagine', meal_type: 'lunch', days: ['2026-04-08'], servings: 1 },
+    ],
+    flex_slots: [],
+    events: [],
+    reasoning: 'still wrong',
+  };
+  const llm = queuedFixtureLLM([JSON.stringify(bad), JSON.stringify(bad)]);
+
+  const result = await reProposePlan(
+    {
+      currentProposal: {
+        batches: [{ recipeSlug: 'tagine', recipeName: 'tagine', mealType: 'dinner', days: ['2026-04-08'], servings: 1, overflowDays: undefined }],
+        flexSlots: [],
+        events: [],
+        recipesToGenerate: [],
+      },
+      userMessage: 'put that in lunch instead',
+      mutationHistory: [],
+      availableRecipes: [
+        { slug: 'tagine', name: 'tagine', mealTypes: ['dinner'], cuisine: 'moroccan', tags: ['one-pot'], calories: 700, protein: 40, proteinSource: 'lamb', fridgeDays: 4 },
+      ],
+      horizonDays: ['2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10', '2026-04-11', '2026-04-12'],
+      preCommittedSlots: [],
+      breakfast: { name: 'oatmeal', caloriesPerDay: 450, proteinPerDay: 25 },
+      weeklyTargets: { calories: 17000, protein: 1050 },
+      mode: 'post-confirmation',
+      nearFutureDays: ['2026-04-08', '2026-04-09'],
+    },
+    llm,
+    behavioralRecipeDb,
+  );
+
+  assert.equal(result.type, 'failure', 'two lane violations in a row must surface as failure');
+});
+
+test('near-future safety: retry feedback path fires when post-confirmation LLM rearranges a soft-locked slot without user targeting', async () => {
+  // NOTE: the near-future safety rule is prompt-only (no validator invariant backs it
+  // up — rearranging a near-future slot is a soft violation of user intent, not a
+  // structural plan invariant). This test therefore asserts the prompt flows the
+  // soft-locked dates to the LLM end-to-end and that a response that respects the
+  // rule passes through as a clean proposal. A response that violates the rule
+  // cannot be caught by `validateProposal` — it would need a dedicated behavioral
+  // validator. That validator is out of scope for Plan A; see Task 13's decision
+  // log note. What Plan A can verify is (a) the prompt carries the rule and the
+  // dates, and (b) a rule-respecting LLM response round-trips cleanly — both of
+  // which are covered by this test plus the prompt-string tests above.
+  const respectful = {
+    type: 'proposal',
+    batches: [
+      { recipe_slug: 'grain-bowl', recipe_name: 'grain bowl', meal_type: 'dinner', days: ['2026-04-11'], servings: 1 },
+    ],
+    flex_slots: [],
+    events: [],
+    reasoning: 'moved the flex OUTSIDE the soft-locked window',
+  };
+  const { provider, lastSystemPrompt } = capturingLLM();
+  // Queue one respectful response by chaining capturingLLM -> override complete once.
+  const originalComplete = provider.complete.bind(provider);
+  (provider as any).complete = async (opts: any) => {
+    await originalComplete(opts); // populate lastSystemPrompt side-effect
+    return { content: JSON.stringify(respectful), usage: { inputTokens: 0, outputTokens: 0 } };
+  };
+
+  const result = await reProposePlan(
+    {
+      currentProposal: {
+        batches: [{ recipeSlug: 'grain-bowl', recipeName: 'grain bowl', mealType: 'dinner', days: ['2026-04-08'], servings: 1, overflowDays: undefined }],
+        flexSlots: [],
+        events: [],
+        recipesToGenerate: [],
+      },
+      userMessage: 'move the flex later this week',
+      mutationHistory: [],
+      availableRecipes: [
+        { slug: 'grain-bowl', name: 'grain bowl', mealTypes: ['lunch', 'dinner'], cuisine: 'modern', tags: ['bowl', 'portable'], calories: 600, protein: 35, proteinSource: 'chicken', fridgeDays: 3 },
+      ],
+      horizonDays: ['2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10', '2026-04-11', '2026-04-12'],
+      preCommittedSlots: [],
+      breakfast: { name: 'oatmeal', caloriesPerDay: 450, proteinPerDay: 25 },
+      weeklyTargets: { calories: 17000, protein: 1050 },
+      mode: 'post-confirmation',
+      nearFutureDays: ['2026-04-08', '2026-04-09'],
+    },
+    provider,
+    behavioralRecipeDb,
+  );
+
+  // Prompt carried the soft-locked dates.
+  assert.match(lastSystemPrompt(), /2026-04-08/);
+  assert.match(lastSystemPrompt(), /2026-04-09/);
+  // A rule-respecting LLM response comes through as a clean proposal.
+  assert.equal(result.type, 'proposal');
+  if (result.type !== 'proposal') throw new Error('unreachable');
+  assert.deepStrictEqual(result.proposal.batches[0]!.days, ['2026-04-11']);
+});
 ```
 
-Note: this test expects `reProposePlan` to accept `mode` and `nearFutureDays` in `ReProposerInput`. Step 2 adds them.
+Note: this file expects `reProposePlan` to accept `mode` and `nearFutureDays` in `ReProposerInput` (Step 3 adds them) AND the re-proposer's system prompt to carry both new rules (Step 4 adds them) AND `validateProposal` to enforce invariant #14 (Task 12 added it). The prompt-string tests prove the copy is present; the behavioral tests prove the validator retry path actually fires on a lane violation and surfaces failure after two bad responses.
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `npm test -- --test-name-pattern="meal-type lane rule|near-future safety rule"`
-Expected: FAIL — either TypeScript errors on the unknown `mode` field, or the prompt regex assertions fail because the prompt doesn't yet mention either rule.
+Run: `npm test -- --test-name-pattern="meal-type lane|near-future safety"`
+Expected: FAIL — TypeScript errors on the unknown `mode` field, the prompt regex assertions fail because the prompt doesn't yet mention either rule, AND the behavioral `meal-type lane violation` tests either fail to compile or return the wrong shape because the validator retry loop isn't yet wired to invariant #14.
 
 - [ ] **Step 3: Extend `ReProposerInput`**
 
@@ -1891,7 +2324,7 @@ export interface ReProposerInput {
 }
 ```
 
-Also update `MutationRecord` import at the top of the file to match what you did in Task 2 (it's a re-export now; no new import needed).
+`MutationRecord` was already added to the `import type { MealEvent, FlexSlot, MutationRecord } from '../models/types.js';` line at Task 2 Step 2, so no additional import is needed here.
 
 - [ ] **Step 4: Extend `buildSystemPrompt` with the new rules**
 
@@ -2020,8 +2453,8 @@ In `src/agents/plan-flow.ts`, update the `reProposePlan` call at lines 666-675 t
 
 - [ ] **Step 6: Run the new tests**
 
-Run: `npm test -- --test-name-pattern="meal-type lane rule|near-future safety rule"`
-Expected: PASS — both tests green.
+Run: `npm test -- --test-name-pattern="meal-type lane|near-future safety"`
+Expected: PASS — all five tests green (two prompt-string tests + two meal-type lane behavioral tests + one near-future safety prompt-threading test).
 
 - [ ] **Step 7: Run the full test suite — expect scenario fixture misses**
 
@@ -2151,14 +2584,6 @@ git commit -m "Plan 026: re-proposer mode + meal-type lane + near-future safety 
 
 Include only the scenario files that actually changed. Drop any that remained byte-identical (the prompt change should touch every affected scenario, but the fallback is defensive).
 
-- [ ] **Step 8: Commit**
-
-```bash
-git add src/agents/plan-reproposer.ts src/agents/plan-flow.ts test/unit/post-confirmation-reproposer.test.ts
-# plus any regenerated scenario recordings
-git commit -m "Plan 026: re-proposer mode + meal-type lane + near-future safety"
-```
-
 ---
 
 ### Task 14: End-to-end adapter round-trip integration test
@@ -2191,8 +2616,19 @@ test('end-to-end: confirmed plan → adapter → re-proposer (stubbed) → repla
       horizonEnd: '2026-04-12',
       breakfast: { locked: true, recipeSlug: 'oatmeal', caloriesPerDay: 450, proteinPerDay: 25 },
       treatBudgetCalories: 800,
-      flexSlots: [{ day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 }],
-      events: [],
+      // Seed both a past flex slot (Monday dinner — already consumed by Tue 19:00)
+      // and an active flex slot (Saturday dinner). The past one must round-trip
+      // via preservedPastFlexSlots, the active one via the re-proposer.
+      flexSlots: [
+        { day: '2026-04-06', mealTime: 'dinner', flexBonus: 350, note: 'burger night' },
+        { day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 },
+      ],
+      // Seed a past meal event (Monday lunch out) and an active meal event
+      // (Friday lunch out). Same preservation contract as flex slots.
+      events: [
+        { name: 'team lunch out', day: '2026-04-06', mealTime: 'lunch', estimatedCalories: 850, notes: 'sushi place' },
+        { name: 'friend lunch', day: '2026-04-10', mealTime: 'lunch', estimatedCalories: 700 },
+      ],
       mutationHistory: [{ constraint: 'initial plan', appliedAt: '2026-04-05T18:00:00.000Z' }],
     },
     [
@@ -2246,6 +2682,21 @@ test('end-to-end: confirmed plan → adapter → re-proposer (stubbed) → repla
     'tagine:dinner:2026-04-06',
   ]);
 
+  // Sanity: the Monday past flex slot and Monday past lunch event split into
+  // preservedPast* arrays; the Saturday flex and Friday lunch event stay active.
+  assert.deepStrictEqual(forward.preservedPastFlexSlots, [
+    { day: '2026-04-06', mealTime: 'dinner', flexBonus: 350, note: 'burger night' },
+  ]);
+  assert.deepStrictEqual(forward.preservedPastEvents, [
+    { name: 'team lunch out', day: '2026-04-06', mealTime: 'lunch', estimatedCalories: 850, notes: 'sushi place' },
+  ]);
+  assert.deepStrictEqual(forward.activeProposal.flexSlots, [
+    { day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 },
+  ]);
+  assert.deepStrictEqual(forward.activeProposal.events, [
+    { name: 'friend lunch', day: '2026-04-10', mealTime: 'lunch', estimatedCalories: 700 },
+  ]);
+
   // Sanity: active proposal has tagine (Tue,Wed/2), grain-bowl (Wed/1), chicken (Thu-Sat/3).
   const activeSigs = forward.activeProposal.batches.map(
     (b) => `${b.recipeSlug}:${b.mealType}:${b.days.join(',')}/${b.servings}`,
@@ -2258,7 +2709,14 @@ test('end-to-end: confirmed plan → adapter → re-proposer (stubbed) → repla
 
   // 2. Stub the re-proposer output: simulate "eating out tonight" by dropping
   // the Tue tagine slot (keeping Wed), and adding an eat_out event on Tue
-  // dinner. Chicken and grain-bowl unchanged.
+  // dinner. Chicken and grain-bowl unchanged. Events now include BOTH the
+  // preserved active event (Friday friend lunch) from the forward adapter AND
+  // the new eat-out. In Plan D's applier, the re-proposer output inherits the
+  // forward adapter's active events as its input — we match that shape here.
+  // Also attach a minimal solverOutput: Plan D runs the solver on the
+  // re-proposer's output before calling buildReplacingDraft. We construct one
+  // BatchTarget per re-proposed batch; actual solver math is covered by the
+  // in-session solver tests elsewhere.
   const reProposedActive: PlanProposal = {
     batches: [
       {
@@ -2275,14 +2733,54 @@ test('end-to-end: confirmed plan → adapter → re-proposer (stubbed) → repla
       },
     ],
     flexSlots: forward.activeProposal.flexSlots,
-    events: [{ name: 'dinner with friends', day: '2026-04-07', mealTime: 'dinner', estimatedCalories: 900 }],
+    events: [
+      ...forward.activeProposal.events,
+      { name: 'dinner with friends', day: '2026-04-07', mealTime: 'dinner', estimatedCalories: 900 },
+    ],
     recipesToGenerate: [],
+    solverOutput: {
+      isValid: true,
+      weeklyTotals: { calories: 15000, protein: 900, treatBudget: 800, flexSlotCalories: 350 },
+      dailyBreakdown: [],
+      batchTargets: [
+        {
+          id: 'bt-grain',
+          recipeSlug: 'grain-bowl',
+          mealType: 'lunch',
+          days: ['2026-04-08'],
+          servings: 1,
+          // Macros shape: { calories, protein } only. See src/models/types.ts:74.
+          targetPerServing: { calories: 600, protein: 35 },
+        },
+        {
+          id: 'bt-tagine',
+          recipeSlug: 'tagine',
+          mealType: 'dinner',
+          days: ['2026-04-08'],
+          servings: 1,
+          targetPerServing: { calories: 720, protein: 48 },
+        },
+        {
+          id: 'bt-chicken',
+          recipeSlug: 'chicken',
+          mealType: 'dinner',
+          days: ['2026-04-09', '2026-04-10', '2026-04-11'],
+          servings: 3,
+          targetPerServing: { calories: 700, protein: 50 },
+        },
+      ],
+      cookingSchedule: [],
+      warnings: [],
+    },
   };
 
-  // 3. Run the round-trip back.
+  // 3. Run the round-trip back. Pass preserved past flex slots + events through
+  // as well — the end-to-end contract is "past state round-trips verbatim".
   const { draft, batches: newBatches } = await buildReplacingDraft({
     oldSession: loaded,
     preservedPastBatches: forward.preservedPastBatches,
+    preservedPastFlexSlots: forward.preservedPastFlexSlots,
+    preservedPastEvents: forward.preservedPastEvents,
     reProposedActive,
     newMutation: { constraint: 'eating out tonight', appliedAt: '2026-04-07T19:30:00.000Z' },
     recipeDb: fakeRecipeDb,
@@ -2303,9 +2801,32 @@ test('end-to-end: confirmed plan → adapter → re-proposer (stubbed) → repla
   assert.equal(persisted.mutationHistory.length, 2);
   assert.equal(persisted.mutationHistory[1]!.constraint, 'eating out tonight');
 
-  //    - New session events include the eat-out event.
-  assert.equal(persisted.events.length, 1);
-  assert.equal(persisted.events[0]!.name, 'dinner with friends');
+  //    - New session flexSlots: past (Mon burger night) + active (Sat flex).
+  //      This is the load-bearing assertion for Plan A's "preserve past state"
+  //      contract — if buildReplacingDraft regressed to writing only the
+  //      re-proposer's (active-only) flexSlots, the Monday burger-night flex
+  //      would disappear here.
+  assert.equal(persisted.flexSlots.length, 2);
+  assert.deepStrictEqual(
+    persisted.flexSlots.map((f) => `${f.day}:${f.mealTime}`).sort(),
+    ['2026-04-06:dinner', '2026-04-11:dinner'],
+  );
+  const pastFlex = persisted.flexSlots.find((f) => f.day === '2026-04-06');
+  assert.equal(pastFlex?.note, 'burger night', 'past flex slot metadata must survive');
+
+  //    - New session events: past (Mon team lunch) + preserved active (Fri friend
+  //      lunch carried through the re-proposer) + newly-added (Tue dinner out).
+  //      Three events total; the past one must still be present with exact metadata.
+  assert.equal(persisted.events.length, 3);
+  const eventSigs = persisted.events.map((e) => `${e.day}:${e.mealTime}:${e.name}`).sort();
+  assert.deepStrictEqual(eventSigs, [
+    '2026-04-06:lunch:team lunch out',
+    '2026-04-07:dinner:dinner with friends',
+    '2026-04-10:lunch:friend lunch',
+  ]);
+  const pastEvent = persisted.events.find((e) => e.day === '2026-04-06');
+  assert.equal(pastEvent?.estimatedCalories, 850, 'past event calories must survive');
+  assert.equal(pastEvent?.notes, 'sushi place', 'past event notes must survive');
 
   //    - New session's batches under the new id include: the preserved past
   //      halves + the re-proposed active batches. Old batches still exist but
@@ -2330,12 +2851,14 @@ test('end-to-end: confirmed plan → adapter → re-proposer (stubbed) → repla
 - [ ] **Step 2: Run to verify it passes**
 
 Run: `npm test -- --test-name-pattern="end-to-end"`
-Expected: PASS. Every piece of Plan A is exercised by this single test: the schema change (mutationHistory field carried), the adapter forward conversion (past/active split including a spanning batch), the round-trip builder (new session id, mutationHistory concatenation, past batches re-pointed, new batches from the re-proposer's output), and the existing `confirmPlanSessionReplacing` write path (old session superseded, old batches cancelled).
+Expected: PASS. Every piece of Plan A is exercised by this single test: the schema change (mutationHistory field carried), the adapter forward conversion (past/active split including a spanning batch AND a past flex slot AND a past meal event), the round-trip builder (new session id, mutationHistory concatenation, past batches re-pointed, past flex slots + past events concatenated with the re-proposer's active output, new batches written using the solver-backed `targetPerServing`), and the existing `confirmPlanSessionReplacing` write path (old session superseded, old batches cancelled). The past-state assertions on `persisted.flexSlots` and `persisted.events` are load-bearing: they would fail if `buildReplacingDraft` regressed to writing only the re-proposer's (active-only) output.
 
 If it fails, read the failure diff carefully — it will point at exactly which step of the chain is broken. Common causes:
 - The spanning-batch split in Task 9 produced wrong `eatingDays` / `servings`
 - The past-active filter for events/flex in Task 10 let a past event through
 - `buildReplacingDraft` in Task 11 forgot to re-point `createdInPlanSessionId` on preserved past batches
+- `buildReplacingDraft` regressed the flex/event concatenation to write only the re-proposer's active slice
+- Plan D's applier (or this test's stub for it) forgot to populate `reProposedActive.solverOutput` — `buildReplacingDraft` throws with a "solverOutput is missing" error when that happens
 
 - [ ] **Step 3: Commit**
 
@@ -2438,9 +2961,9 @@ git commit -m "Plan 026: sync data-models.md with mutationHistory + invariant #1
   **Rationale:** Prompt-only means one bad LLM turn wastes a retry (the validator catches it on the next loop). Validator-only means the LLM has no incentive to follow the rule, so first-call failures become common. Both-together matches the existing "LLM judgment + deterministic sidecar" pattern from design doc 002 — the LLM knows the rule and the validator enforces it as a hard gate.
   **Date:** 2026-04-10
 
-- **Decision:** Plan A does NOT modify `plan-flow.ts` to pass existing `state.mutationHistory` into the draft at first-confirmation time.
-  **Rationale:** The proposal explicitly says Plans A and B are "nothing user-facing". Wiring in-session mutation history into first-confirmation changes observable behavior — every confirmed plan would suddenly have a populated `mutationHistory` column where today's scenarios expect it empty (or undefined). That's Plan D's job. Plan A just lays the rails.
-  **Date:** 2026-04-10
+- **Decision:** Plan A does NOT thread existing `state.mutationHistory` into the draft at **first-confirmation time** inside `buildNewPlanSession`. It DOES add the column, the model types, the store serialization, and the round-trip into `buildReplacingDraft` for post-confirmation rewrites.
+  **Rationale:** The proposal explicitly says Plans A and B are "nothing user-facing". Wiring in-session mutation history into first-confirmation changes observable behavior — every confirmed plan would suddenly have a populated `mutationHistory` column where today's scenarios expect it empty (or undefined). Task 13's prompt-change regeneration already re-records a bunch of in-session scenarios; adding a mutation-history delta at the same time would conflate two orthogonal changes in one regen diff and make behavioral review harder. Splitting ownership keeps Plan A's behavior delta scoped to "the column and the post-confirmation writeback plumbing exist", leaves in-session observable behavior unchanged, and moves the first-confirmation write path to the commit (Plan D / 029) that already owns the scenario regeneration for all the mutate_plan paths. **Plan 029 Task 7 Step 6 owns this change** — it adds `mutationHistory: state.mutationHistory ?? []` to `buildNewPlanSession`'s `DraftPlanSession` literal and regenerates the affected in-session scenarios alongside Plan D's other reprop changes.
+  **Date:** 2026-04-10 (revised after review round to cross-reference Plan 029 Task 7 Step 6 as the explicit owner)
 
 ---
 
@@ -2448,7 +2971,7 @@ git commit -m "Plan 026: sync data-models.md with mutationHistory + invariant #1
 
 After every task: `npm test` stays green. After Task 15, all of these must be true:
 
-- Every unit test under `test/unit/` added by this plan passes: `classifySlot`, `splitBatchAtCutoffs` (past / active / spanning), `sessionToPostConfirmationProposal`, `buildReplacingDraft`, the end-to-end round-trip, the three meal-type lane validator tests, both re-proposer prompt-rule tests, and the three `TestStateStore` mutation history tests.
+- Every unit test under `test/unit/` added by this plan passes: `classifySlot`, `splitBatchAtCutoffs` (past / active / spanning), `sessionToPostConfirmationProposal` (including the new past-flex-slots / past-events split case), `buildReplacingDraft` (including the preserved-past flex/events concatenation assertions), the end-to-end round-trip (which also passes `preservedPastFlexSlots` / `preservedPastEvents` through), the three meal-type lane validator tests, the two re-proposer prompt-rule tests, the two behavioral meal-type lane tests (one retry-then-succeed, one two-failures-to-failure), the one near-future safety prompt-threading test, and the three `TestStateStore` mutation history tests.
 - `npx tsc --noEmit` reports no errors.
 - `npm test` passes with the same scenario count as the baseline (Task 1 step 1), possibly minus regenerated scenarios if the re-proposer prompt change forced any fixtures to re-record.
 - `src/plan/session-to-proposal.ts` is a pure module — `grep -n "new Date(\s*)" src/plan/session-to-proposal.ts` returns nothing. All wall-clock reads go through the `now` parameter.
