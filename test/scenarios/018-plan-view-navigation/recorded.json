@@ -171,7 +171,11 @@
       "recipeListPage": 0,
       "surfaceContext": "plan",
       "progressFlow": null,
-      "lastRecipeSlug": "ground-beef-rigatoni-bolognese"
+      "lastRecipeSlug": "ground-beef-rigatoni-bolognese",
+      "lastRenderedView": {
+        "surface": "plan",
+        "view": "next_action"
+      }
     },
     "finalStore": {
       "session": null,

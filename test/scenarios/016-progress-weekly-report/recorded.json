@@ -30,7 +30,11 @@
       "planFlow": null,
       "recipeListPage": 0,
       "surfaceContext": "progress",
-      "progressFlow": null
+      "progressFlow": null,
+      "lastRenderedView": {
+        "surface": "progress",
+        "view": "weekly_report"
+      }
     },
     "finalStore": {
       "session": null,

@@ -159,7 +159,12 @@
       "recipeListPage": 0,
       "surfaceContext": "recipes",
       "progressFlow": null,
-      "lastRecipeSlug": "chicken-black-bean-avocado-rice-bowl"
+      "lastRecipeSlug": "chicken-black-bean-avocado-rice-bowl",
+      "lastRenderedView": {
+        "surface": "recipes",
+        "view": "recipe_detail",
+        "slug": "chicken-black-bean-avocado-rice-bowl"
+      }
     },
     "finalStore": {
       "session": null,

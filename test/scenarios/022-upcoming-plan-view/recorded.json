@@ -166,7 +166,11 @@
       "planFlow": null,
       "recipeListPage": 0,
       "surfaceContext": "plan",
-      "progressFlow": null
+      "progressFlow": null,
+      "lastRenderedView": {
+        "surface": "plan",
+        "view": "next_action"
+      }
     },
     "finalStore": {
       "session": null,
