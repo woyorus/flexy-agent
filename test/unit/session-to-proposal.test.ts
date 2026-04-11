@@ -7,8 +7,12 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Batch } from '../../src/models/types.js';
-import { classifySlot, splitBatchAtCutoffs } from '../../src/plan/session-to-proposal.js';
+import type { Batch, PlanSession } from '../../src/models/types.js';
+import {
+  classifySlot,
+  splitBatchAtCutoffs,
+  sessionToPostConfirmationProposal,
+} from '../../src/plan/session-to-proposal.js';
 
 // Fixed clock helpers — tests construct Date objects directly with local time.
 // The adapter reads only wall-clock from `now`, never Date.now() or new Date().
@@ -170,6 +174,116 @@ test('splitBatchAtCutoffs: spanning batch — split at the cutoff boundary', () 
     servings: 1,
     overflowDays: undefined,
   });
+});
+
+function session(overrides: Partial<PlanSession> = {}): PlanSession {
+  return {
+    id: 'sess-1',
+    horizonStart: '2026-04-06',
+    horizonEnd: '2026-04-12',
+    breakfast: { locked: true, recipeSlug: 'oatmeal', caloriesPerDay: 450, proteinPerDay: 25 },
+    treatBudgetCalories: 800,
+    flexSlots: [{ day: '2026-04-11', mealTime: 'dinner', flexBonus: 350, note: 'fun dinner' }],
+    events: [],
+    mutationHistory: [],
+    confirmedAt: '2026-04-05T18:00:00.000Z',
+    superseded: false,
+    createdAt: '2026-04-05T18:00:00.000Z',
+    updatedAt: '2026-04-05T18:00:00.000Z',
+    ...overrides,
+  };
+}
+
+test('sessionToPostConfirmationProposal: Tuesday 7pm with Monday dinner fully past', () => {
+  const now = at('2026-04-07', 19);
+  const sess = session();
+  const batches: Batch[] = [
+    batch({
+      id: 'b-tagine',
+      recipeSlug: 'tagine',
+      mealType: 'dinner',
+      eatingDays: ['2026-04-06', '2026-04-07', '2026-04-08'],
+      servings: 3,
+    }),
+    batch({
+      id: 'b-grainbowl',
+      recipeSlug: 'grain-bowl',
+      mealType: 'lunch',
+      eatingDays: ['2026-04-06', '2026-04-07', '2026-04-08'],
+      servings: 3,
+    }),
+  ];
+
+  const result = sessionToPostConfirmationProposal(sess, batches, now);
+
+  // Horizon days — unchanged, same 7 days as the session.
+  assert.deepStrictEqual(result.horizonDays, [
+    '2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09',
+    '2026-04-10', '2026-04-11', '2026-04-12',
+  ]);
+
+  // Preserved past batches: at 19:00 Tuesday, tagine spans (Mon past, Tue/Wed
+  // active dinner since 19:00 < 21:00), grain-bowl spans (Mon/Tue lunch past
+  // since 19:00 > 15:00, Wed lunch active).
+  const pastSlugs = result.preservedPastBatches.map((b) => `${b.recipeSlug}:${b.eatingDays.join(',')}`);
+  assert.deepStrictEqual(pastSlugs.sort(), [
+    'grain-bowl:2026-04-06,2026-04-07',
+    'tagine:2026-04-06',
+  ]);
+
+  // Active proposal batches
+  const activeSlugs = result.activeProposal.batches.map((b) => `${b.recipeSlug}:${b.days.join(',')}/${b.servings}`);
+  assert.deepStrictEqual(activeSlugs.sort(), [
+    'grain-bowl:2026-04-08/1',
+    'tagine:2026-04-07,2026-04-08/2',
+  ]);
+
+  // Active proposal carries flex slots and events that fall on active slots only.
+  // The seed session's sole flex slot is on Saturday (active), so it lands in activeProposal.
+  assert.deepStrictEqual(result.activeProposal.flexSlots, sess.flexSlots);
+  assert.deepStrictEqual(result.activeProposal.events, []);
+  assert.deepStrictEqual(result.activeProposal.recipesToGenerate, []);
+
+  // No past flex slots or events in this seed (events is empty, the one flex slot is active).
+  assert.deepStrictEqual(result.preservedPastFlexSlots, []);
+  assert.deepStrictEqual(result.preservedPastEvents, []);
+
+  // Near-future days: today + tomorrow = 2026-04-07, 2026-04-08.
+  assert.deepStrictEqual(result.nearFutureDays, ['2026-04-07', '2026-04-08']);
+});
+
+test('sessionToPostConfirmationProposal: past flex slots and events split into preservedPast* arrays', () => {
+  const now = at('2026-04-09', 10); // Thursday morning
+  const sess = session({
+    flexSlots: [
+      { day: '2026-04-06', mealTime: 'dinner', flexBonus: 350 }, // past (Monday)
+      { day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 }, // active (Saturday)
+    ],
+    // MealEvent shape: { name, day, mealTime, estimatedCalories, notes? }
+    // — real type from src/models/types.ts:139.
+    events: [
+      { name: 'indian restaurant', day: '2026-04-07', mealTime: 'dinner', estimatedCalories: 1200, notes: 'saag paneer' }, // past (Tuesday)
+      { name: 'work lunch out', day: '2026-04-10', mealTime: 'lunch', estimatedCalories: 800 }, // active (Friday)
+    ],
+  });
+  const result = sessionToPostConfirmationProposal(sess, [], now);
+
+  // Active proposal carries ONLY future/today-active flex slots and events.
+  assert.deepStrictEqual(result.activeProposal.flexSlots, [
+    { day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 },
+  ]);
+  assert.deepStrictEqual(result.activeProposal.events, [
+    { name: 'work lunch out', day: '2026-04-10', mealTime: 'lunch', estimatedCalories: 800 },
+  ]);
+
+  // Preserved past arrays carry the dropped ones so the round-trip can splice
+  // them back into the rewritten session without erasing the user's record.
+  assert.deepStrictEqual(result.preservedPastFlexSlots, [
+    { day: '2026-04-06', mealTime: 'dinner', flexBonus: 350 },
+  ]);
+  assert.deepStrictEqual(result.preservedPastEvents, [
+    { name: 'indian restaurant', day: '2026-04-07', mealTime: 'dinner', estimatedCalories: 1200, notes: 'saag paneer' },
+  ]);
 });
 
 test('splitBatchAtCutoffs: spanning with today lunch past by cutoff', () => {

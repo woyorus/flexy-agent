@@ -16,8 +16,8 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { Batch } from '../models/types.js';
-import type { ProposedBatch } from '../solver/types.js';
+import type { Batch, FlexSlot, MealEvent, PlanSession } from '../models/types.js';
+import type { PlanProposal, ProposedBatch } from '../solver/types.js';
 import { toLocalISODate } from './helpers.js';
 
 /**
@@ -163,4 +163,142 @@ function scaleIngredientTotals<T extends { amount: number; totalForBatch: number
     ...it,
     totalForBatch: Math.round(it.totalForBatch * ratio),
   }));
+}
+
+/**
+ * Forward-adapter result. `activeProposal` is the shape the re-proposer accepts;
+ * `preservedPastBatches` are the batches (and split halves of spanning batches)
+ * that belong entirely to past slots and must be written unchanged into the
+ * new session at round-trip time. `preservedPastFlexSlots` and
+ * `preservedPastEvents` are the flex slots and meal events whose `day`+`mealTime`
+ * classify as past at `now` — the re-proposer never sees them but they must
+ * round-trip into the rewritten session so the user's historical record is not
+ * erased on every mutate. `nearFutureDays` captures the 2-day soft-locked
+ * window for the re-proposer's post-confirmation safety rule.
+ */
+export interface PostConfirmationProposal {
+  activeProposal: PlanProposal;
+  preservedPastBatches: Batch[];
+  preservedPastFlexSlots: FlexSlot[];
+  preservedPastEvents: MealEvent[];
+  horizonDays: string[];
+  nearFutureDays: string[];
+}
+
+/**
+ * Expand an ISO horizon (start + end) into the 7 ISO day strings it covers.
+ */
+function expandHorizonDays(start: string, end: string): string[] {
+  const days: string[] = [];
+  const d = new Date(start + 'T00:00:00Z');
+  const e = new Date(end + 'T00:00:00Z');
+  while (d <= e) {
+    days.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return days;
+}
+
+/**
+ * The 2-day near-future soft-lock window for post-confirmation safety.
+ * Returns today + tomorrow as ISO dates, intersected with the horizon so we
+ * never produce days outside the session range.
+ */
+function computeNearFutureDays(now: Date, horizonDays: string[]): string[] {
+  const today = toLocalISODate(now);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowISO = toLocalISODate(tomorrow);
+  return [today, tomorrowISO].filter((d) => horizonDays.includes(d));
+}
+
+/**
+ * Convert a persisted PlanSession + its Batch[] into the re-proposer's
+ * in-memory PlanProposal shape, splitting at the (date, mealType) level.
+ *
+ * The result's `activeProposal` contains only batches, flex slots, and events
+ * that fall on active slots — past slots are frozen and never shown to the
+ * re-proposer. The `preservedPastBatches` array contains Batches that must
+ * flow through the round-trip unchanged (pure-past batches) or with
+ * proportionally split ingredient totals (past halves of spanning batches).
+ *
+ * @param session - The confirmed plan session loaded from the store
+ * @param batches - All batches whose createdInPlanSessionId === session.id
+ *                  (i.e., the result of store.getBatchesByPlanSessionId)
+ * @param now - Current wall clock
+ */
+export function sessionToPostConfirmationProposal(
+  session: PlanSession,
+  batches: Batch[],
+  now: Date,
+): PostConfirmationProposal {
+  const horizonDays = expandHorizonDays(session.horizonStart, session.horizonEnd);
+  const preservedPastBatches: Batch[] = [];
+  const activeBatches: ProposedBatch[] = [];
+
+  for (const b of batches) {
+    // Skip cancelled batches entirely — they don't belong to the live plan.
+    if (b.status !== 'planned') continue;
+
+    const split = splitBatchAtCutoffs(b, now);
+    if (split.kind === 'past-only') {
+      preservedPastBatches.push(split.pastBatch);
+    } else if (split.kind === 'active-only') {
+      activeBatches.push(split.activeBatch);
+    } else {
+      preservedPastBatches.push(split.pastBatch);
+      activeBatches.push(split.activeBatch);
+    }
+  }
+
+  // Sort active batches by first active day for stable output (scenario diffs).
+  activeBatches.sort((a, b) => {
+    const da = a.days[0] ?? '';
+    const db = b.days[0] ?? '';
+    if (da !== db) return da < db ? -1 : 1;
+    return a.mealType < b.mealType ? -1 : 1;
+  });
+
+  // Flex slots and events: partition by classification at `now`. Active ones
+  // go to `activeProposal` (the re-proposer can see and rearrange them);
+  // past ones go to `preservedPast*` (frozen historical record that the
+  // round-trip splices back into the rewritten session). Dropping past ones
+  // on the floor would erase the user's record of "Sunday dinner was a flex
+  // slot" or "I ate out Monday" on every mutate — exactly the kind of silent
+  // data loss the save-before-destroy model exists to prevent.
+  const activeFlexSlots: FlexSlot[] = [];
+  const preservedPastFlexSlots: FlexSlot[] = [];
+  for (const fs of session.flexSlots) {
+    if (classifySlot(fs.day, fs.mealTime, now) === 'active') {
+      activeFlexSlots.push(fs);
+    } else {
+      preservedPastFlexSlots.push(fs);
+    }
+  }
+
+  const activeEvents: MealEvent[] = [];
+  const preservedPastEvents: MealEvent[] = [];
+  for (const ev of session.events) {
+    if (classifySlot(ev.day, ev.mealTime, now) === 'active') {
+      activeEvents.push(ev);
+    } else {
+      preservedPastEvents.push(ev);
+    }
+  }
+
+  const activeProposal: PlanProposal = {
+    batches: activeBatches,
+    flexSlots: activeFlexSlots,
+    events: activeEvents,
+    recipesToGenerate: [],
+  };
+
+  return {
+    activeProposal,
+    preservedPastBatches,
+    preservedPastFlexSlots,
+    preservedPastEvents,
+    horizonDays,
+    nearFutureDays: computeNearFutureDays(now, horizonDays),
+  };
 }
