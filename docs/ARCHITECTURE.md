@@ -119,7 +119,7 @@ flexy-agent/
 - **Re-proposer** (`agents/plan-reproposer.ts`) — Sub-agent that adjusts an existing plan per user request. Single structured-output LLM call. Same output contract as the proposer (complete plan), same validator, same solver. Returns proposal, clarification, or failure. Replaces all deterministic mutation handlers (Plan 025).
 - **Change summary** (`agents/plan-diff.ts`) — Deterministic diff between old and new proposals. Two-pass batch matching (recipe identity then day overlap for swaps). Used after re-proposer to show the user what changed.
 - **Budget solver** (`solver/solver.ts`) — Deterministic code. Reserves a protected treat budget upfront (`config.planning.treatBudgetPercent`), then distributes the remaining weekly calories uniformly across all meal prep slots. Every batch gets the same per-slot target; the recipe scaler adjusts each recipe to hit it.
-- **QA gate** (`qa/gate.ts`) — Validates all outputs before they reach the user. Retry loop with max 3 attempts. Proposal validation (`qa/validators/proposal.ts`) runs inside `proposePlan()` before the solver; 13 invariants cover slot coverage, fridge-life, flex count, recipe existence, and event validity.
+- **QA gate** (`qa/gate.ts`) — Validates all outputs before they reach the user. Retry loop with max 3 attempts. Proposal validation (`qa/validators/proposal.ts`) runs inside `proposePlan()` before the solver; 14 invariants cover slot coverage, fridge-life, flex count, recipe existence, event validity, and meal-type lane (Plan 026 #14: `batch.mealType ∈ recipe.mealTypes`).
 - **Sub-agents** — Isolated LLM tasks: recipe generation (with meal-type-specific prompts), recipe scaling, restaurant estimation. Each runs with focused context and returns a condensed result.
 
 **AI Layer** — LLM calls behind a provider interface. Three model tiers: primary (GPT-5.4, complex tasks), mini (GPT-5.4-mini, generation/reasoning), nano (GPT-5.4-nano, classification/parsing). Switching from OpenAI to another provider requires only a new implementation of `ai/provider.ts`.
@@ -187,7 +187,7 @@ User confirms breakfast, adds meal-replacement events (or none — treats are
      (recipe DB + recent history + variety rules → complete proposal with
       exactly config.planning.flexSlotsPerWeek flex slots; batches are
       fridge-life constrained, not required to be consecutive)
-  → validateProposal() gates the proposal (13 invariants); retries once with
+  → validateProposal() gates the proposal (14 invariants); retries once with
      correction if invalid; returns {type:'failure'} if retry also fails
   → solver runs on proposal (reserves protected treat budget, distributes
      remaining budget uniformly across slots, validates weekly totals)
@@ -212,7 +212,7 @@ Plan presented to user:
 | Change how the plan week flow works | `src/agents/plan-flow.ts` (phases + handlers) |
 | Change how the plan proposer picks recipes | `src/agents/plan-proposer.ts` (system prompt + variety rules) |
 | Fix budget math or allocation | `src/solver/solver.ts` |
-| Change validation rules | `src/qa/validators/plan.ts`, `proposal.ts` (pre-solver, 13 invariants), `recipe.ts`, or `shopping-list.ts` |
+| Change validation rules | `src/qa/validators/plan.ts`, `proposal.ts` (pre-solver, 14 invariants), `recipe.ts`, or `shopping-list.ts` |
 | Add a new LLM provider | Implement `src/ai/provider.ts` interface |
 | Change how recipes are stored | `src/recipes/parser.ts` (format), `src/recipes/database.ts` (CRUD) |
 | Modify Telegram UI or buttons | `src/telegram/keyboards.ts`, `src/telegram/formatters.ts` |

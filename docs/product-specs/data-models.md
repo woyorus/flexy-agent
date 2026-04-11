@@ -24,6 +24,7 @@ interface PlanSession {
   treatBudgetCalories: number;
   flexSlots: FlexSlot[];
   events: MealEvent[];
+  mutationHistory: MutationRecord[]; // Plan 026 — accumulated user-approved mutations (jsonb)
   confirmedAt: string;               // DB default now() on insert
   superseded: boolean;               // tombstone for D27 replace-future-only flow
   createdAt: string;
@@ -31,7 +32,26 @@ interface PlanSession {
 }
 ```
 
-`DraftPlanSession` omits `confirmedAt`, `superseded`, `createdAt`, `updatedAt` — these are filled by the DB on insert. The draft's `id` is assigned client-side so batches can reference their parent before the confirm sequence writes.
+`DraftPlanSession` omits `confirmedAt`, `superseded`, `createdAt`, `updatedAt` — these are filled by the DB on insert — and makes `mutationHistory` optional so existing draft builders (`buildNewPlanSession` in plan-flow.ts) don't need to set it. The store's row mapper writes `[]` as the default. The draft's `id` is assigned client-side so batches can reference their parent before the confirm sequence writes.
+
+#### MutationHistory persistence (Plan 026)
+
+`mutationHistory` is the accumulated record of user-approved plan mutations on this session and its ancestors. The session-to-proposal adapter (`src/plan/session-to-proposal.ts`) carries it across save-before-destroy writes — every post-confirmation rewrite of a session takes the predecessor's history, appends the just-approved mutation, and writes the new history into the new row. Without this column, a confirmed plan is unreachable to the re-proposer because in-memory `PlanFlowState.mutationHistory` is cleared on confirm.
+
+The first-confirmation write path in `buildNewPlanSession` does NOT yet thread `state.mutationHistory` into the draft — that's owned by Plan 029 Task 7 Step 6.
+
+### MutationRecord
+
+A single user-approved plan mutation, recorded so the re-proposer respects prior choices on subsequent calls.
+
+```typescript
+interface MutationRecord {
+  constraint: string;                // natural-language description of what the user asked for
+  appliedAt: string;                 // ISO timestamp
+}
+```
+
+Persisted on `PlanSession.mutationHistory` (Plan 026) so it survives save-before-destroy writes. Lives in `src/models/types.ts` (re-exported from `src/agents/plan-reproposer.ts` for backwards compat with the existing call site).
 
 ### Batch
 
@@ -116,6 +136,12 @@ interface PlanProposal {
 `ProposedBatch.days` contains in-horizon days only (need not be consecutive — Plan 024). `ProposedBatch.overflowDays` holds days past the horizon end (for cross-horizon batches). The fridge-life constraint is: `calendarSpan(days[0], lastEatingDay) ≤ recipe.storage.fridgeDays`.
 
 `RecipeSummary` (internal to `src/agents/plan-proposer.ts`) — the condensed recipe view passed as LLM context. Includes `fridgeDays` (from `recipe.storage.fridgeDays`) so the proposer can arrange non-consecutive eating days within the fridge-life limit.
+
+### Proposal validator invariants
+
+`validateProposal` (`src/qa/validators/proposal.ts`) gates every PlanProposal before the solver sees it. Invariants 1–13 cover slot coverage, no overlap, sort order, servings range, cook day in horizon, fridge-life, flex count, pre-committed integrity, recipe existence, event date/field validity, and duplicate events.
+
+**Invariant #14 — meal-type lane (Plan 026):** every batch's `mealType` must be in its recipe's authored `mealTypes` array. A dinner-only recipe cannot land in a lunch batch, and vice versa. Skips batches whose recipe is missing (#10 catches those separately). The check is positioned right after #10 so the recipe lookup is safe. Plan 026 added this to block the re-proposer from silently crossing meal-type lanes under post-confirmation rearrangement pressure — lunch is portable/no-reheat/light, dinner can be heavy/sauce-heavy/cooked-to-reheat, and crossing the lane produces a plan the user cannot actually execute.
 
 ## Persistence
 

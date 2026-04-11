@@ -25,7 +25,7 @@ Follow-up messages classify into: correction to last event, `reclassify_as_treat
 **generating_proposal** — Heavy async step:
 1. Load available recipes + recent plan history from DB/Supabase
 2. Call plan-proposer sub-agent — always returns a **complete** plan: every slot covered, exactly `config.planning.flexSlotsPerWeek` flex slots, batches fridge-life constrained (not required to be consecutive).
-3. `validateProposal()` gates the raw proposal (13 invariants: slot coverage, no overlap, fridge-life, flex count, recipe existence, event validity). On failure, the proposer retries once with correction feedback. Double failure → graceful abort.
+3. `validateProposal()` gates the raw proposal (14 invariants: slot coverage, no overlap, fridge-life, flex count, recipe existence, event validity, meal-type lane). On failure, the proposer retries once with correction feedback. Double failure → graceful abort.
 4. Run solver on validated proposal (protected treat budget upfront, uniform per-slot targets)
 5. Validate solver output via QA gate → show proposal.
 
