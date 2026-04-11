@@ -1131,6 +1131,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       msg = `Your recipes (${all.length}):`;
     }
 
+    setLastRenderedView(session, { surface: 'recipes', view: 'library' });
     await sink.reply(msg, {
       reply_markup: recipeListKeyboard(all, session.recipeListPage, pageSize, cookingSoonBatchViews),
     });
