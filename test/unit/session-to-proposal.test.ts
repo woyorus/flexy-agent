@@ -7,11 +7,13 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Batch, PlanSession } from '../../src/models/types.js';
+import type { Batch, MealEvent, MutationRecord, PlanSession } from '../../src/models/types.js';
+import type { PlanProposal } from '../../src/solver/types.js';
 import {
+  buildReplacingDraft,
   classifySlot,
-  splitBatchAtCutoffs,
   sessionToPostConfirmationProposal,
+  splitBatchAtCutoffs,
 } from '../../src/plan/session-to-proposal.js';
 
 // Fixed clock helpers — tests construct Date objects directly with local time.
@@ -252,6 +254,35 @@ test('sessionToPostConfirmationProposal: Tuesday 7pm with Monday dinner fully pa
   assert.deepStrictEqual(result.nearFutureDays, ['2026-04-07', '2026-04-08']);
 });
 
+// Small fake LLM + fake recipe DB for the buildReplacingDraft tests below.
+// We only need the scaler's fallback branch to kick in (which does not call
+// the LLM). The real scaler in plan-flow.ts wraps LLM failures with a
+// pass-through of recipe.ingredients (see src/agents/plan-flow.ts:904-914).
+// We reproduce that behavior by throwing from the LLM so buildReplacingDraft
+// uses its own fallback.
+const throwingLLM = {
+  complete: async () => { throw new Error('test: LLM disabled'); },
+} as unknown as import('../../src/ai/provider.js').LLMProvider;
+
+// Fake recipe DB — returns the minimum recipe shape the scaler uses.
+const fakeRecipeDb = {
+  getBySlug(slug: string) {
+    return {
+      name: slug, shortName: slug, slug,
+      mealTypes: ['dinner'] as const,
+      cuisine: 'test', tags: [], prepTimeMinutes: 20,
+      structure: [{ type: 'main' as const, name: 'Main' }],
+      perServing: { calories: 800, protein: 45, fat: 30, carbs: 60 },
+      ingredients: [
+        { name: 'protein', amount: 150, unit: 'g', role: 'protein' as const, component: 'Main' },
+      ],
+      storage: { fridgeDays: 4, freezable: true, reheat: 'microwave 2m' },
+      body: '',
+    };
+  },
+  getAll() { return []; },
+} as unknown as import('../../src/recipes/database.js').RecipeDatabase;
+
 test('sessionToPostConfirmationProposal: past flex slots and events split into preservedPast* arrays', () => {
   const now = at('2026-04-09', 10); // Thursday morning
   const sess = session({
@@ -299,4 +330,155 @@ test('splitBatchAtCutoffs: spanning with today lunch past by cutoff', () => {
   });
   const result = splitBatchAtCutoffs(b, now);
   assert.equal(result.kind, 'past-only');
+});
+
+test('buildReplacingDraft: carries mutationHistory, preserves past batches + flex slots + events, writes new batches using solver-backed targets', async () => {
+  const oldSess = session({
+    id: 'old',
+    mutationHistory: [
+      { constraint: 'initial plan', appliedAt: '2026-04-05T18:00:00.000Z' },
+    ],
+  });
+  const preservedPastBatches: Batch[] = [
+    batch({
+      id: 'past-grainbowl',
+      recipeSlug: 'grain-bowl',
+      mealType: 'lunch',
+      eatingDays: ['2026-04-06', '2026-04-07'],
+      servings: 2,
+    }),
+  ];
+  // Past flex slot (Sunday dinner) and past event (Monday lunch out) — both
+  // must survive the rewrite or the user's historical record is erased.
+  const preservedPastFlexSlots = [
+    { day: '2026-04-05', mealTime: 'dinner', flexBonus: 350 } as const,
+  ];
+  const preservedPastEvents: MealEvent[] = [
+    { name: 'office lunch out', day: '2026-04-06', mealTime: 'lunch', estimatedCalories: 850, notes: 'team lunch' },
+  ];
+  // The caller (Plan D applier) runs the solver on the re-proposer output
+  // before invoking buildReplacingDraft. Attach a minimal solver output with
+  // one BatchTarget matching the single re-proposed batch so the test can
+  // assert that buildReplacingDraft consumes the solver's targetPerServing
+  // (not recipe.perServing) as the Batch's targetPerServing.
+  const reProposed: PlanProposal = {
+    batches: [
+      {
+        recipeSlug: 'tagine',
+        recipeName: 'tagine',
+        mealType: 'dinner',
+        days: ['2026-04-08', '2026-04-09'],
+        servings: 2,
+        overflowDays: undefined,
+      },
+    ],
+    flexSlots: [{ day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 }],
+    events: [],
+    recipesToGenerate: [],
+    solverOutput: {
+      isValid: true,
+      weeklyTotals: { calories: 15000, protein: 900, treatBudget: 800, flexSlotCalories: 350 },
+      dailyBreakdown: [],
+      batchTargets: [
+        {
+          id: 'bt-tagine',
+          recipeSlug: 'tagine',
+          mealType: 'dinner',
+          days: ['2026-04-08', '2026-04-09'],
+          servings: 2,
+          // Solver target deliberately DIFFERS from recipe.perServing (the fake
+          // DB returns calories: 800, protein: 45). If buildReplacingDraft wrote
+          // recipe.perServing instead of the solver target, the assertion below
+          // would fail.
+          targetPerServing: { calories: 720, protein: 50 },
+        },
+      ],
+      cookingSchedule: [],
+      warnings: [],
+    },
+  };
+  const newMutation: MutationRecord = {
+    constraint: 'eating out tonight',
+    appliedAt: '2026-04-07T19:30:00.000Z',
+  };
+
+  const { draft, batches: newBatches } = await buildReplacingDraft({
+    oldSession: oldSess,
+    preservedPastBatches,
+    preservedPastFlexSlots,
+    preservedPastEvents,
+    reProposedActive: reProposed,
+    newMutation,
+    recipeDb: fakeRecipeDb,
+    llm: throwingLLM,
+  });
+
+  // Draft session: new id, same horizon, history extended.
+  assert.notEqual(draft.id, 'old');
+  assert.equal(draft.horizonStart, '2026-04-06');
+  assert.equal(draft.horizonEnd, '2026-04-12');
+  assert.deepStrictEqual(draft.mutationHistory, [
+    { constraint: 'initial plan', appliedAt: '2026-04-05T18:00:00.000Z' },
+    { constraint: 'eating out tonight', appliedAt: '2026-04-07T19:30:00.000Z' },
+  ]);
+
+  // Draft's flexSlots and events concatenate preserved past + re-proposed active.
+  // Past first, then active — matches the order the round-trip wants.
+  assert.deepStrictEqual(draft.flexSlots, [
+    { day: '2026-04-05', mealTime: 'dinner', flexBonus: 350 },
+    { day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 },
+  ]);
+  assert.deepStrictEqual(draft.events, [
+    { name: 'office lunch out', day: '2026-04-06', mealTime: 'lunch', estimatedCalories: 850, notes: 'team lunch' },
+  ]);
+
+  // Batches: preserved past + new re-proposed active. Past batches get a
+  // new createdInPlanSessionId pointing at the new draft, and a new id.
+  assert.equal(newBatches.length, 2);
+
+  const pastBatch = newBatches.find((b) => b.recipeSlug === 'grain-bowl');
+  assert.ok(pastBatch, 'preserved past batch missing');
+  assert.deepStrictEqual(pastBatch.eatingDays, ['2026-04-06', '2026-04-07']);
+  assert.equal(pastBatch.servings, 2);
+  assert.equal(pastBatch.createdInPlanSessionId, draft.id);
+  assert.notEqual(pastBatch.id, 'past-grainbowl'); // new id
+  assert.equal(pastBatch.status, 'planned');
+
+  const activeBatch = newBatches.find((b) => b.recipeSlug === 'tagine');
+  assert.ok(activeBatch, 'active re-proposed batch missing');
+  assert.deepStrictEqual(activeBatch.eatingDays, ['2026-04-08', '2026-04-09']);
+  assert.equal(activeBatch.servings, 2);
+  assert.equal(activeBatch.createdInPlanSessionId, draft.id);
+  assert.equal(activeBatch.mealType, 'dinner');
+  // CRITICAL: targetPerServing must come from the solver's BatchTarget, NOT
+  // from recipe.perServing.
+  assert.deepStrictEqual(activeBatch.targetPerServing, { calories: 720, protein: 50 });
+});
+
+test('buildReplacingDraft: throws when reProposedActive.solverOutput is missing', async () => {
+  const reProposedWithoutSolver: PlanProposal = {
+    batches: [
+      {
+        recipeSlug: 'tagine', recipeName: 'tagine', mealType: 'dinner',
+        days: ['2026-04-08'], servings: 1, overflowDays: undefined,
+      },
+    ],
+    flexSlots: [],
+    events: [],
+    recipesToGenerate: [],
+    // solverOutput deliberately omitted — caller forgot to run the solver.
+  };
+  await assert.rejects(
+    () => buildReplacingDraft({
+      oldSession: session({ id: 'old' }),
+      preservedPastBatches: [],
+      preservedPastFlexSlots: [],
+      preservedPastEvents: [],
+      reProposedActive: reProposedWithoutSolver,
+      newMutation: { constraint: 'x', appliedAt: '2026-04-08T12:00:00.000Z' },
+      recipeDb: fakeRecipeDb,
+      llm: throwingLLM,
+    }),
+    /solverOutput is missing/,
+  );
 });

@@ -16,8 +16,18 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { Batch, FlexSlot, MealEvent, PlanSession } from '../models/types.js';
+import type {
+  Batch,
+  DraftPlanSession,
+  FlexSlot,
+  MealEvent,
+  MutationRecord,
+  PlanSession,
+  ScaledIngredient,
+} from '../models/types.js';
 import type { PlanProposal, ProposedBatch } from '../solver/types.js';
+import type { LLMProvider } from '../ai/provider.js';
+import type { RecipeDatabase } from '../recipes/database.js';
 import { toLocalISODate } from './helpers.js';
 
 /**
@@ -301,4 +311,170 @@ export function sessionToPostConfirmationProposal(
     horizonDays,
     nearFutureDays: computeNearFutureDays(now, horizonDays),
   };
+}
+
+// ─── Round-trip back to the store ───────────────────────────────────────────
+
+export interface BuildReplacingDraftArgs {
+  /** The session being replaced. Its horizon is copied into the new draft. */
+  oldSession: PlanSession;
+  /** Past batches to preserve verbatim (re-pointed at the new session id). */
+  preservedPastBatches: Batch[];
+  /**
+   * Past flex slots to preserve verbatim. These are the user's historical
+   * "I put a flex meal on Sunday dinner" decisions — dropping them on the
+   * floor would erase the user's record of what actually happened in the
+   * earlier half of the week. Sourced from `sessionToPostConfirmationProposal`.
+   */
+  preservedPastFlexSlots: FlexSlot[];
+  /**
+   * Past meal events to preserve verbatim. These are the user's historical
+   * "I ate out on Monday" / "breakfast out Tuesday" records — also must
+   * survive the rewrite. Sourced from `sessionToPostConfirmationProposal`.
+   */
+  preservedPastEvents: MealEvent[];
+  /** The re-proposer's output for the active window. */
+  reProposedActive: PlanProposal;
+  /** The just-approved mutation to append to history. */
+  newMutation: MutationRecord;
+  recipeDb: RecipeDatabase;
+  llm: LLMProvider;
+}
+
+export interface BuildReplacingDraftResult {
+  draft: DraftPlanSession;
+  batches: Array<Omit<Batch, 'createdAt' | 'updatedAt'>>;
+}
+
+/**
+ * Assemble the DraftPlanSession and Batch[] write payload that closes the
+ * round-trip after the re-proposer has run on the active slice of a
+ * confirmed plan. Produces exactly the shape that `confirmPlanSessionReplacing`
+ * wants.
+ *
+ * Not pure — it calls the recipe scaler to populate `scaledIngredients` /
+ * `actualPerServing` on new active batches. The scaler is the same one
+ * `plan-flow.ts buildNewPlanSession` uses, so behavior parity is by design.
+ * Preserved past batches are re-pointed at the new session id and given fresh
+ * UUIDs but otherwise passed through unchanged (their scaledIngredients were
+ * already scaled at plan time, and the split logic in splitBatchAtCutoffs
+ * adjusts totals when a spanning batch is cut).
+ *
+ * `reProposedActive.solverOutput` MUST be populated by the caller (Plan D's
+ * applier runs the solver before invoking this function). Without it the
+ * function throws — there is no per-batch macro target to write.
+ */
+export async function buildReplacingDraft(
+  args: BuildReplacingDraftArgs,
+): Promise<BuildReplacingDraftResult> {
+  const newSessionId = randomUUID();
+
+  const draft: DraftPlanSession = {
+    id: newSessionId,
+    horizonStart: args.oldSession.horizonStart,
+    horizonEnd: args.oldSession.horizonEnd,
+    breakfast: args.oldSession.breakfast,
+    treatBudgetCalories: args.oldSession.treatBudgetCalories,
+    // Concatenate preserved past + re-proposed active for both flex slots
+    // and events. The past arrays are frozen historical records that must
+    // round-trip into the rewritten session (the re-proposer never saw them
+    // and did not touch them; they simply pass through).
+    flexSlots: [...args.preservedPastFlexSlots, ...args.reProposedActive.flexSlots],
+    events: [...args.preservedPastEvents, ...args.reProposedActive.events],
+    mutationHistory: [...args.oldSession.mutationHistory, args.newMutation],
+  };
+
+  const writeBatches: Array<Omit<Batch, 'createdAt' | 'updatedAt'>> = [];
+
+  // 1. Preserved past batches — new id + new session id, everything else stays.
+  for (const past of args.preservedPastBatches) {
+    writeBatches.push({
+      ...past,
+      id: randomUUID(),
+      createdInPlanSessionId: newSessionId,
+    });
+  }
+
+  // 2. Re-proposed active batches — use solver output, scale each batch fresh.
+  // This mirrors plan-flow.ts:874-938 (first-confirmation write path) so the
+  // two code paths produce structurally identical Batch rows.
+  const solverOutput = args.reProposedActive.solverOutput;
+  if (!solverOutput) {
+    throw new Error(
+      'buildReplacingDraft: reProposedActive.solverOutput is missing. ' +
+      'The caller (Plan D applier) must run the solver on the re-proposer output ' +
+      'before invoking buildReplacingDraft.',
+    );
+  }
+
+  for (const batchTarget of solverOutput.batchTargets) {
+    // Match plan-flow.ts:878-882's tuple key: (recipeSlug, mealType, days[0]).
+    // days[0] disambiguates when the same (recipeSlug, mealType) appears in
+    // two batches after re-batching (Plan 009).
+    const proposedBatch = args.reProposedActive.batches.find(
+      (b) =>
+        b.recipeSlug === batchTarget.recipeSlug &&
+        b.mealType === batchTarget.mealType &&
+        b.days[0] === batchTarget.days[0],
+    );
+    if (!proposedBatch) {
+      throw new Error(
+        `buildReplacingDraft: solver BatchTarget ${batchTarget.recipeSlug}:${batchTarget.mealType}:${batchTarget.days[0]} ` +
+        `has no matching re-proposed batch — solver output and re-proposer output are out of sync.`,
+      );
+    }
+    const recipe = batchTarget.recipeSlug ? args.recipeDb.getBySlug(batchTarget.recipeSlug) : undefined;
+    const overflowDays = proposedBatch.overflowDays ?? [];
+    const eatingDays = [...batchTarget.days, ...overflowDays];
+
+    let actualPerServing = { calories: 0, protein: 0, fat: 0, carbs: 0 };
+    let scaledIngredients: ScaledIngredient[] = [];
+
+    if (recipe) {
+      // Fallback branch matches plan-flow.ts:904-914 exactly: on any scaler
+      // failure, fall back to per-serving amounts multiplied by servings.
+      try {
+        const { scaleRecipe } = await import('../agents/recipe-scaler.js');
+        const scaled = await scaleRecipe({
+          recipe,
+          // Use the SOLVER-produced target, not recipe.perServing — the solver
+          // has already allocated macros across the week's batches given the
+          // weekly totals, flex bonuses, event offsets, and treat budget.
+          targetCalories: batchTarget.targetPerServing.calories,
+          calorieTolerance: 50, // Plan D will thread config.planning.scalerCalorieTolerance
+          targetProtein: batchTarget.targetPerServing.protein,
+          servings: eatingDays.length, // Plan 010: total portions, not solver servings
+        }, args.llm);
+        actualPerServing = scaled.actualPerServing;
+        scaledIngredients = scaled.scaledIngredients;
+      } catch {
+        actualPerServing = recipe.perServing;
+        scaledIngredients = recipe.ingredients.map((ing) => ({
+          name: ing.name,
+          amount: ing.amount,
+          unit: ing.unit,
+          totalForBatch: ing.amount * eatingDays.length,
+          role: ing.role,
+        }));
+      }
+    }
+
+    writeBatches.push({
+      id: randomUUID(),
+      recipeSlug: batchTarget.recipeSlug ?? '',
+      mealType: batchTarget.mealType,
+      eatingDays,
+      servings: eatingDays.length,
+      // Write the solver's target as-is. `actualPerServing` is what the scaler
+      // produced; `targetPerServing` is the solver's allocation target. These
+      // are allowed to differ within the scaler's calorie tolerance.
+      targetPerServing: batchTarget.targetPerServing,
+      actualPerServing,
+      scaledIngredients,
+      status: 'planned',
+      createdInPlanSessionId: newSessionId,
+    });
+  }
+
+  return { draft, batches: writeBatches };
 }
