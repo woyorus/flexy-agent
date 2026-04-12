@@ -68,7 +68,15 @@ export type DispatcherAction =
   | 'clarify'
   | 'out_of_scope'
   | 'return_to_flow'
-  | 'mutate_plan';
+  | 'mutate_plan'
+  | 'answer_plan_question'
+  | 'answer_recipe_question'
+  | 'answer_domain_question'
+  | 'show_recipe'
+  | 'show_plan'
+  | 'show_shopping_list'
+  | 'show_progress'
+  | 'log_measurement';
 
 /**
  * The set of all actions the dispatcher knows about in v0.0.5. `mutate_plan`,
@@ -92,6 +100,14 @@ export const AVAILABLE_ACTIONS_V0_0_5: readonly DispatcherAction[] = [
   'out_of_scope',
   'return_to_flow',
   'mutate_plan',
+  'answer_plan_question',
+  'answer_recipe_question',
+  'answer_domain_question',
+  'show_recipe',
+  'show_plan',
+  'show_shopping_list',
+  'show_progress',
+  'log_measurement',
 ] as const;
 
 // ─── Context bundle ──────────────────────────────────────────────────────────
@@ -275,6 +291,70 @@ export type DispatcherDecision =
       params: { request: string };
       response?: undefined;
       reasoning: string;
+    }
+  | {
+      action: 'answer_plan_question';
+      params: { question: string };
+      /** The dispatcher-authored answer text. Required. */
+      response: string;
+      reasoning: string;
+    }
+  | {
+      action: 'answer_recipe_question';
+      params: { question: string; recipe_slug?: string };
+      response: string;
+      reasoning: string;
+    }
+  | {
+      action: 'answer_domain_question';
+      params: { question: string };
+      response: string;
+      reasoning: string;
+    }
+  | {
+      action: 'show_recipe';
+      params: { recipe_slug: string };
+      response?: undefined;
+      reasoning: string;
+    }
+  | {
+      action: 'show_plan';
+      params: {
+        screen: 'next_action' | 'week_overview' | 'day_detail';
+        /** Required when screen='day_detail'; ISO date YYYY-MM-DD. */
+        day?: string;
+      };
+      response?: undefined;
+      reasoning: string;
+    }
+  | {
+      action: 'show_shopping_list';
+      params: {
+        scope: 'next_cook' | 'full_week' | 'recipe' | 'day';
+        /** Required when scope='recipe'. */
+        recipe_slug?: string;
+        /** Required when scope='day'; ISO date YYYY-MM-DD. */
+        day?: string;
+      };
+      response?: undefined;
+      reasoning: string;
+    }
+  | {
+      action: 'show_progress';
+      params: { view: 'log_prompt' | 'weekly_report' };
+      response?: undefined;
+      reasoning: string;
+    }
+  | {
+      action: 'log_measurement';
+      params: {
+        /** Optional weight in kg (positive number). */
+        weight?: number;
+        /** Optional waist in cm (positive number). */
+        waist?: number;
+      };
+      response?: undefined;
+      reasoning: string;
     };
 
 /**
@@ -370,24 +450,87 @@ When NOT to pick:
 
 Precedence with flow_input: during an active planning proposal phase, "move the flex to Sunday" is structurally a mutation request that the existing re-proposer path handles. The applier's in-session branch delegates to the same re-proposer that flow_input would have reached. Pick mutate_plan in both cases — the applier routes by session state, not by the dispatcher's choice. Picking mutate_plan during active planning is NOT a mistake; the applier handles both modes uniformly.
 
-### answer_plan_question  (NOT AVAILABLE in v0.0.5 — Plan E)
-### answer_recipe_question  (NOT AVAILABLE in v0.0.5 — Plan E)
-### answer_domain_question  (NOT AVAILABLE in v0.0.5 — Plan E)
-Future: questions about the plan ("when's my next cook day?"), recipes ("can I freeze the tagine?"), or food/nutrition ("what's a substitute for tahini?"). For v0.0.5, pick clarify with an honest deferral: "answering questions isn't built yet — that's coming next. Want me to show you the plan / your recipes?"
+### answer_plan_question  (AVAILABLE)
+The user is asking a factual question about their current plan that can be answered from the PLAN SUMMARY in your context — "when's my next cook day?", "what's planned for Thursday dinner?", "what's my weekly target?", "which days am I cooking?". You author the answer inline.
+Params: { "question": string }  (echo the user's question for downstream logging)
+Response: the answer text (required, user-visible). Be brief, factual, and ONLY use numbers/facts that are in the PLAN SUMMARY context. NEVER invent quantities, dates, or recipe names that aren't in the context. If the question asks for something not in the summary (e.g., "what ingredients do I still need?"), pick show_shopping_list with scope=next_cook instead.
+When to pick: factual questions about the plan whose answer is mechanically derivable from the summary.
+When NOT to pick: "why" questions about plan composition (the summary has no reasoning history — pick clarify with an honest "I can tell you what's in your plan but not why"); ingredient-level questions (route to show_shopping_list); product-meta questions like "what's a flex meal?" (pick out_of_scope with an honest "I don't explain product concepts yet").
 
-### show_recipe  (NOT AVAILABLE in v0.0.5 — Plan E)
-### show_plan  (NOT AVAILABLE in v0.0.5 — Plan E)
-### show_shopping_list  (NOT AVAILABLE in v0.0.5 — Plan E)
-### show_progress  (NOT AVAILABLE in v0.0.5 — Plan E)
-Future: render a specific view by name. For v0.0.5, pick out_of_scope with a short hint pointing at the reply-keyboard buttons: "navigating by name isn't built yet — tap 📋 My Plan / 📖 My Recipes / 🛒 Shopping List / 📊 Progress to jump there."
+### answer_recipe_question  (AVAILABLE)
+The user is asking about a recipe — storage ("can I freeze the tagine?"), reheating ("how do I reheat the salmon pasta?"), basic technique, or substitutions. The recipe data you can use is in the RECIPE LIBRARY index in your context, which carries fridgeDays, freezable, reheat, mealTypes, and per-serving macros. For substitution questions, your general food knowledge is acceptable as long as the answer doesn't claim to know the recipe's specific ingredient list.
+Params: { "question": string, "recipe_slug": string? }  (set recipe_slug when the question references a specific recipe by name or when the user is on a recipe view)
+Response: the answer text (required). Use ONLY recipe-index data for storage/freezable/reheat questions. For substitution questions, give a brief generic answer.
+When to pick: recipe-specific questions whose answer is in the recipe index data, OR generic substitution questions.
+When NOT to pick: questions about how the recipe fits the plan (route to answer_plan_question); requests to modify the recipe in the plan (route to mutate_plan).
 
-### log_measurement  (NOT AVAILABLE in v0.0.5 — Plan E)
-Future: parse weight/waist from any surface. For v0.0.5, if the user is NOT in the progress measurement phase, pick clarify with "I can only log measurements when you tap 📊 Progress first."
-(Note: when the progress flow IS in awaiting_measurement phase and the user sent well-formed numeric input like "82.3", the runner's numeric pre-filter handles it BEFORE you run — you will never see such messages.)
+### answer_domain_question  (AVAILABLE)
+The user is asking a general food/nutrition question that isn't specifically about their plan or library recipes — "protein in 100g chicken?", "what's the difference between brown and white rice?", "why does protein make me full?". Your general food knowledge is the answer source.
+Params: { "question": string }
+Response: the answer text (required). Brief. Non-judgmental. Non-lecturing. Aligned with Flexie's tone — flexible, no food demonization, hyper-palatable/ultra-processed foods are the only category we're skeptical of.
+When to pick: in-domain food/nutrition questions outside the user's specific plan + library scope.
+When NOT to pick: out-of-domain (weather, stock prices, etc. → out_of_scope); plan-specific questions (→ answer_plan_question); recipe-specific (→ answer_recipe_question).
+
+### show_recipe  (AVAILABLE)
+The user wants to see a specific recipe by name — "show me the calamari pasta", "let me see the lemon chicken", "the tagine one". You fuzzy-match against the RECIPE LIBRARY index in your context and pick the slug. The handler will render the cook view if the recipe is in an active batch, or the library view otherwise.
+Params: { "recipe_slug": string }  (the slug from the RECIPE LIBRARY, not a free-form name)
+Response: null (the handler renders the view)
+When to pick: any natural-language request to "see" / "show" / "view" / "look at" a specific recipe.
+When NOT to pick: requests to modify a recipe (→ mutate_plan); requests to see the plan or shopping list (→ show_plan / show_shopping_list); requests to browse the library generally (→ out_of_scope with "tap 📖 My Recipes").
+**Disambiguation:** if the user's reference matches multiple library slugs (e.g., "the chicken one" with two chicken recipes), pick clarify with the candidate names. The handler's multi-batch tie-break picks soonest cook day automatically — you don't need to specify it.
+
+### show_plan  (AVAILABLE)
+The user wants to see their plan — "show me the plan", "what's tomorrow looking like?", "what's for dinner Thursday?". You pick the appropriate screen and (for day_detail) resolve the day to an ISO date.
+Params: { "screen": "next_action" | "week_overview" | "day_detail", "day": string? }
+- "next_action" — the user wants the brief "what's next" view ("what's next?", "what should I do?")
+- "week_overview" — the full week view ("show me the week", "the whole plan", "everything")
+- "day_detail" — a specific day's detail ("Thursday", "tomorrow", "Friday's meals"). REQUIRES "day" as ISO date YYYY-MM-DD. Resolve relative day names against the PLAN SUMMARY's horizon dates: "tomorrow" = today + 1, "Thursday" = the next Thursday in or after the horizon. If genuinely ambiguous, pick clarify.
+Response: null
+When to pick: any "show / view / what's" request about the plan structure.
+When NOT to pick: questions about a specific batch's recipe (→ show_recipe); modifications (→ mutate_plan); shopping (→ show_shopping_list).
+
+### show_shopping_list  (AVAILABLE)
+The user wants the shopping list — "shopping list", "what do I need to buy?", "shopping for Friday", "everything I need this week", "shopping for the tagine".
+Params: { "scope": "next_cook" | "full_week" | "recipe" | "day", "recipe_slug": string?, "day": string? }
+- "next_cook" — the default "what to buy for the next cook day" ("shopping list", "what do I need to buy?")
+- "full_week" — the entire horizon ("shopping for the week", "everything for this week", "the full list")
+- "recipe" — one recipe across all batches ("shopping for the tagine", "what do I need for the calamari pasta?"). REQUIRES recipe_slug.
+- "day" — one specific day ("shopping for Friday", "what to buy on Wednesday"). REQUIRES day as ISO date.
+Response: null
+When to pick: any shopping-list request.
+When NOT to pick: ingredient-level questions about a specific batch ("how much beef in the tagine?" → answer_recipe_question).
+
+### show_progress  (AVAILABLE)
+The user wants to see or interact with progress (weight/waist measurements).
+Params: { "view": "log_prompt" | "weekly_report" }
+- "log_prompt" — open the measurement input prompt ("log my weight", "I want to log a measurement")
+- "weekly_report" — show the weekly progress report ("how am I doing?", "show me the report", "weekly progress")
+Response: null
+When to pick: explicit "log" / "show progress" / "report" requests.
+When NOT to pick: actually-typed-numeric measurements ("82.3", "82.3 / 91" — see log_measurement). When the user asks "log my weight" without giving a number, pick show_progress({view: 'log_prompt'}).
+
+### log_measurement  (AVAILABLE)
+The user typed numeric values that look like a weight and/or waist — "82.3", "82.3 today", "weight 82.3 waist 91", "82.3 / 91", "log 82.3". You extract the numbers into params.
+Params: { "weight": number?, "waist": number? }  (one or both)
+Response: null
+When to pick: text contains a number that looks like a weight or waist measurement.
+When NOT to pick: numbers that are clearly part of a different intent ("move dinner to day 3" — that's a mutation_plan request); numbers without unit context that could be anything else.
+**Numeric pre-filter note:** when progressFlow.phase === 'awaiting_measurement', the runner pre-filter handles numeric input BEFORE you run — you will only see log_measurement-shaped messages from OTHER surfaces (the user types "82.3" while looking at the plan view, not after tapping 📊 Progress).
+**Day:** the day is always today (server-local). No day parameter.
 
 ### log_eating_out  (DEFERRED — proposal commitment, no implementation in v0.0.5)
 ### log_treat  (DEFERRED — proposal commitment, no implementation in v0.0.5)
 Future: record restaurant meals / treats. For v0.0.5, pick clarify with honest deferral.
+
+## NO-FABRICATION RULES (load-bearing)
+
+For answer_plan_question: NEVER invent batches, days, recipes, or numbers that aren't in PLAN SUMMARY. If the answer requires a number not in the summary, pick clarify with "I can't tell from your plan summary alone" or pick show_shopping_list / show_plan / show_recipe to render the actual data instead.
+
+For answer_recipe_question: NEVER invent ingredient quantities, calorie counts, or recipe steps. The recipe index has macros, freezability, fridge days, and reheat instructions — use those. For everything else, give a brief generic answer that doesn't claim to know the specific recipe's content.
+
+For answer_domain_question: NEVER cite specific studies, brands, or fabricate authoritative claims. Brief, generic, common-sense answers only. If the question genuinely needs lookup ("how much vitamin C in 100g kiwi?"), give your best general estimate with appropriate hedge.
+
+A wrong answer that ADMITS uncertainty is much better than a confident wrong answer.
 
 ## STATE PRESERVATION — LOAD-BEARING RULES
 
@@ -416,7 +559,7 @@ User: "move the flex to Sunday"
 
 (Active flow: plan / phase: proposal)
 User: "why so much pasta this week?"
-→ { "action": "clarify", "params": {}, "response": "I can't answer plan questions yet — that's coming soon. Want to keep reviewing the plan, or make a change?", "reasoning": "Side question during proposal; answer actions not available in v0.0.5; clarify honestly without losing the proposal." }
+→ { "action": "clarify", "params": {}, "response": "I can tell you what's in your plan but not why — the plan summary doesn't include composition reasoning. Want to swap a recipe or make a change?", "reasoning": "'Why' question about plan composition — the summary has no reasoning history, so answer_plan_question can't answer. Clarify honestly." }
 
 (Active flow: none / lifecycle: active_mid)
 User: "ok back to the plan"
@@ -436,7 +579,39 @@ User: "dinner out with friends on Friday"
 
 (Active flow: plan / phase: awaiting_events)
 User: "is the breakfast locked?"
-→ { "action": "clarify", "params": {}, "response": "I can't answer plan questions yet — that's coming soon. Want to keep adding events, or tap Done when you're ready?", "reasoning": "Side question during awaiting_events; answer actions not in v0.0.5." }
+→ { "action": "answer_plan_question", "params": { "question": "is the breakfast locked?" }, "response": "Yes — your breakfast recipe is fixed for the week. It's the same every day and doesn't change between proposals.", "reasoning": "Factual plan question during awaiting_events; answer_plan_question is available." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "when's my next cook day?"
+→ { "action": "answer_plan_question", "params": { "question": "when's my next cook day?" }, "response": "Your next cook day is Thursday — you're cooking the Greek lemon chicken batch (3 servings, Thu/Fri/Sat dinner).", "reasoning": "Mechanical answer from the plan summary: scan batches for soonest eatingDays[0] in the future." }
+
+(Active flow: none / lifecycle: active_mid / lastRenderedView: cooking/cook_view)
+User: "can I freeze this?"
+→ { "action": "answer_recipe_question", "params": { "question": "can I freeze this?", "recipe_slug": "tagine" }, "response": "Yes — beef tagine freezes well. Cool fully, portion into containers, and reheat from frozen in a covered pan with a splash of water. The recipe index marks it freezable=true.", "reasoning": "User is on a tagine cook view; recipe index shows freezable=true." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "what's a substitute for tahini?"
+→ { "action": "answer_domain_question", "params": { "question": "what's a substitute for tahini?" }, "response": "Cashew butter or sunflower seed butter both work — similar nutty flavor and texture. Greek yogurt is a thinner option if you want a looser sauce.", "reasoning": "Generic substitution question, no plan or specific recipe context needed." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "show me the calamari pasta"
+→ { "action": "show_recipe", "params": { "recipe_slug": "calamari-pasta" }, "response": null, "reasoning": "Fuzzy match in recipe index → calamari-pasta. Handler renders cook view if in active plan, library view otherwise." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "what's Thursday looking like?"
+→ { "action": "show_plan", "params": { "screen": "day_detail", "day": "2026-04-09" }, "response": null, "reasoning": "Today is 2026-04-07 (Tue), next Thursday is 2026-04-09. Resolve the day name against the plan horizon and pick day_detail." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "shopping list for the tagine"
+→ { "action": "show_shopping_list", "params": { "scope": "recipe", "recipe_slug": "tagine" }, "response": null, "reasoning": "Recipe-scoped shopping list request." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "how am I doing this week?"
+→ { "action": "show_progress", "params": { "view": "weekly_report" }, "response": null, "reasoning": "Weekly report request." }
+
+(Active flow: none / lifecycle: active_mid / surface: plan)
+User: "82.3 today"
+→ { "action": "log_measurement", "params": { "weight": 82.3 }, "response": null, "reasoning": "Numeric weight input from a non-progress surface; cross-surface measurement logging." }
 
 Return only the JSON object. No prose.`;
 }
@@ -593,6 +768,14 @@ function parseDecision(
     'out_of_scope',
     'return_to_flow',
     'mutate_plan',
+    'answer_plan_question',
+    'answer_recipe_question',
+    'answer_domain_question',
+    'show_recipe',
+    'show_plan',
+    'show_shopping_list',
+    'show_progress',
+    'log_measurement',
   ];
   if (!knownActions.includes(action as DispatcherAction)) {
     throw new Error(
@@ -667,6 +850,161 @@ function parseDecision(
       return {
         action: 'mutate_plan',
         params: { request },
+        reasoning,
+      };
+    }
+
+    case 'answer_plan_question': {
+      if (!response) {
+        throw new Error('answer_plan_question requires a non-empty "response" string (the answer text).');
+      }
+      const question = typeof params.question === 'string' ? params.question : undefined;
+      if (!question) {
+        throw new Error('answer_plan_question requires params.question (string).');
+      }
+      return {
+        action: 'answer_plan_question',
+        params: { question },
+        response,
+        reasoning,
+      };
+    }
+
+    case 'answer_recipe_question': {
+      if (!response) {
+        throw new Error('answer_recipe_question requires a non-empty "response" string.');
+      }
+      const question = typeof params.question === 'string' ? params.question : undefined;
+      if (!question) {
+        throw new Error('answer_recipe_question requires params.question (string).');
+      }
+      const recipe_slug = typeof params.recipe_slug === 'string' ? params.recipe_slug : undefined;
+      return {
+        action: 'answer_recipe_question',
+        params: recipe_slug ? { question, recipe_slug } : { question },
+        response,
+        reasoning,
+      };
+    }
+
+    case 'answer_domain_question': {
+      if (!response) {
+        throw new Error('answer_domain_question requires a non-empty "response" string.');
+      }
+      const question = typeof params.question === 'string' ? params.question : undefined;
+      if (!question) {
+        throw new Error('answer_domain_question requires params.question (string).');
+      }
+      return {
+        action: 'answer_domain_question',
+        params: { question },
+        response,
+        reasoning,
+      };
+    }
+
+    case 'show_recipe': {
+      if (response !== undefined && response !== '') {
+        throw new Error('show_recipe must have response: null (the handler renders the view).');
+      }
+      const recipe_slug = typeof params.recipe_slug === 'string' ? params.recipe_slug : undefined;
+      if (!recipe_slug) {
+        throw new Error('show_recipe requires params.recipe_slug (string).');
+      }
+      return {
+        action: 'show_recipe',
+        params: { recipe_slug },
+        reasoning,
+      };
+    }
+
+    case 'show_plan': {
+      if (response !== undefined && response !== '') {
+        throw new Error('show_plan must have response: null.');
+      }
+      const screen = params.screen;
+      if (screen !== 'next_action' && screen !== 'week_overview' && screen !== 'day_detail') {
+        throw new Error('show_plan requires params.screen ∈ {next_action, week_overview, day_detail}.');
+      }
+      const day = typeof params.day === 'string' ? params.day : undefined;
+      if (screen === 'day_detail' && !day) {
+        throw new Error('show_plan with screen=day_detail requires params.day (ISO date string).');
+      }
+      if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        throw new Error('show_plan params.day must be ISO date YYYY-MM-DD.');
+      }
+      return {
+        action: 'show_plan',
+        params: day ? { screen, day } : { screen },
+        reasoning,
+      };
+    }
+
+    case 'show_shopping_list': {
+      if (response !== undefined && response !== '') {
+        throw new Error('show_shopping_list must have response: null.');
+      }
+      const scope = params.scope;
+      if (scope !== 'next_cook' && scope !== 'full_week' && scope !== 'recipe' && scope !== 'day') {
+        throw new Error('show_shopping_list requires params.scope ∈ {next_cook, full_week, recipe, day}.');
+      }
+      const recipe_slug = typeof params.recipe_slug === 'string' ? params.recipe_slug : undefined;
+      const day = typeof params.day === 'string' ? params.day : undefined;
+      if (scope === 'recipe' && !recipe_slug) {
+        throw new Error('show_shopping_list with scope=recipe requires params.recipe_slug (string).');
+      }
+      if (scope === 'day' && !day) {
+        throw new Error('show_shopping_list with scope=day requires params.day (ISO date string).');
+      }
+      if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+        throw new Error('show_shopping_list params.day must be ISO date YYYY-MM-DD.');
+      }
+      const out: { scope: typeof scope; recipe_slug?: string; day?: string } = { scope };
+      if (recipe_slug) out.recipe_slug = recipe_slug;
+      if (day) out.day = day;
+      return {
+        action: 'show_shopping_list',
+        params: out,
+        reasoning,
+      };
+    }
+
+    case 'show_progress': {
+      if (response !== undefined && response !== '') {
+        throw new Error('show_progress must have response: null.');
+      }
+      const view = params.view;
+      if (view !== 'log_prompt' && view !== 'weekly_report') {
+        throw new Error('show_progress requires params.view ∈ {log_prompt, weekly_report}.');
+      }
+      return {
+        action: 'show_progress',
+        params: { view },
+        reasoning,
+      };
+    }
+
+    case 'log_measurement': {
+      if (response !== undefined && response !== '') {
+        throw new Error('log_measurement must have response: null.');
+      }
+      const weight = typeof params.weight === 'number' ? params.weight : undefined;
+      const waist = typeof params.waist === 'number' ? params.waist : undefined;
+      if (weight === undefined && waist === undefined) {
+        throw new Error('log_measurement requires at least one of params.weight or params.waist (numbers).');
+      }
+      if (weight !== undefined && (weight <= 0 || weight > 500)) {
+        throw new Error('log_measurement params.weight must be a positive number under 500.');
+      }
+      if (waist !== undefined && (waist <= 0 || waist > 300)) {
+        throw new Error('log_measurement params.waist must be a positive number under 300.');
+      }
+      const out: { weight?: number; waist?: number } = {};
+      if (weight !== undefined) out.weight = weight;
+      if (waist !== undefined) out.waist = waist;
+      return {
+        action: 'log_measurement',
+        params: out,
         reasoning,
       };
     }

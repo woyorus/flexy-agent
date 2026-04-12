@@ -170,5 +170,13 @@ test('buildDispatcherContext: allowedActions is the v0.0.5 minimal set', async (
     'out_of_scope',
     'return_to_flow',
     'mutate_plan',
+    'answer_plan_question',
+    'answer_recipe_question',
+    'answer_domain_question',
+    'show_recipe',
+    'show_plan',
+    'show_shopping_list',
+    'show_progress',
+    'log_measurement',
   ]);
 });
