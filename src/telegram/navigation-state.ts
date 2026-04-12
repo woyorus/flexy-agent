@@ -33,11 +33,11 @@
  *     the surface value; we match the live code to avoid churning existing
  *     behavior. A future plan may unify these.
  *
- *   - **Shopping scope is minimal in v0.0.5: `next_cook` and `day`.** The
- *     proposal lists `full_week` and `recipe` scopes as well, but those
- *     require extending the shopping generator and are explicitly out of
- *     Plan B's scope (Plan E implements them). The union intentionally
- *     omits them; adding them later is a non-breaking extension.
+ *   - **Shopping scope in v0.0.5 / Plan 030**: Plan B originally landed
+ *     with only `next_cook` and `day`. Plan 030 adds `full_week` and
+ *     `recipe` when the shopping generator gained scope support. The
+ *     union now covers all four scopes the `show_shopping_list` action
+ *     uses.
  *
  *   - **Recipe library view does not carry `page`.** The current session
  *     already tracks `recipeListPage` as a top-level field, and the
@@ -78,6 +78,8 @@ export type LastRenderedView =
   | { surface: 'cooking'; view: 'cook_view'; batchId: string; recipeSlug: string }
   | { surface: 'shopping'; view: 'next_cook' }
   | { surface: 'shopping'; view: 'day'; day: string }
+  | { surface: 'shopping'; view: 'full_week' }                       // Plan 030
+  | { surface: 'shopping'; view: 'recipe'; recipeSlug: string }      // Plan 030
   | { surface: 'recipes'; view: 'library' }
   | { surface: 'recipes'; view: 'recipe_detail'; slug: string }
   | { surface: 'progress'; view: 'log_prompt' }
