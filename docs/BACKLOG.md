@@ -73,42 +73,58 @@ Solver + plan validator unit tests, recipe scaling + shopping list unit tests, r
 
 **Deferred from v0.0.5 scope** (belong to a future "deviation accounting" body of work, requires its own proposal → plan cycle):
 
-The items below were listed in the original v0.0.5 scope but are NOT delivered by proposal 003. They share a common dependency — a running-budget / actual-vs-planned state model — that's big enough to deserve its own design pass.
+The items below were listed in the original v0.0.5 scope but are NOT delivered by proposal 003. Most share a common dependency — a running-budget / actual-vs-planned state model — that's big enough to deserve its own design pass.
 
-- **Running budget (actual vs. planned)**: a per-day actual state that drifts from the plan as the user reports deviations. Foundation for the two logging actions below.
-- **Treat tracking** (`log_treat` handler): "Had a small Snickers" → calorie estimate + running treat budget update + remaining-budget reply. Architecturally committed in proposal 003's catalog but handler not built in v0.0.5.
-- **Eating-out tracking** (`log_eating_out` compound handler): restaurant/social-meal reporting with automatic batch shift and calorie absorption (flex → treats → accept hierarchy). Includes retroactive support ("last night I went to Indian"). Architecturally committed in proposal 003's catalog but handler not built in v0.0.5.
-- **Three-tier deviation response** (silent <300 cal / informational 300-800 cal / replan offer 800+ cal). Depends on running-budget state.
+- **Running budget (actual vs. planned)**: a per-day actual state that drifts from the plan as the user reports deviations. Foundation for the logging actions below. **Moved to v0.0.6** (see "Treats tracking").
+- **Treat tracking** (`log_treat` handler): "Had a small Snickers" → calorie estimate + running treat budget update + remaining-budget reply. Architecturally committed in proposal 003's catalog but handler not built in v0.0.5. **Moved to v0.0.6.**
+- **Eating-out tracking** (`log_eating_out` compound handler): restaurant/social-meal reporting with automatic batch shift and calorie absorption (flex → treats → accept hierarchy). Includes retroactive support ("last night I went to Indian"). Architecturally committed in proposal 003's catalog but handler not built in v0.0.5. Remains deferred — depends on running-budget landing in v0.0.6 first.
+- **Three-tier deviation response** (silent <300 cal / informational 300-800 cal / replan offer 800+ cal). Depends on running-budget state. Remains deferred.
 - **Cook-time ingredient adjustment** ("I have 500g of beef, not 440g" → rescale the recipe): ingredient-level plan recipe updates. Explicitly out of scope per proposal 003 — it's a capability extension of the re-proposer scoped separately.
 - **Contextual quick-fix suggestions** (LLM-generated quick-fix buttons prioritized for the current plan state). Builds on top of the dispatcher but is its own design work and not specified in proposal 003.
 - **`answer_product_question` action** (answers about product concepts and methodology like "what's a flex meal?") with a small opinionated knowledge base. Proposal 003 routes such questions through `out_of_scope` in v0.0.5.
 
 **What stays deferred to later versions:**
 - Proactive nudges (v0.0.6)
-- Restaurant preparation / menu scanning (v0.0.6)
-- Photo tracking (v0.0.7)
+- Flex meal guidance / restaurant preparation (v0.0.6)
+- Meal composition rework — add-ons, smaller plates, fruits (v0.0.7)
+- Photo tracking (v0.0.8)
 
 ### v0.0.6 — Proactivity and polish
 
-The product reaches out at the right moments. Communication quality rises.
+The product reaches out at the right moments. Daily-friction items from v0.0.4 self-use get fixed. Items listed roughly in priority order.
 
-- **Planning nudge**: Single non-nagging notification 1-2 days before plan ends. "Your plan ends Sunday — want to plan next week?" One message, one button. Ignore = fine.
-- **Restaurant preparation**: Planning-first guidance before ordering. Cuisine-based heuristics as minimum ("At an Italian restaurant with 1,200 cal budget: grilled fish or single-portion pasta"). Menu scanning (photo or pulled from Google Maps) as stretch.
-- **Breakfast variety**: Rotate 2-3 learned recipes across weeks. Still "one per week, no thinking" — but different weeks get different breakfasts.
-- **Recipe rotation**: Track when recipes were last used, avoid repeating too soon.
-- **Week-end review**: Brief, non-judgmental summary of the week. Pairs with the weekly progress report.
-- **Messaging overhaul**: Treats stance (hyper-palatable foods trigger compulsiveness — the product is opinionated, not neutral). Method education (why weekly budgets, why flex, why averages not daily numbers). Light-touch, contextual, not a lecture.
-- **Shopping list quality pass**: The list works but is annoying. Known issues:
-  - **Unit semantics**: Countable items (eggs, avocados, lemons) should show counts, not grams. "Large egg — 7" not "Large egg — 350g".
-  - **Ingredient consolidation**: Same ingredient under slightly different names should merge. Today "Olive oil (for potatoes) — 16g", "Extra virgin olive oil — 30g", and "Olive oil (for ragù) — 24g" appear as three separate lines instead of one "Olive oil — 70g".
-  - **Name normalization**: Strip qualifiers that don't affect the buy ("fine salt" → "salt", parenthetical use-hints removed from the displayed name).
-  - **Category bugs**: Grouping is wrong in several cases — olive oil appears in both Oils & Fats and Pantry; avocado lands in Fats instead of Produce; pitted green olives show under the wrong section instead of Pantry. Category assignment needs to be deterministic and correct per ingredient, not per-recipe.
+- **Treats visibility**: surface the protected treat budget on plan / progress / next-action views. Display only, no logging.
+- **Flex meal guidance**: slot-driven helper — "tomorrow is a flex day, help me spend the calories". Distinct from restaurant preparation.
+- **Shopping list polish**:
+  - Breakfast weekly-stock model — stop resurfacing eggs/oats every refresh; breakfast is a weekly buy, not per-cook-day.
+  - Filter by meal type (breakfast / lunch / dinner slices).
+  - Unit semantics for countable items (eggs in counts, not grams).
+  - Ingredient consolidation across spelling variants.
+  - Name normalization (strip qualifiers, parentheticals).
+  - Category bugs — olive oil in two groups, avocado in Fats, etc.
+- **Recipe density bias**: generator prompt fix — prefer calorie-dense fats over 1 kg of tuna salad. Short-term patch ahead of v0.0.7 meal composition rework.
+- **Breakfast variety + selection**: user picks the week's breakfast before confirming; rotate 2-3 learned options across weeks.
+- **Restaurant preparation**: event-driven helper — "I'm going to an Italian place tonight, what should I order?"
+- **Treats tracking** (`log_treat`): "had a small Snickers" → budget update. Pulled from v0.0.5 deferred. Depends on running-budget state model landing first.
+- **Recipe rotation**: avoid repeating recipes too soon.
+- **Planning nudge**: single non-nagging notification 1-2 days before plan ends.
+- **Week-end review**: brief, non-judgmental weekly summary.
+- **Messaging overhaul**: treats stance, method education, light-touch.
 
-### v0.0.7 — Intelligence
+### v0.0.7 — The plate you actually want to eat
+
+A meal stops being "one recipe, one plate". Food volume drops, nutrition variety rises. Architectural rework — needs its own design proposal before planning.
+
+- **Meal composition rework**: main + side/fruit/snack instead of one 800 kcal tuna salad. Smaller plates, fruit in the rotation, less volume for the same calories.
+- **Recipe schema extension** to describe add-ons / components.
+- **Solver multi-component awareness**: budget split across main + add-ons within a slot.
+- **Cook view, shopping list, recipe library** updates to reflect the new shape.
+
+### v0.0.8 — Intelligence
 
 The product gets smarter about the user's patterns and available ingredients.
 
-- **Photo tracking**: Snap a meal photo, vision model estimates calories. Two taps.
+- **Photo tracking**: Snap a meal photo, vision model estimates calories.
 - **Ingredient-aware suggestions**: "I have zucchini and peppers to use up."
 - **Recipe import**: Send a URL, photo, or text of a recipe. Agent parses and structures it.
 - **Pattern learning**: Agent notices trends and adjusts planning defaults.

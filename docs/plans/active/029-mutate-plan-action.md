@@ -1,6 +1,6 @@
 # Plan 029: `mutate_plan` Action — The Living-Document Feature
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** RECOMMENDED SUB-SKILL: Use superpowers:subagent-driven-development (preferred) or superpowers:executing-plans to implement this plan task-by-task. If neither skill is available in your environment, follow the task-by-task structure directly — each task is self-contained with explicit steps, commit points, and verification commands. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Status:** Active
 **Date:** 2026-04-10
@@ -43,7 +43,7 @@ This is not additional architecture. This is not a new agent. This is the three 
 
 **What Plan D does NOT change (with one small exception).** The re-proposer, the validator, the solver, and `handleMutationText` itself (`plan-flow.ts` lines 605–735) stay exactly as they are today. Plan D's in-session branch is a thin pass-through that calls `handleMutationText` with the same inputs and receives the same result. This is deliberate: changing the re-proposer mid-Plan-D would invalidate the `020-planning-intents-from-text` and `023–028` scenarios, all of which are authoritative regression locks for the re-proposer.
 
-**The one exception: `buildNewPlanSession` in `plan-flow.ts` gains a single line** to thread `state.mutationHistory ?? []` into the `DraftPlanSession` it constructs. Today, when the user taps `plan_approve` at the end of a planning session, `buildNewPlanSession` (lines 846–942) builds the draft without populating `mutationHistory`, so any mutations accumulated in-session during the proposal phase are dropped on the floor. Plan 026 § decision log explicitly deferred this wire-up ("Plan D will rewire this"), and scenarios 038, 042, and 058 all assert that the persisted `mutationHistory` reflects every in-session mutation — so Plan D must deliver the write path. The change is load-bearing for state preservation invariant #1 from proposal 003 but structurally minimal (one key on one object literal). Task 7 owns the change and Task 12's regeneration captures the effect.
+**The one exception: `buildNewPlanSession` in `plan-flow.ts` gains a single line** to thread `state.mutationHistory ?? []` into the `DraftPlanSession` it constructs. Today, when the user taps `plan_approve` at the end of a planning session, `buildNewPlanSession` (lines 846–942) builds the draft without populating `mutationHistory`, so any mutations accumulated in-session during the proposal phase are dropped on the floor. Plan 026 § decision log explicitly deferred this wire-up ("Plan D will rewire this"), and scenarios 044 (in-session mutate_plan), 048 (side-conversation mid-planning), plus Plan E's cross-action state-preservation scenario all assert that the persisted `mutationHistory` reflects every in-session mutation — so Plan D must deliver the write path. The change is load-bearing for state preservation invariant #1 from proposal 003 but structurally minimal (one key on one object literal). Task 7 owns the change and Task 12's regeneration captures the effect.
 
 ---
 
@@ -63,21 +63,23 @@ This is not additional architecture. This is not a new agent. This is the three 
 
 - `test/unit/dispatcher-mutate-plan.test.ts` — Unit tests for the dispatcher picking `mutate_plan` for canonical inputs ("I'm eating out tonight", "move the flex to Sunday", "swap tagine for fish") via stub LLM responses. Verifies the `allowedActions` filter accepts `mutate_plan`.
 
-- `test/scenarios/038-mutate-plan-in-session/spec.ts` + `recorded.json` — Regression lock for the in-session branch. User is mid-planning at `phase: 'proposal'`, types "Move the flex to Sunday instead", the dispatcher picks `mutate_plan`, the applier's in-session branch calls `handleMutationText`, the proposal re-renders with the change summary, user taps `plan_approve`. Functionally equivalent to scenario 032 from Plan C but asserts the dispatcher chose `mutate_plan` (not `flow_input`).
+- `test/scenarios/044-mutate-plan-in-session/spec.ts` + `recorded.json` — Regression lock for the in-session branch. User is mid-planning at `phase: 'proposal'`, types "Move the flex to Sunday instead", the dispatcher picks `mutate_plan`, the applier's in-session branch calls `handleMutationText`, the proposal re-renders with the change summary, user taps `plan_approve`. Functionally similar to scenario 037 (`037-dispatcher-flow-input-planning`) from Plan C but asserts the dispatcher chose `mutate_plan` (not `flow_input`).
 
-- `test/scenarios/039-mutate-plan-eat-out-tonight/spec.ts` + `recorded.json` — **The canonical Flow 1 scenario.** Seed an active plan for this week with a dinner batch spanning Mon–Wed and a lunch batch spanning Mon–Fri. Clock: Tuesday 7pm. User types "I'm eating out tonight, friend invited me". The dispatcher picks `mutate_plan`, the applier runs the post-confirmation branch, the re-proposer shifts the tagine batch forward (Tuesday dinner dropped, Wednesday+Thursday kept, Friday added if capacity allows) OR adds an `eat_out` event on Tue dinner and lets the re-proposer cascade, renders the diff + `[Confirm] [Adjust]`. User taps `mp_confirm`. A new plan session is persisted via `confirmPlanSessionReplacing`, the old session goes `superseded: true`, and `mutation_history` contains the new `eating out tonight` record.
+- `test/scenarios/045-mutate-plan-eat-out-tonight/spec.ts` + `recorded.json` — **The canonical Flow 1 scenario.** Seed an active plan for this week with a dinner batch spanning Mon–Wed and a lunch batch spanning Mon–Fri. Clock: Tuesday 7pm. User types "I'm eating out tonight, friend invited me". The dispatcher picks `mutate_plan`, the applier runs the post-confirmation branch, the re-proposer shifts the tagine batch forward (Tuesday dinner dropped, Wednesday+Thursday kept, Friday added if capacity allows) OR adds an `eat_out` event on Tue dinner and lets the re-proposer cascade, renders the diff + `[Confirm] [Adjust]`. User taps `mp_confirm`. A new plan session is persisted via `confirmPlanSessionReplacing`, the old session goes `superseded: true`, and `mutation_history` contains the new `eating out tonight` record.
 
-- `test/scenarios/040-mutate-plan-flex-move/spec.ts` + `recorded.json` — Post-confirmation flex move. Seed an active plan with the flex on Saturday dinner. User types "Move the flex to Sunday lunch instead". Dispatcher → `mutate_plan` → post-confirmation applier → re-proposer shifts the flex → `mp_confirm` persists.
+- `test/scenarios/046-mutate-plan-flex-move/spec.ts` + `recorded.json` — Post-confirmation flex move. Seed an active plan with the flex on Saturday dinner. User types "Move the flex to Sunday lunch instead". Dispatcher → `mutate_plan` → post-confirmation applier → re-proposer shifts the flex → `mp_confirm` persists.
 
-- `test/scenarios/041-mutate-plan-recipe-swap/spec.ts` + `recorded.json` — Post-confirmation recipe swap. User has tagine batch Mon–Wed and types "swap the tagine for something lighter". Dispatcher → `mutate_plan` → post-confirmation applier → re-proposer picks a different recipe from the library that passes the meal-type lane rule → `mp_confirm`.
+- `test/scenarios/047-mutate-plan-recipe-swap/spec.ts` + `recorded.json` — Post-confirmation recipe swap. User has tagine batch Mon–Wed and types "swap the tagine for something lighter". Dispatcher → `mutate_plan` → post-confirmation applier → re-proposer picks a different recipe from the library that passes the meal-type lane rule → `mp_confirm`.
 
-- `test/scenarios/042-mutate-plan-side-conversation-mid-planning/spec.ts` + `recorded.json` — State preservation test. User is mid-planning at `proposal` phase with mutation history `[constraint: 'initial request']`. User types an off-topic question (dispatcher picks `clarify`, planFlow preserved), then types "actually move the flex to Sunday" (dispatcher picks `mutate_plan`, applier's in-session branch runs, mutation history extends to 2 entries), user taps `plan_approve`. The final persisted session's `mutationHistory` has BOTH entries.
+- `test/scenarios/048-mutate-plan-side-conversation-mid-planning/spec.ts` + `recorded.json` — State preservation test. User is mid-planning at `proposal` phase with mutation history `[constraint: 'initial request']`. User types an off-topic question (dispatcher picks `clarify`, planFlow preserved), then types "actually move the flex to Sunday" (dispatcher picks `mutate_plan`, applier's in-session branch runs, mutation history extends to 2 entries), user taps `plan_approve`. The final persisted session's `mutationHistory` has BOTH entries.
 
-- `test/scenarios/043-mutate-plan-adjust-loop/spec.ts` + `recorded.json` — User types "move dinner to tomorrow", sees the diff, taps `[Adjust]` (`mp_adjust` callback), the `pendingMutation` is cleared with a "tell me what to change" reply, user types a new request, the full cycle runs again, user taps `[Confirm]`, plan persists.
+- `test/scenarios/049-mutate-plan-adjust-loop/spec.ts` + `recorded.json` — User types "move dinner to tomorrow", sees the diff, taps `[Adjust]` (`mp_adjust` callback), the `pendingMutation` is cleared with a "tell me what to change" reply, user types a new request, the full cycle runs again, user taps `[Confirm]`, plan persists.
 
-- `test/scenarios/044-mutate-plan-no-target/spec.ts` + `recorded.json` — User has no plan at all (`lifecycle: 'no_plan'`) and types "move tomorrow's dinner". Dispatcher picks `mutate_plan` (the text is imperative-mutation-shaped), the applier's `no_target` branch fires, the user sees "You don't have a plan yet — tap 📋 Plan Week to start."
+- `test/scenarios/050-mutate-plan-no-target/spec.ts` + `recorded.json` — User has no plan at all (`lifecycle: 'no_plan'`) and types "move tomorrow's dinner". Dispatcher picks `mutate_plan` (the text is imperative-mutation-shaped), the applier's `no_target` branch fires, the user sees "You don't have a plan yet — tap 📋 Plan Week to start."
 
-- `test/scenarios/045-mutate-plan-meal-type-lane/spec.ts` + `recorded.json` — User has tagine in a dinner batch and types "move the tagine to tomorrow's lunch". The re-proposer respects meal-type lanes (Plan 026 Rule 2): it must either refuse, pick a different recipe that works in lunch, or return a clarification. Locks whichever behavior lands — but a silent lane cross should fail the new validator invariant #14 and trigger a retry → failure message.
+- `test/scenarios/051-mutate-plan-meal-type-lane/spec.ts` + `recorded.json` — User has tagine in a dinner batch and types "move the tagine to tomorrow's lunch". The re-proposer respects meal-type lanes (Plan 026 Rule 2): it must either refuse, pick a different recipe that works in lunch, or return a clarification. Locks whichever behavior lands — but a silent lane cross should fail the new validator invariant #14 and trigger a retry → failure message.
+
+- `test/scenarios/053-mutate-plan-post-confirm-clarification-resume/spec.ts` + `recorded.json` — **Invariant #5 harness lock for post-confirmation.** Seed an active plan. User types an ambiguous mutation ("I'm eating out"). Re-proposer returns a clarification ("lunch or dinner?"). User answers tersely ("dinner"). The applier auto-resumes by prepending the original request — the re-proposer sees "I'm eating out. To clarify: dinner" and produces a forward-shift proposal. User taps `mp_confirm`. Persisted session reflects the mutation. This is the scenario-level enforcement of proposal 003 invariant #5 for the post-confirmation case, mandated by the proposal's "MUST be enforced by scenario tests" language (line 453). Plan 029.
 
 **Files to modify:**
 
@@ -90,12 +92,13 @@ This is not additional architecture. This is not a new agent. This is the three 
 
 - `src/telegram/dispatcher-runner.ts`:
   - Add `handleMutatePlanAction` exported function — the action handler.
-  - Add `DispatcherSession` fields: `pendingMutation?: PendingMutation` (optional so sessions without mutation-in-flight stay unchanged).
+  - Add `DispatcherSession` fields: `pendingMutation?: PendingMutation` and `pendingPostConfirmationClarification?: { question, originalRequest, createdAt }` (both optional so sessions without mutation-in-flight stay unchanged).
   - Wire `handleMutatePlanAction` into the decision `switch` inside `runDispatcherFrontDoor`.
+  - The handler threads `pendingPostConfirmationClarification` into the applier args (for auto-resume), clears it after each call, and stashes it on the clarification branch.
 
 - `src/telegram/core.ts`:
-  - Add `pendingMutation?: PendingMutation` to `BotCoreSession`.
-  - Clear `pendingMutation = undefined` inside `reset()`.
+  - Add `pendingMutation?: PendingMutation` and `pendingPostConfirmationClarification?: { question, originalRequest, createdAt }` to `BotCoreSession`. Both fields share the same lifecycle and are cleared at every structural-invalidation site (session resets, new-plan starts, new-flow starts, explicit cancellations).
+  - Clear both fields inside `reset()`.
   - Add `mp_confirm` and `mp_adjust` inline callback handlers inside `handleCallback`.
   - Import `applyMutationConfirmation` from `mutate-plan-applier.ts` (the helper that takes a `PendingMutation` + store + LLM and calls `buildReplacingDraft` + `confirmPlanSessionReplacing`).
 
@@ -106,13 +109,13 @@ This is not additional architecture. This is not a new agent. This is the three 
   - Add `mutateConfirmKeyboard()` — inline keyboard with `[Confirm]` → `mp_confirm` and `[Adjust]` → `mp_adjust`.
 
 - `src/agents/plan-flow.ts`:
-  - **`buildNewPlanSession` (lines 846–942): thread `state.mutationHistory ?? []` into the `DraftPlanSession` literal** (between `events` and the closing brace, around line 869). This is the write path deferred by Plan 026's decision log — Plan D delivers it so in-session mutations accumulated during the proposal phase persist across `plan_approve`. Scenarios 038, 042, and 058 all require this behavior.
+  - **`buildNewPlanSession` (lines 846–942): thread `state.mutationHistory ?? []` into the `DraftPlanSession` literal** (between `events` and the closing brace, around line 869). This is the write path deferred by Plan 026's decision log — Plan D delivers it so in-session mutations accumulated during the proposal phase persist across `plan_approve`. Scenarios 044 (in-session mutate_plan), 048 (side-conversation mid-planning), plus Plan E's planned cross-action state-preservation scenario all require this behavior.
   - One doc comment above `handleMutationText` notes that Plan D's applier uses it as the in-session branch entry point, so future changes should preserve the shape `(state, text, llm, recipes) → FlowResponse`. This is a one-line comment, not a behavior change.
   - No changes to `handleMutationText` itself, the re-proposer, the validator, the solver, or any other function.
 
 - `docs/product-specs/ui-architecture.md`:
   - Flip the Plan 028 catalog table's `mutate_plan` row from "🚧 Plan D" to "✅ Plan D" with a one-paragraph description of the two branches and the `[Confirm] [Adjust]` UX.
-  - Add a new "Post-confirmation mutation lifecycle" subsection describing the request → propose → confirm → persist flow, the `pendingMutation` stash, the `mp_confirm`/`mp_adjust` callbacks, and the persistence via `confirmPlanSessionReplacing`.
+  - Add a new "Post-confirmation mutation lifecycle" subsection describing the request → propose → confirm → persist flow, the `pendingMutation` and `pendingPostConfirmationClarification` stashes, the `mp_confirm`/`mp_adjust` callbacks, the clarification multi-turn resume, and the persistence via `confirmPlanSessionReplacing`.
 
 - `docs/product-specs/flows.md`:
   - Add a new "Flow: post-confirmation plan mutation" section that narrates the Flow 1 experience from proposal 003 § "Flow 1 — Post-confirmation plan mutation". Cross-references the proposal and Plan D.
@@ -121,12 +124,14 @@ This is not additional architecture. This is not a new agent. This is the three 
   - At the top, under the `Status: approved` line, add a new line: `> Implementation: Plan A (026), B (027), C (028) complete. Plan D (029) delivers mutate_plan — THIS PLAN. Plan E remaining for secondary actions.` When Plan D lands, this marker updates.
 
 - `test/scenarios/index.md`:
-  - Add rows for scenarios 038–046.
+  - Add rows for scenarios 044–053.
 
 - Scenarios where the dispatcher currently picks `clarify` with a "mutate_plan isn't built yet" response — **regenerate**. The candidate list (to be confirmed at Task 12's grep time):
   - `test/scenarios/017-free-text-fallback` — may have a mutation-shaped test input that previously clarified.
-  - `test/scenarios/033-dispatcher-out-of-scope`, `035-dispatcher-clarify-multiturn` — no change expected (non-mutation inputs) but re-verified.
-  - Any Plan C scenario where the dispatcher's prompt examples or availability markers affected the decision.
+  - `test/scenarios/020-planning-intents-from-text` — the in-session mutation text at its core will now classify as `mutate_plan` (not `flow_input`). Downstream behavior identical; dispatcher fixture hash changes.
+  - `test/scenarios/037-dispatcher-flow-input-planning` (Plan 028) — this is the authoritative Plan C regression lock for "mutation text during active planning → flow_input"; Plan D flips the authoritative answer to `mutate_plan`. This scenario MUST be regenerated in Task 12 and its downstream transcripts re-reviewed.
+  - `test/scenarios/038-dispatcher-out-of-scope` and `test/scenarios/040-dispatcher-clarify-multiturn` (Plan 028) — no change expected (non-mutation inputs) but re-verified against the new system-prompt hash. If the captured dispatcher response text is identical, only the system-prompt fingerprint in the fixture changes.
+  - Any other Plan C scenario (037–043) where the dispatcher's prompt examples or availability markers materially affected the decision — all dispatcher fixtures share the system prompt, so any fingerprint-keyed fixture may need regeneration even when the captured decision is unchanged.
 
 **Files NOT modified (deliberate scope guard):**
 
@@ -151,7 +156,7 @@ Tasks run strictly top-to-bottom.
 - **Task 10** adds the `mp_confirm` / `mp_adjust` inline callbacks in `core.ts`.
 - **Task 11** threads the real `calorieTolerance` into `buildReplacingDraft`.
 - **Task 12** regenerates existing scenarios affected by the prompt change.
-- **Tasks 13–21** add the nine new scenarios (one per task — 038 through 046), each generated + behaviorally reviewed + committed individually. Tasks 13–20 cover the mainline mutate_plan coverage; Task 21 adds the retroactive "last night" honest forward-shift regression lock.
+- **Tasks 13–22** add the ten new scenarios (one per task — 044 through 053), each generated + behaviorally reviewed + committed individually. Tasks 13–20 cover the mainline mutate_plan coverage; Task 21 adds the retroactive "last night" honest forward-shift regression lock; Task 22 adds the invariant #5 post-confirmation clarification resume harness lock.
 - **Task 22** updates `test/scenarios/index.md`.
 - **Task 23** syncs `ui-architecture.md` and `flows.md` + flips the proposal 003 status marker.
 - **Task 24** is the final baseline + commit chain verification.
@@ -209,7 +214,7 @@ If these fail, Plan 028 has not landed — STOP.
 
 - [ ] **Step 5: Note the current highest scenario number**
 
-Use the Glob tool with pattern `test/scenarios/*/spec.ts` and note the highest `NNN-` prefix. After Plan 028, the highest is 037 (Plan 028 adds 032–037 on top of Plan 027's 030–031 on top of existing 001–029). Plan D's new scenarios are 038 through 046 — eight mainline mutate_plan scenarios (Tasks 13–20 → scenarios 038–045) plus the retroactive honest-forward-shift regression lock (Task 21 → scenario 046). Plan E (030) begins its range at 047.
+Use the Glob tool with pattern `test/scenarios/*/spec.ts` and note the highest `NNN-` prefix. After Plan 028, the highest is **043** (Plan 028 ships scenarios 037–043 as `dispatcher-flow-input-planning`, `dispatcher-out-of-scope`, `dispatcher-return-to-flow`, `dispatcher-clarify-multiturn`, `dispatcher-cancel-precedence`, `dispatcher-numeric-prefilter`, and `dispatcher-plan-resume-callback`). Plan D's new scenarios are **044 through 053** — eight mainline mutate_plan scenarios (Tasks 13–20 → scenarios 044–051), the retroactive honest-forward-shift regression lock (Task 21 → scenario 052), and the invariant #5 post-confirmation clarification resume lock (Task 22 → scenario 053). **Plan E (030) draft on disk originally claimed 047–058, which now collides with Plan D's 047–053.** Plan 030's Task 1 Step 6 has been updated to note the shift: Plan E scenarios move to **054–065** (offset +7). Plan 030's scenario paths, index entries, commit messages, and cross-references need a bulk renumber before Plan E execution begins — the note in Plan 030 Step 6 describes this. No `test/scenarios/047-*` directories exist on disk from Plan E (Plan E is not yet implemented), so the collision is in plan text only, not in shipped artifacts.
 
 - [ ] **Step 6: Confirm there is no existing `mutate-plan-applier.ts`**
 
@@ -351,6 +356,25 @@ User: "swap tomorrow's dinner for something lighter"
 User: "move the flex to Sunday"
 → { "action": "mutate_plan", "params": { "request": "move the flex to Sunday" }, "response": null, "reasoning": "Post-confirmation flex move." }`
 ```
+
+- [ ] **Step 5b: Thread `pendingPostConfirmationClarification` into the dispatcher context**
+
+In `buildSystemPrompt` (or the context-bundle construction in `dispatcher-runner.ts` — verify by Grep), add a conditional section that is only included when `session.pendingPostConfirmationClarification` is set:
+
+```typescript
+if (session.pendingPostConfirmationClarification) {
+  contextSections.push(
+    `## Outstanding clarification (post-confirmation mutation)\n` +
+    `The re-proposer asked: "${session.pendingPostConfirmationClarification.question}"\n` +
+    `Original request: "${session.pendingPostConfirmationClarification.originalRequest}"\n` +
+    `The user's next message is likely the answer to this question. ` +
+    `Pick mutate_plan with the user's text as the request — the applier ` +
+    `will prepend the original request automatically.`
+  );
+}
+```
+
+This ensures the dispatcher picks `mutate_plan` for terse answers like "dinner" or "tomorrow" that would otherwise classify as `out_of_scope` or `clarify`. The section is ephemeral — it only appears when the field is set and disappears after the next `mutate_plan` turn clears it.
 
 - [ ] **Step 6: Update `parseDecision` to accept `mutate_plan`**
 
@@ -683,34 +707,86 @@ In `src/telegram/core.ts`, find the `BotCoreSession` interface (Grep for `export
    * In-memory only — bot restarts drop it.
    */
   pendingMutation?: import('../plan/mutate-plan-applier.js').PendingMutation;
+
+  /**
+   * Plan 029: A pending post-confirmation clarification from the re-proposer.
+   * Set when the applier's post-confirmation branch returns a clarification
+   * ("lunch or dinner?"). On the next `mutate_plan` dispatch, the applier
+   * reads this field and prepends the original request to the user's new
+   * text so the re-proposer has full context — the user only needs to answer
+   * the question, not re-state the entire mutation. The dispatcher context
+   * bundle exposes this field so the dispatcher knows a clarification is
+   * outstanding and routes the answer to `mutate_plan` instead of treating
+   * it as an unrelated message.
+   *
+   * Cleared at the same sites as `pendingMutation`. In-memory only.
+   *
+   * Honors proposal 003 invariant #5 for the post-confirmation case where
+   * `planFlow` is null and `planFlow.pendingClarification` does not exist.
+   */
+  pendingPostConfirmationClarification?: {
+    question: string;
+    originalRequest: string;
+    createdAt: string;
+  };
 ```
 
-- [ ] **Step 3: Clear `pendingMutation` in `reset()`**
+- [ ] **Step 3: Clear `pendingMutation` and `pendingPostConfirmationClarification` in `reset()`**
 
-Find the `reset()` function in `core.ts` and add the clear line after `session.recentTurns = undefined;`:
+Find the `reset()` function in `core.ts` and add the clear lines after `session.recentTurns = undefined;`:
 
 ```typescript
     session.pendingMutation = undefined;
+    session.pendingPostConfirmationClarification = undefined;
 ```
 
-- [ ] **Step 4: Add `pendingMutation` to the structural `DispatcherSession` slice**
+- [ ] **Step 4: Add `pendingMutation` and `pendingPostConfirmationClarification` to the structural `DispatcherSession` slice**
 
-In `src/telegram/dispatcher-runner.ts`, find the `DispatcherSession` interface (added in Plan 028 Task 8). Add the new field:
+In `src/telegram/dispatcher-runner.ts`, find the `DispatcherSession` interface (added in Plan 028 Task 8). Add both new fields:
 
 ```typescript
   pendingMutation?: import('../plan/mutate-plan-applier.js').PendingMutation;
+  pendingPostConfirmationClarification?: {
+    question: string;
+    originalRequest: string;
+    createdAt: string;
+  };
 ```
 
-- [ ] **Step 5: Clear `pendingMutation` on fresh planning flow starts**
+- [ ] **Step 5: Clear `pendingMutation` AND `pendingPostConfirmationClarification` on session-reset and plan-lifecycle sites (intent-based — NOT every `planFlow = null`)**
 
-The structural invalidation sites are: `plan_week` menu tap (starts a fresh planFlow — a pending mutation from before is stale), `plan_cancel` (user explicitly canceled), and `pendingReplan` confirmation. Grep `src/telegram/core.ts` for `doStartPlanFlow` call sites and for `session.planFlow = null` assignments. For each of these sites, if it's in the `plan_week` menu case, `plan_cancel`, `plan_replan_cancel`, or `plan_replan_confirm` handlers, add `session.pendingMutation = undefined;` immediately before or after the planFlow mutation.
+**Rule: every site that clears `pendingMutation` also clears `pendingPostConfirmationClarification`.** The two fields share the same lifecycle — both are set by the post-confirmation mutation path and invalidated by the same structural exits. At each site listed below, add both `session.pendingMutation = undefined;` and `session.pendingPostConfirmationClarification = undefined;`.
 
-Concretely, the sites are:
-- `case 'plan_week'` in `handleMenu` — after `session.planFlow = ...` assignment, add the clear.
+**Important:** `reset()` in `core.ts` (around line 1320) is a **harness-only helper** called by scenario test setup, NOT by the `/start` or `/cancel` command handlers. `handleCommand('start')` (core.ts ~369) and `handleCommand('cancel')` (core.ts ~383) both clear session fields **manually** (e.g., `session.recipeFlow = null; session.planFlow = null; session.progressFlow = null; session.pendingReplan = undefined; ...`). They do NOT invoke `reset()`. If Plan D only clears `pendingMutation` inside `reset()`, a user who types `/start` or `/cancel` after triggering a mutation proposal will retain the stale `pendingMutation` and could confirm an outdated plan via an old `[Confirm]` inline button — directly contradicting the "fresh /start resets state" contract.
+
+**Intent-based invalidation rule (NOT "every planFlow = null"):** `pendingMutation` should be cleared at sites that represent a **full session reset**, **the start of a new plan / explicit cancellation**, or **the start of a new flow that could invalidate the mutation's assumptions** — NOT at every site that happens to set `session.planFlow = null`. Two `core.ts` callbacks clear `planFlow` as a **true navigation side effect** without starting a new flow: `view_shopping_list` at ~:517 and `view_plan_recipes` at ~:523. Those sites must NOT clear `pendingMutation` because the user is browsing while a pending mutation awaits confirmation — clearing it on browse would silently discard the proposal. Note: `re_` recipe edit (~:487) also clears `planFlow`, but it is NOT navigation — it starts a new `recipeFlow` and is classified under Category D below. Additionally, in-flow meta intents (`start_over` at ~:1259, `cancel` at ~:1268) live inside `if (session.planFlow)` blocks and are **unreachable when `pendingMutation` is set** (the post-confirmation branch only sets `pendingMutation` when `planFlow` is null). Adding the clear there is harmless defense-in-depth but not load-bearing.
+
+The structural invalidation sites (where `pendingMutation` MUST be cleared) are:
+
+**Category A — full session resets (mandatory):**
+- `handleCommand('start')` — in the block that clears `session.recipeFlow`, `session.planFlow`, `session.progressFlow`, `session.pendingReplan`, `session.surfaceContext`, `session.lastRecipeSlug`, `session.lastRenderedView`, add `session.pendingMutation = undefined;` in the same clear block.
+- `handleCommand('cancel')` — same, in the block that clears `session.recipeFlow`, `session.planFlow`, `session.progressFlow`, `session.pendingReplan`, `session.lastRenderedView`.
+
+**Category B — new-plan or explicit-cancel callbacks (mandatory):**
+- `case 'plan_week'` in `handleMenu` — after `session.planFlow = ...` assignment, add the clear. (Starting a new planning session structurally invalidates any stashed post-confirmation mutation.)
 - `if (action === 'plan_cancel')` in `handleCallback` — after `session.planFlow = null;`, add the clear.
-- `if (action === 'plan_approve')` in `handleCallback` — after `session.planFlow = null;` on the success path (line ~572), add the clear (the mutation window closes when a plan is freshly confirmed).
+- `if (action === 'plan_approve')` in `handleCallback` — after `session.planFlow = null;` on the success path (line ~572), add the clear. (A freshly confirmed plan replaces the plan the pending mutation was computed against.)
+- `plan_replan_cancel` / `plan_replan_confirm` callback handlers — alongside `session.pendingReplan = undefined;`.
 
-Use Grep to find the exact lines. Do NOT clear inside `reset()` a second time (Step 3 already handles that).
+**Category C — defense-in-depth (unreachable but safe):**
+- `metaIntent === 'start_over'` inside `routeTextToActiveFlow` (~:1259) — only reachable when `session.planFlow` is active, so `pendingMutation` should be null. Add the clear as a safety net.
+- `metaIntent === 'cancel'` inside `routeTextToActiveFlow` (~:1268) — same reasoning.
+
+**Category D — new-flow starts that invalidate pending mutation assumptions (mandatory):**
+- `action.startsWith('re_')` recipe edit (~:487) — clears `planFlow` AND creates `recipeFlow = createEditFlowState(recipe)`. This is NOT navigation — it starts a new flow. Proposal 003 line 536 explicitly lists "user starts a new flow" as a terminal condition. A pending mutation computed against recipe X would be stale if the user just edited X's ingredients or structure. Clear `pendingMutation` here. The UX cost is low (the user tapped a flow-switching button, not a browse button) and the data-integrity cost of NOT clearing is high (confirming a mutation built against a now-edited recipe).
+
+**Sites that must NOT clear `pendingMutation` (true navigation-only):**
+- `action === 'view_shopping_list'` (~:517) — legacy post-confirmation button; user is browsing the shopping list, not starting a new flow. `planFlow` is already null during post-confirmation, and the action doesn't create any new flow state.
+- `action === 'view_plan_recipes'` (~:523) — same; browses the recipe list without creating `recipeFlow`. No new flow, no state change that could invalidate the pending mutation.
+
+Use Grep to confirm each site. The query `grep -n "session.planFlow = null" src/telegram/core.ts` will return all sites — classify each per the categories above before adding the clear.
+
+**Verification grep at end of Task 4:** after all clears are added, run `grep -n "session.pendingMutation = undefined" src/telegram/core.ts`. Expected: **at least 11 hits** — `reset()` (1, harness), `/start` (1), `/cancel` (1), `plan_week` (1), `plan_cancel` (1), `plan_approve` (1), `plan_replan_confirm` (1), `plan_replan_cancel` (1), `re_` recipe edit (1), `metaIntent === 'start_over'` (1, defense-in-depth), `metaIntent === 'cancel'` (1, defense-in-depth). The two true navigation-only sites (`view_shopping_list`, `view_plan_recipes`) should have **zero** `pendingMutation` clears — verify by reading the surrounding 5 lines of each `planFlow = null` that does NOT have a corresponding `pendingMutation = undefined`.
 
 - [ ] **Step 6: Typecheck**
 
@@ -831,10 +907,13 @@ import { log } from '../debug/logger.js';
  *   a proposed diff. The handler sends `text` with `mutateConfirmKeyboard`
  *   and stashes `pending` on `BotCoreSession.pendingMutation`.
  * - `clarification` — either branch returned a re-proposer clarification.
- *   The handler sends `question` with no state change; the dispatcher sees
- *   the clarification on the next turn via recentTurns + planFlow's
- *   pendingClarification field (in-session only — post-confirmation
- *   clarifications are transient since there's no flow state to stash on).
+ *   In-session: the handler sends `question` and planFlow's
+ *   `pendingClarification` field carries it (existing mechanism).
+ *   Post-confirmation: the handler sends `question` AND stashes
+ *   `{ question, originalRequest, createdAt }` on
+ *   `session.pendingPostConfirmationClarification` so the next
+ *   `mutate_plan` turn auto-resumes by prepending the original request
+ *   (invariant #5 compliance — proposal 003 line 462).
  * - `failure` — validation or LLM failure; the handler sends `message`
  *   with an "OK, keeping the current plan" tone and leaves state untouched.
  * - `no_target` — the user typed a mutation request but there's nothing to
@@ -923,7 +1002,7 @@ git commit -m "Plan 029: applier MutateResult + applyMutationRequest scaffold"
 
 1. **The in-session applier branch** is a thin delegation to the existing `handleMutationText` in `plan-flow.ts`. The only reason Plan D needs its own entry point at all is to give the dispatcher a single function to call regardless of whether the user is mid-planning or post-confirmation. The in-session branch's call into `handleMutationText` is 100% unchanged from Plan 025 — same re-proposer call, same in-memory `mutationHistory` bookkeeping, same `formatPlanProposal` rendering. Steps 1–5 ship this.
 
-2. **Threading `state.mutationHistory` into `buildNewPlanSession`** (a one-line addition inside `plan-flow.ts`'s draft literal). Today `buildNewPlanSession` builds the `DraftPlanSession` without `mutationHistory`, so in-session mutations accumulated during the proposal phase are dropped on `plan_approve`. Plan 026 § decision log deferred this wire-up to Plan D explicitly, and scenarios 038, 042, and 058 all require it. Step 6 ships this. It's bundled into Task 7 because both changes make in-session mutations flow end-to-end: the applier exposes the entry point, and `buildNewPlanSession` makes the side effect persist.
+2. **Threading `state.mutationHistory` into `buildNewPlanSession`** (a one-line addition inside `plan-flow.ts`'s draft literal). Today `buildNewPlanSession` builds the `DraftPlanSession` without `mutationHistory`, so in-session mutations accumulated during the proposal phase are dropped on `plan_approve`. Plan 026 § decision log deferred this wire-up to Plan D explicitly, and scenarios 044 (in-session mutate_plan), 048 (side-conversation mid-planning), plus Plan E's planned cross-action state-preservation scenario all require it. Step 6 ships this. It's bundled into Task 7 because both changes make in-session mutations flow end-to-end: the applier exposes the entry point, and `buildNewPlanSession` makes the side effect persist.
 
 **Files:**
 - Modify: `src/plan/mutate-plan-applier.ts`
@@ -1159,7 +1238,7 @@ Expected: same red state as end of Task 4 (prompt scenarios still need Task 12 r
 
 - [ ] **Step 6: Thread `state.mutationHistory` into `buildNewPlanSession`**
 
-This is the load-bearing one-line change from the scope paragraph above. Today, `buildNewPlanSession` in `src/agents/plan-flow.ts` (lines 846–942) constructs a `DraftPlanSession` literal with `breakfast`, `treatBudgetCalories`, `flexSlots`, and `events` — but omits `mutationHistory`, so any in-session mutations accumulated during the proposal phase are silently dropped when the user taps `plan_approve`. Plan 026 § decision log deferred this wire-up to Plan D explicitly; Plan D owns it because scenarios 038, 042, and 058 all assert that the persisted session's `mutationHistory` reflects every in-session mutation.
+This is the load-bearing one-line change from the scope paragraph above. Today, `buildNewPlanSession` in `src/agents/plan-flow.ts` (lines 846–942) constructs a `DraftPlanSession` literal with `breakfast`, `treatBudgetCalories`, `flexSlots`, and `events` — but omits `mutationHistory`, so any in-session mutations accumulated during the proposal phase are silently dropped when the user taps `plan_approve`. Plan 026 § decision log deferred this wire-up to Plan D explicitly; Plan D owns it because scenarios 044 (in-session mutate_plan), 048 (side-conversation mid-planning), plus Plan E's planned cross-action state-preservation scenario all assert that the persisted session's `mutationHistory` reflects every in-session mutation.
 
 Use Grep to confirm the target: search `src/agents/plan-flow.ts` for `const session: DraftPlanSession`. Expected: one hit in `buildNewPlanSession`. Inside the literal (between `events: proposal.events,` and the closing `};`), add:
 
@@ -1184,14 +1263,15 @@ The in-session applier branch delegates to handleMutationText unchanged.
 buildNewPlanSession now threads state.mutationHistory into the draft so
 in-session mutations accumulated during the proposal phase survive
 plan_approve. Plan 026 decision log deferred this to Plan D; scenarios
-038, 042, and 058 require it."
+044, 048, and Plan E's cross-action state-preservation scenario
+require it."
 ```
 
 ---
 
 ### Task 8: Applier — post-confirmation branch
 
-**Rationale:** This is the core wire-up. The post-confirmation branch is the code path that didn't exist before Plan D. It loads the active persisted plan, runs Plan 026's split-aware adapter to get an active-only proposal + preserved past batches, calls the re-proposer in `post-confirmation` mode with `nearFutureDays`, runs the solver on the re-proposer's output, diffs against the pre-mutation active view, and assembles a `PendingMutation` for the confirm tap. On failure the branch returns `MutateResult.failure` with a honest message; on clarification it returns `MutateResult.clarification` (with the caveat that Plan D does NOT persist the clarification state anywhere — re-asking is the recovery path, see the decision log).
+**Rationale:** This is the core wire-up. The post-confirmation branch is the code path that didn't exist before Plan D. It loads the active persisted plan, runs Plan 026's split-aware adapter to get an active-only proposal + preserved past batches, calls the re-proposer in `post-confirmation` mode with `nearFutureDays`, runs the solver on the re-proposer's output, diffs against the pre-mutation active view, and assembles a `PendingMutation` for the confirm tap. On failure the branch returns `MutateResult.failure` with a honest message; on clarification it returns `MutateResult.clarification` and the handler (Task 9) stashes the clarification on `session.pendingPostConfirmationClarification` so the next turn's applier call can auto-resume with the original request prepended (invariant #5).
 
 **Files:**
 - Modify: `src/plan/mutate-plan-applier.ts`
@@ -1493,7 +1573,32 @@ async function applyPostConfirmation(
 
 **Note on the `flowShim`:** Plan D's post-confirmation branch reuses `buildSolverInput` because recomputing solver input from scratch would duplicate a load-bearing function. The shim carries only the fields `buildSolverInput` reads. If `buildSolverInput` grows new field dependencies in the future, this shim needs to grow too; the long-term fix is to refactor `buildSolverInput` to take a narrower struct, but that's outside Plan D's scope.
 
-**Note on `result.type === 'clarification'` in post-confirmation:** Plan D does NOT persist post-confirmation clarification state anywhere. If the user says "I'm eating out" without specifying a meal time and the re-proposer asks "lunch or dinner?", the clarification is shown to the user but forgotten on the next turn — the user has to re-state the full request with the missing detail ("I'm eating out tonight's dinner"). This is a known v0.0.5 limitation documented in the decision log.
+**Post-confirmation clarification state (invariant #5 compliance):** When the re-proposer returns a clarification in the post-confirmation branch, the applier returns a `MutateResult` of kind `'clarification'` — AND the handler in Task 9 stashes the clarification on `session.pendingPostConfirmationClarification` (the field added in Task 4 Step 2). On the next `mutate_plan` dispatch, the applier's post-confirmation entry point checks this field: if set, it prepends `pendingPostConfirmationClarification.originalRequest` to the new user text before calling the re-proposer, so the user only needs to answer the question ("dinner") without re-stating the full mutation ("I'm eating out tonight's dinner"). The field is cleared on any successful `mutate_plan` turn, on `mp_confirm` / `mp_adjust`, and at all structural-invalidation sites per Task 4 Step 5.
+
+Replace the clarification return in `applyPostConfirmation` with:
+
+```typescript
+  if (result.type === 'clarification') {
+    return { kind: 'clarification', question: result.question };
+  }
+```
+
+The handler (Task 9) is responsible for stashing the state — the applier stays pure. See Task 9 Step 2 for the `handleMutatePlanAction` clarification branch which sets `session.pendingPostConfirmationClarification`.
+
+**Entry-point resume logic** — at the TOP of `applyPostConfirmation`, before loading the active plan, check for a pending clarification and merge it:
+
+```typescript
+  // If there's a pending clarification from a prior post-confirmation turn,
+  // the user's new text is the answer. Prepend the original request so the
+  // re-proposer has full context. The handler clears the field after this call.
+  if (args.pendingClarification) {
+    request = `${args.pendingClarification.originalRequest}. To clarify: ${request}`;
+  }
+```
+
+Add `pendingClarification?: { originalRequest: string }` to `ApplyMutationRequestArgs` so the handler can thread it through without the applier reading session state directly.
+
+The in-session clarification branch in Task 7 is UNCHANGED — it still relies on `planFlow.pendingClarification` and invariant #5 works there as the proposal specifies. This post-confirmation path mirrors the same pattern using `BotCoreSession.pendingPostConfirmationClarification` instead of `planFlow.pendingClarification`.
 
 - [ ] **Step 5: Run the tests**
 
@@ -1663,7 +1768,15 @@ export async function handleMutatePlanAction(
       recipes: deps.recipes,
       llm: deps.llm,
       now: new Date(),
+      // Thread pending clarification so the applier can prepend the original
+      // request to the user's answer (invariant #5 post-confirmation).
+      pendingClarification: session.pendingPostConfirmationClarification
+        ? { originalRequest: session.pendingPostConfirmationClarification.originalRequest }
+        : undefined,
     });
+    // Clear the pending clarification — it was consumed by this call regardless
+    // of outcome (success, new clarification, or failure).
+    session.pendingPostConfirmationClarification = undefined;
   } catch (err) {
     log.error('MUTATE', `applyMutationRequest threw: ${(err as Error).message.slice(0, 200)}`);
     const menuKb = await buildMenuKeyboardForSession(session, deps.store);
@@ -1698,6 +1811,18 @@ export async function handleMutatePlanAction(
     }
 
     case 'clarification': {
+      // Stash the clarification so the next mutate_plan turn can prepend
+      // the original request — invariant #5 post-confirmation compliance.
+      // The field was already cleared above (consumed), so this sets it fresh.
+      if (!session.planFlow) {
+        // Post-confirmation clarification — stash for multi-turn resume.
+        session.pendingPostConfirmationClarification = {
+          question: result.question,
+          originalRequest: decision.params.request,
+          createdAt: new Date().toISOString(),
+        };
+      }
+      // In-session clarifications use planFlow.pendingClarification (unchanged).
       const kb = await buildSideConversationKeyboard(session, deps.store);
       await sink.reply(result.question, { reply_markup: kb });
       pushTurn(session, 'bot', result.question);
@@ -1821,7 +1946,18 @@ export async function applyMutationConfirmation(args: {
     `post-confirmation mutation persisted: old=${pending.oldSessionId} new=${persisted.id}`,
   );
 
-  const persistedText = `Plan updated. Your week is locked in.`;
+  // Proposal 003 line 436 requires an explicit calorie-tracking disclaimer
+  // for eat-out mutations: "I don't track meal-out calories yet — that comes
+  // with deviation accounting later." For v0.0.5, append the disclaimer
+  // unconditionally to post-confirmation mutations — it's accurate for all
+  // mutation types since v0.0.5 doesn't track any deviation calories, and
+  // the marginal redundancy for flex moves or recipe swaps is harmless
+  // compared to the risk of silently omitting the disclaimer for the
+  // canonical eat-out path (the literal reason this proposal exists).
+  const persistedText =
+    `Plan updated. Your week is locked in.\n\n` +
+    `Note: I shifted meals around but don't track meal-out calories yet — ` +
+    `that comes with deviation accounting later.`;
 
   return {
     newSessionId: persisted.id,
@@ -2116,8 +2252,9 @@ Expected: a set of scenarios fail with `MissingFixtureError` or `deepStrictEqual
 
 Likely failures:
 - `017-free-text-fallback` — fires arbitrary text; the dispatcher's response text may change (minor).
-- `032-dispatcher-flow-input-planning` — the dispatcher previously picked `flow_input` for "Move the flex to Sunday", now picks `mutate_plan`. The downstream behavior is the same (applier routes to the same re-proposer via the in-session branch), but the recorded action differs.
-- `020-planning-intents-from-text` — same as 032; the mutation text now classifies as `mutate_plan`.
+- `037-dispatcher-flow-input-planning` (Plan 028 — NOT scenario 032; 032 is `discard-recipe-audit` from Plan 027) — the dispatcher previously picked `flow_input` for "Move the flex to Sunday", now picks `mutate_plan`. The downstream behavior is the same (applier routes to the same re-proposer via the in-session branch), but the recorded action differs. This is the primary Plan C regression lock affected by Plan D's catalog flip.
+- `020-planning-intents-from-text` — same root cause as 037; the mutation text now classifies as `mutate_plan`.
+- `038-dispatcher-out-of-scope`, `039-dispatcher-return-to-flow`, `040-dispatcher-clarify-multiturn`, `041-dispatcher-cancel-precedence`, `042-dispatcher-numeric-prefilter`, `043-dispatcher-plan-resume-callback` — all Plan 028 dispatcher-fixture scenarios. Their captured decisions should be unchanged, but the system-prompt hash that keys their fixtures has moved. Regenerate any that fail fixture lookup.
 - Any other scenario in which the dispatcher observed a mutation-shaped message.
 
 **If the failure count is unexpectedly high** (>8), investigate before regenerating — something in Task 2 may have broken the prompt structure.
@@ -2145,7 +2282,7 @@ For EACH regenerated recording, apply the 5-step protocol in `docs/product-specs
 4. Scan for known issue patterns (ghost batches, orphan slots, lane violations).
 5. Confirm the dispatcher's action choice matches the intent — a mutation-shaped text should pick `mutate_plan`, not `flow_input`.
 
-**Critical check for scenarios 020 and 032:** the final plan confirmation (`plan_approve`) should produce the same persisted session **except** that the captured `planSessions[…].mutationHistory` array is now populated where it was previously empty. The dispatcher's action change is purely upstream — the downstream re-proposer call, the solver output, and the batch contents should be byte-for-byte identical to the pre-Task-2 recording (modulo the new dispatcher fixture and the newly-populated `mutationHistory`). If anything ELSE in `planSessions` or `batches` differs, Plan D has introduced a subtle regression and must be fixed before committing. Cross-check: the new `mutationHistory` entries should contain the same `constraint` strings the user typed in the scenario script, and `appliedAt` timestamps inside the scenario's clock window.
+**Critical check for scenarios 020 and 037:** the final plan confirmation (`plan_approve`) should produce the same persisted session **except** that the captured `planSessions[…].mutationHistory` array is now populated where it was previously empty. The dispatcher's action change is purely upstream — the downstream re-proposer call, the solver output, and the batch contents should be byte-for-byte identical to the pre-Task-2 recording (modulo the new dispatcher fixture and the newly-populated `mutationHistory`). If anything ELSE in `planSessions` or `batches` differs, Plan D has introduced a subtle regression and must be fixed before committing. Cross-check: the new `mutationHistory` entries should contain the same `constraint` strings the user typed in the scenario script, and `appliedAt` timestamps inside the scenario's clock window.
 
 - [ ] **Step 4: Confirm `npm test` is fully green**
 
@@ -2159,7 +2296,7 @@ git add test/scenarios/*/recorded.json
 git commit -m "Plan 029: regenerate scenarios affected by mutate_plan catalog flip
 
 Scenarios where the dispatcher previously picked flow_input for mutation
-text (020, 032) now pick mutate_plan. Downstream re-proposer behavior and
+text (020, 037) now pick mutate_plan. Downstream re-proposer behavior and
 persisted state are unchanged — the applier's in-session branch delegates
 to the same handleMutationText path."
 ```
@@ -2167,21 +2304,21 @@ to the same handleMutationText path."
 Include the list of regenerated scenarios in the commit body.
 
 ---
-### Task 13: Scenario 038 — in-session `mutate_plan` regression lock
+### Task 13: Scenario 044 — in-session `mutate_plan` regression lock
 
 **Rationale:** Locks in that a mid-planning mutation text routes through the dispatcher as `mutate_plan` (not `flow_input`), the applier's in-session branch runs, the mutation history grows, and the final persist is identical to today's in-session mutation behavior. Structurally similar to scenario 020 but explicitly asserts the dispatcher action + final `mutationHistory` length.
 
 **Files:**
-- Create: `test/scenarios/038-mutate-plan-in-session/spec.ts`
-- Create: `test/scenarios/038-mutate-plan-in-session/recorded.json` (generated)
+- Create: `test/scenarios/044-mutate-plan-in-session/spec.ts`
+- Create: `test/scenarios/044-mutate-plan-in-session/recorded.json` (generated)
 
 - [ ] **Step 1: Write the scenario spec**
 
-Create `test/scenarios/038-mutate-plan-in-session/spec.ts`:
+Create `test/scenarios/044-mutate-plan-in-session/spec.ts`:
 
 ```typescript
 /**
- * Scenario 038 — in-session mutate_plan regression lock.
+ * Scenario 044 — in-session mutate_plan regression lock.
  *
  * Plan 029 (Plan D). Verifies the full chain:
  *   dispatcher picks mutate_plan for "Move the flex to Sunday"
@@ -2218,7 +2355,7 @@ Create `test/scenarios/038-mutate-plan-in-session/spec.ts`:
 import { defineScenario, command, text, click } from '../../../src/harness/define.js';
 
 export default defineScenario({
-  name: '038-mutate-plan-in-session',
+  name: '044-mutate-plan-in-session',
   description:
     'Dispatcher picks mutate_plan for mid-planning mutation text, applier in-session branch delegates to the re-proposer, mutation history persists with the plan.',
   clock: '2026-04-05T10:00:00Z',
@@ -2241,7 +2378,7 @@ export default defineScenario({
 
 - [ ] **Step 2: Generate the recording**
 
-Run: `npm run test:generate -- 038-mutate-plan-in-session --yes`
+Run: `npm run test:generate -- 044-mutate-plan-in-session --yes`
 
 - [ ] **Step 3: Behavioral review**
 
@@ -2262,19 +2399,19 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add test/scenarios/038-mutate-plan-in-session/
-git commit -m "Plan 029: scenario 038 — in-session mutate_plan regression lock"
+git add test/scenarios/044-mutate-plan-in-session/
+git commit -m "Plan 029: scenario 044 — in-session mutate_plan regression lock"
 ```
 
 ---
 
-### Task 14: Scenario 039 — post-confirmation "eating out tonight" (Flow 1 canonical)
+### Task 14: Scenario 045 — post-confirmation "eating out tonight" (Flow 1 canonical)
 
 **Rationale:** **This is the single most important scenario in Plan D.** It's the canonical Flow 1 from proposal 003 — the reason this whole proposal exists. A user on a confirmed plan types "I'm eating out tonight, friend invited me", the re-proposer absorbs the deviation, the plan persists. If this scenario doesn't work, nothing in Plan D worked.
 
 **Files:**
-- Create: `test/scenarios/039-mutate-plan-eat-out-tonight/spec.ts`
-- Create: `test/scenarios/039-mutate-plan-eat-out-tonight/recorded.json` (generated)
+- Create: `test/scenarios/045-mutate-plan-eat-out-tonight/spec.ts`
+- Create: `test/scenarios/045-mutate-plan-eat-out-tonight/recorded.json` (generated)
 
 - [ ] **Step 1: Pick the clock and seed shape**
 
@@ -2289,11 +2426,11 @@ Seed an active plan running Apr 6–12 with:
 - Lunch batch (grain bowl) Mon–Fri, 5 servings.
 - Flex on Saturday dinner.
 
-When the user types "I'm eating out tonight", the re-proposer should shift or drop Tue dinner and leave the rest of the dinner lane consistent.
+When the user types "I'm eating out tonight", the re-proposer should absorb the deviation by shifting the tagine batch forward in the dinner lane — matching the proposal's canonical Flow 1 example (proposal lines 81–95): Tue dinner becomes eat-out, the remaining tagine servings shift to {Wed, Thu} (Wed keeps tagine, Thu gains tagine from Wed's original serving), and downstream dinner batches (e.g., Greek Lemon Chicken) cascade one day each. Lunches are unaffected.
 
 - [ ] **Step 2: Write the scenario spec**
 
-Create `test/scenarios/039-mutate-plan-eat-out-tonight/spec.ts` with a structured seed (pattern lifted from Plan 027 scenario 030). Follow the existing scenario spec conventions — use `defineScenario`, `text`, `click`, and TypeScript-shaped `PlanSession` / `Batch` literals.
+Create `test/scenarios/045-mutate-plan-eat-out-tonight/spec.ts` with a structured seed (pattern lifted from Plan 027 scenario 030). Follow the existing scenario spec conventions — use `defineScenario`, `text`, `click`, and TypeScript-shaped `PlanSession` / `Batch` literals.
 
 The events sequence is minimal:
 
@@ -2310,7 +2447,7 @@ Use scenario 030 (`test/scenarios/030-navigation-state-tracking/spec.ts`) as a r
 
 - [ ] **Step 3: Generate the recording**
 
-Run: `npm run test:generate -- 039-mutate-plan-eat-out-tonight --yes`
+Run: `npm run test:generate -- 045-mutate-plan-eat-out-tonight --yes`
 
 Expected fixtures: one dispatcher call (picks `mutate_plan`), one re-proposer call in `post-confirmation` mode, possibly one or more scaler calls for the new batches.
 
@@ -2321,13 +2458,19 @@ This is the canonical scenario. Apply the 5-step protocol with extra care:
 1. **Dispatcher reply** — the captured response should be the re-proposer's diff text + the `mutateConfirmKeyboard`. The diff should explicitly call out the change: "Tagine shifts forward" or "Tue dinner → eat out, batches cascade" or similar.
 2. **Re-proposer behavior** — the Tue dinner tagine slot is dropped OR an `eat_out` event is added on Tue dinner and the tagine batch moves forward. Either shape is acceptable — lock in whatever the re-proposer produces, but confirm it's a sensible adaptation (not a ghost batch, not a broken split).
 3. **Meal-type lane respect** — every batch in the re-proposed proposal has `mealType` matching `recipe.mealTypes`. No dinner recipe in a lunch slot, no lunch recipe in a dinner slot. This is Plan 026 invariant #14 in action — if a violation slips through, the re-proposer's retry path should have caught it, and if it didn't, Plan 026 has a bug.
-4. **Near-future safety** — the re-proposer should NOT silently rearrange Wednesday (tomorrow). Wed dinner stays as tagine unless the request explicitly targeted it. Tue dinner change is explicit (the request targets tonight), so it's allowed. Verify by reading the re-proposer fixture's prompt and checking that `nearFutureDays: ['2026-04-07', '2026-04-08']` was passed in.
+4. **Near-future safety — cascading shifts are allowed, silent recipe swaps are not.** The proposal's canonical Flow 1 (lines 81–95) explicitly shows the tagine batch shifting from `{Tue, Wed}` to `{Wed, Thu}` as a **direct consequence** of the user's explicit request targeting Tuesday. This is the EXPECTED behavior, not a bug:
+   - **Wednesday dinner stays tagine** — the tagine batch absorbs the shift. From the user's perspective Wed dinner is the same recipe (tagine, already cooked, in the fridge). The batch's `eatingDays` list changes but the recipe is unchanged.
+   - **Thursday dinner changes from Greek Lemon Chicken to tagine** — the original Wed serving cascades to Thu. Thursday is outside the near-future window (near-future = today Tue + tomorrow Wed), so rearranging Thu is freely allowed.
+   - **Greek Lemon Chicken shifts to Friday** — same logic; Fri is outside the near-future window.
+   - The near-future safety rule (proposal line 115) prohibits **silent recipe-level rearrangement** of meals the user may have already shopped for or prepared. A cascading shift within the SAME recipe (tagine stays tagine on Wed) is NOT a violation — the user's preparation is still valid. Replacing Wed's tagine with a different recipe (e.g., the re-proposer swaps in chicken to "fill the gap") WOULD be a violation.
+   - **What WOULD be a bug:** the re-proposer moving a DIFFERENT recipe onto Wednesday dinner without the user asking, or dropping Wednesday dinner entirely, or silently removing Wed from the tagine batch without cascading.
+   Verify by reading the re-proposer fixture's prompt and checking that `nearFutureDays: ['2026-04-07', '2026-04-08']` was passed in. Then confirm the re-proposer's output keeps tagine on Wed and cascades the remaining serving to Thu (matching the proposal's canonical example).
 5. **Persisted state** — after `mp_confirm`:
    - `finalStore.planSessions` has two entries: the old session with `superseded: true` and the new session with `superseded: false`.
    - The new session's `mutationHistory` has 2 entries: `[{ constraint: 'initial plan', ... }, { constraint: "I'm eating out tonight, friend invited me", ... }]`.
    - The new session's `batches` include both the preserved past-slot halves (Mon tagine, Mon+Tue grain-bowl) AND the re-proposed active batches.
    - Old session's batches are `status: 'cancelled'`.
-6. **Final user-visible reply** — after `mp_confirm`, the bot's reply is "Plan updated. Your week is locked in." plus the main menu keyboard.
+6. **Final user-visible reply + calorie-tracking disclaimer** — after `mp_confirm`, the bot's reply is "Plan updated. Your week is locked in." **followed by the calorie-tracking disclaimer**: "Note: I shifted meals around but don't track meal-out calories yet — that comes with deviation accounting later." This is required by proposal 003 line 436 ("The confirmation message is explicit") and must be present in the canonical Flow 1 scenario. The disclaimer is shown for ALL post-confirmation mutations in v0.0.5 (not just eat-out cases) because v0.0.5 doesn't track any deviation calories. The reply ends with the main menu keyboard.
 
 If ANY of these checks fail, Plan D has a real bug. Fix the code (likely in the applier's post-confirmation branch or the confirmation helper), re-regenerate, and re-review.
 
@@ -2339,8 +2482,8 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add test/scenarios/039-mutate-plan-eat-out-tonight/
-git commit -m "Plan 029: scenario 039 — Flow 1 canonical eating-out-tonight mutation
+git add test/scenarios/045-mutate-plan-eat-out-tonight/
+git commit -m "Plan 029: scenario 045 — Flow 1 canonical eating-out-tonight mutation
 
 The single most important scenario in Plan D. User on confirmed plan
 types 'I'm eating out tonight', dispatcher picks mutate_plan, applier's
@@ -2352,13 +2495,13 @@ feature that proposal 003 exists for."
 
 ---
 
-### Task 15: Scenario 040 — post-confirmation flex move
+### Task 15: Scenario 046 — post-confirmation flex move
 
 **Rationale:** The simplest post-confirmation mutation shape — move the flex to a different day. No batch rearrangement needed in the happy path. Locks in that flex moves work end-to-end post-confirmation.
 
 **Files:**
-- Create: `test/scenarios/040-mutate-plan-flex-move/spec.ts`
-- Create: `test/scenarios/040-mutate-plan-flex-move/recorded.json` (generated)
+- Create: `test/scenarios/046-mutate-plan-flex-move/spec.ts`
+- Create: `test/scenarios/046-mutate-plan-flex-move/recorded.json` (generated)
 
 - [ ] **Step 1: Write the scenario spec**
 
@@ -2371,11 +2514,11 @@ Create the spec, seeding an active plan with flex on Saturday dinner, clock Wedn
   ],
 ```
 
-Use the same spec shape pattern as scenario 039. The re-proposer should produce a proposal with flex on `2026-04-12 lunch` instead of `2026-04-11 dinner`. Batches should not need to move.
+Use the same spec shape pattern as scenario 045. The re-proposer should produce a proposal with flex on `2026-04-12 lunch` instead of `2026-04-11 dinner`. Batches should not need to move.
 
 - [ ] **Step 2: Generate + review + commit**
 
-Run: `npm run test:generate -- 040-mutate-plan-flex-move --yes`
+Run: `npm run test:generate -- 046-mutate-plan-flex-move --yes`
 
 Review (5-step protocol):
 - Flex position changed, no collateral batch changes.
@@ -2383,19 +2526,19 @@ Review (5-step protocol):
 - Old session superseded, new session's mutation history extended.
 
 ```bash
-git add test/scenarios/040-mutate-plan-flex-move/
-git commit -m "Plan 029: scenario 040 — post-confirmation flex move"
+git add test/scenarios/046-mutate-plan-flex-move/
+git commit -m "Plan 029: scenario 046 — post-confirmation flex move"
 ```
 
 ---
 
-### Task 16: Scenario 041 — post-confirmation recipe swap
+### Task 16: Scenario 047 — post-confirmation recipe swap
 
 **Rationale:** A slightly richer mutation — replace a recipe with a different one. Exercises the re-proposer's recipe matching against the library index + meal-type lane enforcement.
 
 **Files:**
-- Create: `test/scenarios/041-mutate-plan-recipe-swap/spec.ts`
-- Create: `test/scenarios/041-mutate-plan-recipe-swap/recorded.json` (generated)
+- Create: `test/scenarios/047-mutate-plan-recipe-swap/spec.ts`
+- Create: `test/scenarios/047-mutate-plan-recipe-swap/recorded.json` (generated)
 
 - [ ] **Step 1: Write the scenario spec**
 
@@ -2412,7 +2555,7 @@ The re-proposer should pick a different dinner-authorized recipe from the librar
 
 - [ ] **Step 2: Generate + review + commit**
 
-Run: `npm run test:generate -- 041-mutate-plan-recipe-swap --yes`
+Run: `npm run test:generate -- 047-mutate-plan-recipe-swap --yes`
 
 Review:
 - New batch uses a different recipe slug.
@@ -2421,19 +2564,19 @@ Review:
 - Mutation history extended.
 
 ```bash
-git add test/scenarios/041-mutate-plan-recipe-swap/
-git commit -m "Plan 029: scenario 041 — post-confirmation recipe swap"
+git add test/scenarios/047-mutate-plan-recipe-swap/
+git commit -m "Plan 029: scenario 047 — post-confirmation recipe swap"
 ```
 
 ---
 
-### Task 17: Scenario 042 — side conversation mid-planning then `mutate_plan` preserves mutation history
+### Task 17: Scenario 048 — side conversation mid-planning then `mutate_plan` preserves mutation history
 
 **Rationale:** State preservation regression lock for proposal 003 invariant #1 and Plan 029's applier in-session branch. User is mid-planning at `proposal` phase with a mutation already in history, types an off-topic question (Plan 028 `out_of_scope`), then types a second mutation (Plan 029 `mutate_plan` in-session). Verifies that (a) the off-topic question doesn't clobber `planFlow`, (b) the second mutation routes to the same in-session path (not a fresh planning session), (c) the final persisted `mutationHistory` has both entries.
 
 **Files:**
-- Create: `test/scenarios/042-mutate-plan-side-conversation-mid-planning/spec.ts`
-- Create: `test/scenarios/042-mutate-plan-side-conversation-mid-planning/recorded.json` (generated)
+- Create: `test/scenarios/048-mutate-plan-side-conversation-mid-planning/spec.ts`
+- Create: `test/scenarios/048-mutate-plan-side-conversation-mid-planning/recorded.json` (generated)
 
 - [ ] **Step 1: Write the scenario spec**
 
@@ -2454,7 +2597,7 @@ Events:
 
 - [ ] **Step 2: Generate + review + commit**
 
-Run: `npm run test:generate -- 042-mutate-plan-side-conversation-mid-planning --yes`
+Run: `npm run test:generate -- 048-mutate-plan-side-conversation-mid-planning --yes`
 
 Review:
 - After the weather question, the next proposal-review reply still shows the post-first-mutation plan (flex on Sunday).
@@ -2463,19 +2606,19 @@ Review:
 - planFlow is cleared at the end (user approved).
 
 ```bash
-git add test/scenarios/042-mutate-plan-side-conversation-mid-planning/
-git commit -m "Plan 029: scenario 042 — side conversation mid-planning preserves mutation history"
+git add test/scenarios/048-mutate-plan-side-conversation-mid-planning/
+git commit -m "Plan 029: scenario 048 — side conversation mid-planning preserves mutation history"
 ```
 
 ---
 
-### Task 18: Scenario 043 — `mp_adjust` loop
+### Task 18: Scenario 049 — `mp_adjust` loop
 
 **Rationale:** User types a mutation, sees the diff, decides it's wrong, taps `[Adjust]`, types a different mutation, confirms. Locks in the adjust path.
 
 **Files:**
-- Create: `test/scenarios/043-mutate-plan-adjust-loop/spec.ts`
-- Create: `test/scenarios/043-mutate-plan-adjust-loop/recorded.json` (generated)
+- Create: `test/scenarios/049-mutate-plan-adjust-loop/spec.ts`
+- Create: `test/scenarios/049-mutate-plan-adjust-loop/recorded.json` (generated)
 
 - [ ] **Step 1: Write the scenario spec**
 
@@ -2492,7 +2635,7 @@ Seed an active plan. Events:
 
 - [ ] **Step 2: Generate + review + commit**
 
-Run: `npm run test:generate -- 043-mutate-plan-adjust-loop --yes`
+Run: `npm run test:generate -- 049-mutate-plan-adjust-loop --yes`
 
 Review:
 - After `mp_adjust`, the bot's reply is "OK, what would you like to change instead?" and `session.pendingMutation` is cleared (not visible in outputs but confirmed by the next text working correctly).
@@ -2501,19 +2644,19 @@ Review:
 - `mutationHistory` has exactly one entry (the second one) — the first mutation was never confirmed and therefore never persisted.
 
 ```bash
-git add test/scenarios/043-mutate-plan-adjust-loop/
-git commit -m "Plan 029: scenario 043 — mp_adjust loop clears pending mutation"
+git add test/scenarios/049-mutate-plan-adjust-loop/
+git commit -m "Plan 029: scenario 049 — mp_adjust loop clears pending mutation"
 ```
 
 ---
 
-### Task 19: Scenario 044 — no target (mutation text with no active plan)
+### Task 19: Scenario 050 — no target (mutation text with no active plan)
 
 **Rationale:** Edge case — user has no plan and types a mutation-shaped message. Dispatcher picks `mutate_plan` (the text IS imperative-mutation-shaped), the applier's `no_target` branch fires, the user sees a helpful "tap Plan Week" hint.
 
 **Files:**
-- Create: `test/scenarios/044-mutate-plan-no-target/spec.ts`
-- Create: `test/scenarios/044-mutate-plan-no-target/recorded.json` (generated)
+- Create: `test/scenarios/050-mutate-plan-no-target/spec.ts`
+- Create: `test/scenarios/050-mutate-plan-no-target/recorded.json` (generated)
 
 - [ ] **Step 1: Write the scenario spec**
 
@@ -2530,7 +2673,7 @@ No seeded plan. Lifecycle will be `no_plan`.
 
 - [ ] **Step 2: Generate + review + commit**
 
-Run: `npm run test:generate -- 044-mutate-plan-no-target --yes`
+Run: `npm run test:generate -- 050-mutate-plan-no-target --yes`
 
 Review:
 - Dispatcher picks `mutate_plan` (verify in the fixture) — or `clarify` if the dispatcher was cautious about no-plan state. Either is acceptable; document whichever shape lands.
@@ -2539,19 +2682,19 @@ Review:
 - `finalStore.planSessions` is empty.
 
 ```bash
-git add test/scenarios/044-mutate-plan-no-target/
-git commit -m "Plan 029: scenario 044 — mutate_plan with no active plan returns no_target"
+git add test/scenarios/050-mutate-plan-no-target/
+git commit -m "Plan 029: scenario 050 — mutate_plan with no active plan returns no_target"
 ```
 
 ---
 
-### Task 20: Scenario 045 — meal-type lane regression lock
+### Task 20: Scenario 051 — meal-type lane regression lock
 
 **Rationale:** User tries to move a dinner-only recipe into a lunch slot via mutation. The re-proposer must either refuse (via meal-type lane rule in the prompt), pick a different lunch-eligible recipe, or ask for clarification. If a lane violation somehow makes it through, invariant #14 catches it in the validator. This scenario locks the behavior regardless of which path the re-proposer takes.
 
 **Files:**
-- Create: `test/scenarios/045-mutate-plan-meal-type-lane/spec.ts`
-- Create: `test/scenarios/045-mutate-plan-meal-type-lane/recorded.json` (generated)
+- Create: `test/scenarios/051-mutate-plan-meal-type-lane/spec.ts`
+- Create: `test/scenarios/051-mutate-plan-meal-type-lane/recorded.json` (generated)
 
 - [ ] **Step 1: Write the scenario spec**
 
@@ -2565,7 +2708,7 @@ Seed an active plan with a tagine dinner batch (tagine has `mealTypes: ['dinner'
 
 - [ ] **Step 2: Generate + review + commit**
 
-Run: `npm run test:generate -- 045-mutate-plan-meal-type-lane --yes`
+Run: `npm run test:generate -- 051-mutate-plan-meal-type-lane --yes`
 
 Review:
 - The re-proposer's response is ONE of:
@@ -2577,20 +2720,20 @@ Review:
 - No persist — the user never tapped Confirm, so `finalStore.planSessions` has only the original session, unchanged.
 
 ```bash
-git add test/scenarios/045-mutate-plan-meal-type-lane/
-git commit -m "Plan 029: scenario 045 — meal-type lane regression lock for mutate_plan"
+git add test/scenarios/051-mutate-plan-meal-type-lane/
+git commit -m "Plan 029: scenario 051 — meal-type lane regression lock for mutate_plan"
 ```
 
 ---
-### Task 21: Scenario 046 — retroactive "last night" forward-shift honest handling
+### Task 21: Scenario 052 — retroactive "last night" forward-shift honest handling
 
 **Rationale:** Proposal 003 § "Plan D — `mutate_plan` action" explicitly lists the retroactive case ("last night I went to Indian") as one of the scenarios that must verify the forward-shift-only behavior with honest messaging about calorie tracking being deferred. Proposal 003 § "Edge cases" also describes the expected behavior: the re-proposer sees only active slots (today forward), shifts dinner batches forward in the dinner lane to absorb the fact that last night's planned dinner didn't happen, and the reply is explicit about the partial support: "I shifted your dinner batches forward one day to account for that. I don't track meal-out calories yet — that arrives with deviation accounting."
 
 This scenario locks in the honest behavior so a later plan that adds deviation accounting produces a clean regen diff.
 
 **Files:**
-- Create: `test/scenarios/046-mutate-plan-retroactive-honest/spec.ts`
-- Create: `test/scenarios/046-mutate-plan-retroactive-honest/recorded.json` (generated)
+- Create: `test/scenarios/052-mutate-plan-retroactive-honest/spec.ts`
+- Create: `test/scenarios/052-mutate-plan-retroactive-honest/recorded.json` (generated)
 
 - [ ] **Step 1: Pick the clock and seed shape**
 
@@ -2608,35 +2751,33 @@ Seed an active plan running Apr 6–12 with:
 
 User types "last night I went to an Indian restaurant". The request names a past slot (Tuesday dinner). The re-proposer sees only active slots (Wed forward). It cannot re-record Tuesday's slot — the data model has no place for that. Its only option is to acknowledge the context forward: shift Wednesday dinner (the only remaining tagine slot) to Thursday if fridge life permits, cascade chicken batches accordingly, OR simply leave the plan as-is and reply with an honest "I can't adjust the past but here's what's coming up".
 
-The re-proposer's prompt already carries both rules (meal-type lane + near-future safety). The test locks in whichever behavior the re-proposer picks.
+The re-proposer's prompt already carries both rules (meal-type lane + near-future safety). The proposal requires the forward-shift outcome (line 701, 793) — the test must lock in a successful forward-shift proposal with `mp_confirm`, not accept degraded clarification/failure as passing.
 
 - [ ] **Step 2: Write the scenario spec**
 
-Create `test/scenarios/046-mutate-plan-retroactive-honest/spec.ts`:
+Create `test/scenarios/052-mutate-plan-retroactive-honest/spec.ts`:
 
 ```typescript
 /**
- * Scenario 046 — retroactive "last night" honest forward-shift.
+ * Scenario 052 — retroactive "last night" honest forward-shift.
  *
  * Plan 029 (Plan D). Locks in the partial v0.0.5 behavior for retroactive
  * eating-out statements. The re-proposer cannot re-record past slots (the
  * adapter freezes them), and v0.0.5 does not track eat-out calories. The
- * honest behavior is either:
- *   (a) shift the remaining active dinner batches forward if doing so
- *       makes sense under the meal-type lane + near-future safety rules, OR
- *   (b) leave the plan unchanged and tell the user "last night is in the
- *       past; here's what's still coming up" with an honest note that
- *       calorie tracking for meal-outs isn't available yet.
+ * required behavior is: shift the remaining active dinner batches forward
+ * under the meal-type lane + near-future safety rules, and include an
+ * honest note that calorie tracking for meal-outs isn't available yet.
  *
- * The test lets the re-proposer pick whichever behavior its prompt
- * produces, and the behavioral review in Step 3 verifies the reply is
- * honest about the partial support.
+ * The proposal REQUIRES the forward-shift outcome for retroactive cases
+ * (proposal line 701: "partially and honestly… shift batches forward";
+ * line 793: "forward-shift-only behavior, honest messaging"). If the
+ * re-proposer returns clarification or failure during generation, fix
+ * the prompt or seed until the forward-shift locks in.
  *
  * Sequence:
  *   1. (seeded active plan; no /start)
  *   2. Type "last night I went to an Indian restaurant"
- *   3. Tap mp_confirm (if the applier produced a post_confirmation_proposed
- *      result — if it returned failure or clarification, no button tap)
+ *   3. Tap mp_confirm — the forward-shift proposal is required, not optional
  *
  * Clock: 2026-04-08T09:00:00Z (Wed morning, lifecycle=active_mid).
  */
@@ -2645,7 +2786,7 @@ import { defineScenario, text, click } from '../../../src/harness/define.js';
 import type { PlanSession, Batch } from '../../../src/models/types.js';
 
 const activeSession: PlanSession = {
-  id: 'sess-046-0000-0000-0000-000000000001',
+  id: 'sess-052-0000-0000-0000-000000000001',
   horizonStart: '2026-04-06',
   horizonEnd: '2026-04-12',
   breakfast: {
@@ -2669,7 +2810,7 @@ const activeSession: PlanSession = {
 // analogues — the scenario's point is the shape, not the specific recipes.
 const activeBatches: Batch[] = [
   {
-    id: 'b-046-dinner1-0000-0000-000000000001',
+    id: 'b-052-dinner1-0000-0000-000000000001',
     recipeSlug: 'moroccan-beef-tagine-style-skillet-with-lemon-couscous',
     mealType: 'dinner',
     eatingDays: ['2026-04-06', '2026-04-07', '2026-04-08'],
@@ -2684,7 +2825,7 @@ const activeBatches: Batch[] = [
     createdInPlanSessionId: activeSession.id,
   },
   {
-    id: 'b-046-dinner2-0000-0000-000000000002',
+    id: 'b-052-dinner2-0000-0000-000000000002',
     recipeSlug: 'soy-ginger-pork-rice-bowls-broccoli-carrots-scallions',
     mealType: 'dinner',
     eatingDays: ['2026-04-09', '2026-04-10', '2026-04-11'],
@@ -2699,7 +2840,7 @@ const activeBatches: Batch[] = [
     createdInPlanSessionId: activeSession.id,
   },
   {
-    id: 'b-046-lunch1-0000-0000-000000000003',
+    id: 'b-052-lunch1-0000-0000-000000000003',
     recipeSlug: 'chicken-black-bean-avocado-rice-bowl',
     mealType: 'lunch',
     eatingDays: ['2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10'],
@@ -2715,9 +2856,9 @@ const activeBatches: Batch[] = [
 ];
 
 export default defineScenario({
-  name: '046-mutate-plan-retroactive-honest',
+  name: '052-mutate-plan-retroactive-honest',
   description:
-    'Retroactive eating-out: user says "last night I went to Indian". Re-proposer cannot re-record past slots; responds with honest forward-shift or no-op with explicit "calories not tracked yet" message. Locks in v0.0.5 partial behavior.',
+    'Retroactive eating-out: user says "last night I went to Indian". Re-proposer cannot re-record past slots; shifts remaining active dinner batches forward with explicit "calories not tracked yet" disclaimer. Locks in v0.0.5 partial-support forward-shift behavior per proposal 003 lines 701/793.',
   clock: '2026-04-08T09:00:00Z',
   recipeSet: 'six-balanced',
   initialState: {
@@ -2727,35 +2868,32 @@ export default defineScenario({
   },
   events: [
     text('last night I went to an Indian restaurant'),
-    // No mp_confirm tap by default — we'll capture whatever the re-proposer
-    // produces and decide in behavioral review whether to follow up.
-    // If the recording shows a `post_confirmation_proposed` result, add a
-    // click('mp_confirm') event in a follow-up edit AND regenerate.
+    // The proposal REQUIRES the forward-shift outcome for retroactive cases
+    // (proposal line 701, 793). The scenario must include mp_confirm to lock
+    // in the full propose → confirm → persist cycle. If the re-proposer
+    // returns clarification or failure during generation, fix the prompt or
+    // seed until the forward-shift locks in — do NOT commit a degraded result.
+    click('mp_confirm'),
   ],
 });
 ```
 
 - [ ] **Step 3: Generate the recording**
 
-Run: `npm run test:generate -- 046-mutate-plan-retroactive-honest --yes`
+Run: `npm run test:generate -- 052-mutate-plan-retroactive-honest --yes`
 
 - [ ] **Step 4: Behavioral review — PARTIAL-SUPPORT CHECK**
 
-Apply the 5-step protocol with a focus on honesty:
+Apply the 5-step protocol with a focus on honesty. **The proposal REQUIRES the forward-shift outcome** (proposal line 701: "partially and honestly… shift batches forward in the dinner lane"; line 793: "forward-shift-only behavior, honest messaging"). Clarification or failure are NOT acceptable final states for this scenario — if the re-proposer returns either, the re-proposer's prompt or the seed plan must be adjusted until the forward-shift behavior locks in, because the proposal explicitly lists this as a supported (not aspirational) v0.0.5 behavior.
 
 1. **The dispatcher picks `mutate_plan`** for "last night I went to an Indian restaurant". Verify in the captured fixture.
 2. **The applier's post-confirmation branch runs.** Verify by checking that the re-proposer fixture has `mode: 'post-confirmation'` context.
-3. **The re-proposer's output is ONE of:**
-   - **`proposal` (forward shift)**: dinner batches are rearranged in the active view. The Wednesday dinner slot (the only remaining tagine slot) may shift to Thursday, or the tagine batch may be reduced to past-only and the re-proposer adds a different forward batch. The new proposal covers every active slot.
-   - **`clarification`**: the re-proposer asks something like "Do you want me to adjust tonight and tomorrow's dinners to account for that?" — the applier bubbles the question up.
-   - **`failure`**: the re-proposer tried a rearrangement that the validator rejected twice. The applier returns `failure` with a honest message.
-4. **The reply is honest about v0.0.5's partial support.** The reply text should mention that calorie tracking for meal-outs isn't available yet, OR the diff summary should include a note about "no calorie impact tracked". If the reply silently shifts batches without mentioning that last night's calories aren't recorded, the behavior is dishonest and Plan D has a gap. **If this check fails, fix the applier's post-confirmation branch to append an honest note when the mutation targets a past slot the re-proposer couldn't re-record.**
-5. **The past is frozen.** `finalStore.planSessions[0].batches` (the old session) are unchanged — the Monday and Tuesday tagine dinners are still `eatingDays: ['2026-04-06', '2026-04-07', '2026-04-08']`. If Plan 029 Task 14's confirmation happens in this scenario, the new session's preserved-past batches include the Mon+Tue tagine portion exactly as it was.
-6. **If the re-proposer produced a proposal, decide whether to add `click('mp_confirm')`.** The scenario as authored above has only one event (the text). If the `recorded.json` shows a `post_confirmation_proposed` result, add `click('mp_confirm')` to the events array, delete the recording, regenerate, and re-review. If the re-proposer produced a clarification or failure, leave the scenario as-is.
+3. **The re-proposer MUST return a `proposal` (forward shift).** Dinner batches are rearranged in the active view: the Wednesday dinner slot (the only remaining tagine slot) shifts to Thursday, or the tagine batch is reduced to past-only and the re-proposer fills the gap with a forward batch from the library. The new proposal covers every active slot. **If the re-proposer returns `clarification` or `failure` instead:** this means the prompt or seed plan is insufficiently specified for the retroactive case. Fix the issue (adjust the seed to make the forward-shift path unambiguous, or improve the re-proposer's post-confirmation prompt to handle retroactive requests) and regenerate until the forward-shift locks in. Do NOT commit a recording where the retroactive case degrades to "ask a question" or "give up" — that would be a regression from the proposal's explicit partial-support commitment.
+4. **The reply is honest about v0.0.5's partial support.** The diff text should explicitly acknowledge the retroactive nature: the past slot can't be re-recorded, but the plan has been adjusted forward. The reply should mention that calorie tracking for meal-outs isn't available yet. If the reply silently shifts batches without mentioning that last night's calories aren't recorded, the behavior is dishonest and Plan D has a gap. **If this check fails, fix the applier's post-confirmation branch to append an honest note when the mutation targets a past slot the re-proposer couldn't re-record.**
+5. **The past is frozen.** `finalStore.planSessions[0].batches` (the old session) are unchanged — the Monday and Tuesday tagine dinners are still `eatingDays: ['2026-04-06', '2026-04-07', '2026-04-08']`. The new session's preserved-past batches include the Mon+Tue tagine portion exactly as it was.
+6. **Add `click('mp_confirm')` to the scenario.** Since the forward-shift proposal is REQUIRED (not optional), the scenario must include the confirmation tap. Update the spec's `events` array to add `click('mp_confirm')` after the text event, delete the recording, regenerate, and re-review to capture the full propose → confirm → persist cycle — matching the proposal's end-to-end commitment for this case.
 
-**Known v0.0.5 gap note:** if the recording shows the re-proposer happily rearranging forward without acknowledging that yesterday's actual meal isn't recorded, add this to `docs/plans/tech-debt.md`:
-
-> Scenario 046 locks in partial retroactive handling. The reply does not currently mention that meal-out calories aren't tracked. When deviation accounting lands (post-v0.0.5), this scenario's recording should be regenerated to capture the full acknowledgement.
+**Calorie-tracking disclaimer check:** The `mp_confirm` reply now unconditionally includes the calorie-tracking disclaimer ("I don't track meal-out calories yet — that comes with deviation accounting later.") per Task 10's updated `persistedText`. Verify it appears in the recording's confirmation output. If it does NOT appear, something in the `applyMutationConfirmation` helper is wrong — **fix the code, do not log as tech debt.** The disclaimer is a proposal-003-line-436 requirement, not an aspirational nice-to-have.
 
 - [ ] **Step 5: Run the full suite**
 
@@ -2765,8 +2903,8 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add test/scenarios/046-mutate-plan-retroactive-honest/
-git commit -m "Plan 029: scenario 046 — retroactive last-night honest forward-shift
+git add test/scenarios/052-mutate-plan-retroactive-honest/
+git commit -m "Plan 029: scenario 052 — retroactive last-night honest forward-shift
 
 Proposal 003 Plan D explicitly lists the retroactive case as a required
 verification scenario. v0.0.5's behavior is partial: past slots are
@@ -2778,37 +2916,94 @@ accounting work in a later plan produces a clean regen diff."
 
 ---
 
-### Task 22: Update `test/scenarios/index.md`
+### Task 22: Scenario 053 — post-confirmation clarification multi-turn resume (invariant #5 harness lock)
+
+**Rationale:** Proposal 003 line 453 says state-preservation invariants "MUST be enforced by scenario tests in the harness." Invariant #5 (line 462) says "pending clarifications from sub-agents are carried in [state] and visible to the dispatcher." Plan D now persists post-confirmation clarifications via `pendingPostConfirmationClarification`. This scenario locks in the end-to-end multi-turn resume: ambiguous mutation → clarification → terse answer → auto-resumed re-proposer call → confirm → persist.
+
+**Files:**
+- Create: `test/scenarios/053-mutate-plan-post-confirm-clarification-resume/spec.ts`
+- Create: `test/scenarios/053-mutate-plan-post-confirm-clarification-resume/recorded.json` (generated)
+
+- [ ] **Step 1: Write the scenario spec**
+
+Seed an active plan (same shape as scenario 045 — tagine dinner batch, grain-bowl lunch batch, flex on Saturday). Clock: Tuesday 7pm.
+
+```typescript
+  events: [
+    text("I'm eating out"),              // ambiguous — no meal time specified
+    // re-proposer returns clarification: "lunch or dinner?"
+    text('dinner'),                       // terse answer — dispatcher sees pending
+                                          // clarification and picks mutate_plan;
+                                          // applier prepends original request
+    click('mp_confirm'),                  // forward-shift proposal confirmed
+  ],
+```
+
+- [ ] **Step 2: Generate the recording**
+
+Run: `npm run test:generate -- 053-mutate-plan-post-confirm-clarification-resume --yes`
+
+**If the re-proposer does NOT return a clarification on the first turn** (it may be smart enough to infer dinner from the 7pm clock), adjust the request to be more ambiguous (e.g., "I'm eating out today" at a noon clock where both lunch and dinner are active). The scenario MUST capture the clarification → resume path. Regenerate until it does.
+
+- [ ] **Step 3: Behavioral review**
+
+1. **Turn 1:** Dispatcher picks `mutate_plan`. Applier's post-confirmation branch calls the re-proposer. Re-proposer returns `clarification`. Bot replies with the question. `session.pendingPostConfirmationClarification` is set (verify in `sessionAt[0]` if harness captures it, or infer from the next turn's behavior).
+2. **Turn 2:** Dispatcher picks `mutate_plan` for "dinner" (the dispatcher context includes the pending clarification hint). Applier reads `pendingPostConfirmationClarification`, prepends original request, sends "I'm eating out. To clarify: dinner" to the re-proposer. Re-proposer returns a forward-shift proposal. Bot shows diff + `[Confirm] [Adjust]`.
+3. **Turn 3:** `mp_confirm` persists the new session. Mutation history includes the merged request.
+4. **Calorie disclaimer** appears in the confirmation reply.
+5. No `pendingPostConfirmationClarification` remains after the confirm.
+
+- [ ] **Step 4: Run the full suite**
+
+Run: `npm test`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add test/scenarios/053-mutate-plan-post-confirm-clarification-resume/
+git commit -m "Plan 029: scenario 053 — invariant #5 harness lock for post-confirmation clarification resume
+
+Proposal 003 requires state-preservation invariants enforced by harness
+scenarios. This locks in the multi-turn resume: ambiguous mutation →
+clarification stashed on pendingPostConfirmationClarification → terse
+answer auto-prepended → re-proposer produces forward-shift → confirm."
+```
+
+---
+
+### Task 23: Update `test/scenarios/index.md`
 
 **Files:**
 - Modify: `test/scenarios/index.md`
 
-- [ ] **Step 1: Append rows for scenarios 038–046**
+- [ ] **Step 1: Append rows for scenarios 044–053**
 
-At the bottom of `test/scenarios/index.md` (after scenario 037 from Plan 028), add:
+At the bottom of `test/scenarios/index.md` (after scenario 043 from Plan 028), add:
 
 ```markdown
-| 038 | mutate-plan-in-session | Dispatcher picks mutate_plan for in-session mutation text; applier's in-session branch delegates to handleMutationText; mutation history persists with the plan. Plan 029. |
-| 039 | mutate-plan-eat-out-tonight | Flow 1 canonical: user on confirmed plan types "I'm eating out tonight", applier's post-confirmation branch runs adapter+re-proposer+solver+diff, mp_confirm persists via confirmPlanSessionReplacing. THE core Plan D scenario. Plan 029. |
-| 040 | mutate-plan-flex-move | Post-confirmation flex move — simplest mutation shape. Plan 029. |
-| 041 | mutate-plan-recipe-swap | Post-confirmation recipe swap; re-proposer picks a different recipe from the library respecting meal-type lanes. Plan 029. |
-| 042 | mutate-plan-side-conversation-mid-planning | State preservation: off-topic question mid-planning doesn't clobber planFlow; subsequent mutate_plan routes to the active session's re-proposer; mutation history preserves both mutations. Plan 029. |
-| 043 | mutate-plan-adjust-loop | User taps [Adjust] after seeing a diff, types a new mutation, taps [Confirm] — only the second mutation persists. Plan 029. |
-| 044 | mutate-plan-no-target | Mutation text with no active plan → applier returns no_target → user sees "Tap Plan Week to start". Plan 029. |
-| 045 | mutate-plan-meal-type-lane | Regression lock: mutation that would cross meal-type lanes is caught by the re-proposer's prompt or validator invariant #14. Plan 029. |
-| 046 | mutate-plan-retroactive-honest | Retroactive "last night I went to Indian": past slots are frozen in the adapter, re-proposer sees only active slots, reply honestly notes that eat-out calories aren't tracked. Plan 029. |
+| 044 | mutate-plan-in-session | Dispatcher picks mutate_plan for in-session mutation text; applier's in-session branch delegates to handleMutationText; mutation history persists with the plan. Plan 029. |
+| 045 | mutate-plan-eat-out-tonight | Flow 1 canonical: user on confirmed plan types "I'm eating out tonight", applier's post-confirmation branch runs adapter+re-proposer+solver+diff, mp_confirm persists via confirmPlanSessionReplacing. THE core Plan D scenario. Plan 029. |
+| 046 | mutate-plan-flex-move | Post-confirmation flex move — simplest mutation shape. Plan 029. |
+| 047 | mutate-plan-recipe-swap | Post-confirmation recipe swap; re-proposer picks a different recipe from the library respecting meal-type lanes. Plan 029. |
+| 048 | mutate-plan-side-conversation-mid-planning | State preservation: off-topic question mid-planning doesn't clobber planFlow; subsequent mutate_plan routes to the active session's re-proposer; mutation history preserves both mutations. Plan 029. |
+| 049 | mutate-plan-adjust-loop | User taps [Adjust] after seeing a diff, types a new mutation, taps [Confirm] — only the second mutation persists. Plan 029. |
+| 050 | mutate-plan-no-target | Mutation text with no active plan → applier returns no_target → user sees "Tap Plan Week to start". Plan 029. |
+| 051 | mutate-plan-meal-type-lane | Regression lock: mutation that would cross meal-type lanes is caught by the re-proposer's prompt or validator invariant #14. Plan 029. |
+| 052 | mutate-plan-retroactive-honest | Retroactive "last night I went to Indian": past slots are frozen in the adapter, re-proposer sees only active slots, reply honestly notes that eat-out calories aren't tracked. Plan 029. |
+| 053 | mutate-plan-post-confirm-clarification-resume | Invariant #5 harness lock: ambiguous post-confirmation mutation → re-proposer clarification → terse answer auto-resumes via pendingPostConfirmationClarification → forward-shift → confirm. Plan 029. |
 ```
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add test/scenarios/index.md
-git commit -m "Plan 029: update scenarios index with 038–046"
+git commit -m "Plan 029: update scenarios index with 044–053"
 ```
 
 ---
 
-### Task 23: Sync `ui-architecture.md`, `flows.md`, and proposal 003 status marker
+### Task 24: Sync `ui-architecture.md`, `flows.md`, and proposal 003 status marker
 
 **Rationale:** Per CLAUDE.md's docs-maintenance rules, product specs must stay in sync with code behavior in the same branch as the change. Plan D promotes `mutate_plan` to live, delivering the north-star capability of proposal 003. The UI architecture spec must reflect the new catalog state + the post-confirmation mutation lifecycle, the flows spec gains a dedicated "post-confirmation plan mutation" flow, and the proposal itself gets a status marker pointing at the implementation plan.
 
@@ -2867,7 +3062,10 @@ The user then taps one of:
   `confirmPlanSessionReplacing`. The old session is tombstoned
   (`superseded: true`), its batches are cancelled, the new session is
   inserted with the extended `mutationHistory`, and the user sees "Plan
-  updated. Your week is locked in." with the main menu keyboard.
+  updated. Your week is locked in." followed by the calorie-tracking
+  disclaimer ("I don't track meal-out calories yet — that comes with
+  deviation accounting later.") per proposal 003 line 436, with the
+  main menu keyboard.
 - **`mp_adjust`** — `pendingMutation` is cleared, user sees "OK, what
   would you like to change instead?" Their next message kicks off a fresh
   dispatcher turn.
@@ -2885,10 +3083,10 @@ your change to start over."
   at the adapter level; the re-proposer only sees active slots).
 - Does NOT auto-confirm any mutation — every post-confirmation mutation
   requires an explicit `[Confirm]` tap.
-- Does NOT carry post-confirmation clarification state — if the
-  re-proposer asks "lunch or dinner?", the user must re-state the full
-  request with the missing detail. Clarification persistence across
-  turns is deferred.
+- Post-confirmation clarifications persist via
+  `BotCoreSession.pendingPostConfirmationClarification` (invariant #5).
+  The user answers the question on the next turn without re-stating
+  the full request. In-memory only — bot restarts drop pending state.
 ```
 
 - [ ] **Step 3: Add a "Post-confirmation plan mutation" section to `flows.md`**
@@ -2947,8 +3145,14 @@ or `Adjust`; the product never writes without a tap.
 - Calorie tracking of eat-out events is not implemented.
 - Retroactive events ("last night I went to Indian") are handled by
   shifting forward only — the past slot cannot be re-recorded.
-- Post-confirmation clarifications don't persist across turns; users
-  re-state the full request.
+- Post-confirmation sub-agent clarifications persist across turns via
+  `BotCoreSession.pendingPostConfirmationClarification` (honoring
+  proposal 003 invariant #5). If the re-proposer asks "lunch or dinner?"
+  the user can simply answer "dinner" on the next turn and the applier
+  automatically prepends the original request. The dispatcher context
+  bundle includes the pending clarification so it routes the terse
+  answer to `mutate_plan` rather than treating it as unrelated text.
+  In-memory only — bot restarts drop the pending clarification.
 
 See also: proposal 003 § "Flow 1 — Post-confirmation plan mutation".
 ```
@@ -2982,14 +3186,14 @@ git commit -m "Plan 029: sync ui-architecture.md, flows.md, and proposal 003 sta
 
 ---
 
-### Task 24: Final baseline
+### Task 25: Final baseline
 
 **Files:** none modified — verification only.
 
 - [ ] **Step 1: Run the full test suite one final time**
 
 Run: `npm test`
-Expected: PASS. Test count: Plan 028's baseline + 3 Plan 029 dispatcher-agent unit tests (Task 3) + ~5 Plan 029 applier unit tests (Tasks 6–10) + 9 new Plan 029 scenarios (038–046) + regenerated scenarios from Task 12.
+Expected: PASS. Test count: Plan 028's baseline + 3 Plan 029 dispatcher-agent unit tests (Task 3) + ~5 Plan 029 applier unit tests (Tasks 6–10) + 10 new Plan 029 scenarios (044–053) + regenerated scenarios from Task 12.
 
 - [ ] **Step 2: Run typecheck**
 
@@ -3003,7 +3207,10 @@ Confirm the following invariants hold in the final tree:
 - `grep -n "mutate_plan" src/agents/dispatcher.ts` returns hits in `DispatcherAction`, `AVAILABLE_ACTIONS_V0_0_5`, `DispatcherDecision`, `buildSystemPrompt`, and `parseDecision`. The string `"NOT AVAILABLE in v0.0.5 — Plan D"` must NOT appear — the prompt has been flipped.
 - `grep -n "handleMutatePlanAction" src/telegram/dispatcher-runner.ts` returns exactly the function definition + the switch case wire-up. No stub left over.
 - `grep -rn "applyMutationRequest\|applyMutationConfirmation" src/` returns the definitions in `mutate-plan-applier.ts`, the callers in `dispatcher-runner.ts` and `core.ts`, and the unit test imports. No orphan references.
-- `grep -n "pendingMutation" src/telegram/core.ts` returns the `BotCoreSession` field, the `reset()` clear, the `mp_confirm` / `mp_adjust` reads, and the `plan_week` / `plan_cancel` / `plan_approve` clears. No orphan references.
+- `grep -n "pendingMutation" src/telegram/core.ts` returns the `BotCoreSession` field, the `reset()` clear, the `handleCommand('start')` clear, the `handleCommand('cancel')` clear, the `mp_confirm` / `mp_adjust` reads, `re_` recipe-edit clear, and the `plan_week` / `plan_cancel` / `plan_approve` / `plan_replan_*` / meta-intent-defense clears — at least 11 hits. **True navigation-only sites** (`view_shopping_list` ~:517, `view_plan_recipes` ~:523) must NOT have `pendingMutation` clears — verify each `session.planFlow = null` site: if it has no `pendingMutation = undefined` nearby, confirm it's a true-navigation site per Step 5's classification, not a missed clear.
+- `grep -n "pendingPostConfirmationClarification" src/telegram/core.ts` returns the `BotCoreSession` field definition, the same clear sites as `pendingMutation` (every `pendingMutation = undefined` line should have a matching `pendingPostConfirmationClarification = undefined` line nearby), and zero other references. The two fields share the same lifecycle per Task 4 Step 5.
+- `grep -n "pendingPostConfirmationClarification" src/telegram/dispatcher-runner.ts` returns the `DispatcherSession` field, the handler's stash-on-clarification write, the handler's clear-after-applyMutationRequest, and the `pendingClarification` threading into `applyMutationRequest` args.
+- `grep -n "pendingPostConfirmationClarification" src/agents/dispatcher.ts` returns the conditional context-bundle section added in Task 2 Step 5b.
 - `grep -n "mutateConfirmKeyboard" src/telegram/keyboards.ts src/telegram/dispatcher-runner.ts src/telegram/core.ts` returns the definition and two-to-three call sites (runner's handler + the mp_confirm error-restore path in core).
 - `grep -n "scalerCalorieTolerance" src/plan/mutate-plan-applier.ts` returns the one threading site in `applyMutationConfirmation`.
 - `grep -rn "calorieTolerance: 50" src/` returns NO hits — the Plan 026 transitional placeholder is gone.
@@ -3015,7 +3222,7 @@ Expected: a sequence of commits all starting with "Plan 029:" — roughly one pe
 
 - [ ] **Step 5: Manual sanity check — read Flow 1**
 
-Open `test/scenarios/039-mutate-plan-eat-out-tonight/recorded.json` and read the output messages as if you were the user receiving them. Does the experience match proposal 003 § "Flow 1 — Post-confirmation plan mutation"? If yes, Plan D achieved its north star. If no, document what's off in `docs/plans/tech-debt.md` and decide whether to fix-and-re-regenerate or leave for a follow-up plan.
+Open `test/scenarios/045-mutate-plan-eat-out-tonight/recorded.json` and read the output messages as if you were the user receiving them. Does the experience match proposal 003 § "Flow 1 — Post-confirmation plan mutation"? If yes, Plan D achieved its north star. **If no, fix the code and re-regenerate — do NOT defer to a follow-up plan.** Scenario 045 is the contract with the user (decision log: "Plan D has failed its goal regardless of how many other scenarios are green"). A mismatch between the recorded Flow 1 and the proposal's canonical example is a Plan D bug, not tech debt.
 
 - [ ] **Step 6: No commit needed**
 
@@ -3037,18 +3244,19 @@ This is a pure verification step. If any of the above fails, jump back to the re
 - [ ] Task 10 — `mp_confirm` / `mp_adjust` real handlers + `applyMutationConfirmation`
 - [ ] Task 11 — Thread `calorieTolerance` through `buildReplacingDraft`
 - [ ] Task 12 — Regenerate scenarios affected by the dispatcher prompt change
-- [ ] Task 13 — Scenario 038 — in-session mutate_plan regression lock
-- [ ] Task 14 — Scenario 039 — Flow 1 canonical eating-out-tonight (THE core scenario)
-- [ ] Task 15 — Scenario 040 — post-confirmation flex move
-- [ ] Task 16 — Scenario 041 — post-confirmation recipe swap
-- [ ] Task 17 — Scenario 042 — side conversation mid-planning preserves history
-- [ ] Task 18 — Scenario 043 — mp_adjust loop
-- [ ] Task 19 — Scenario 044 — mutate_plan with no active plan → no_target
-- [ ] Task 20 — Scenario 045 — meal-type lane regression lock
-- [ ] Task 21 — Scenario 046 — retroactive "last night" honest forward-shift
-- [ ] Task 22 — Update `test/scenarios/index.md`
-- [ ] Task 23 — Sync `ui-architecture.md`, `flows.md`, proposal 003 status marker
-- [ ] Task 24 — Final baseline
+- [ ] Task 13 — Scenario 044 — in-session mutate_plan regression lock
+- [ ] Task 14 — Scenario 045 — Flow 1 canonical eating-out-tonight (THE core scenario)
+- [ ] Task 15 — Scenario 046 — post-confirmation flex move
+- [ ] Task 16 — Scenario 047 — post-confirmation recipe swap
+- [ ] Task 17 — Scenario 048 — side conversation mid-planning preserves history
+- [ ] Task 18 — Scenario 049 — mp_adjust loop
+- [ ] Task 19 — Scenario 050 — mutate_plan with no active plan → no_target
+- [ ] Task 20 — Scenario 051 — meal-type lane regression lock
+- [ ] Task 21 — Scenario 052 — retroactive "last night" honest forward-shift
+- [ ] Task 22 — Scenario 053 — post-confirmation clarification multi-turn resume (invariant #5 harness lock)
+- [ ] Task 23 — Update `test/scenarios/index.md`
+- [ ] Task 24 — Sync `ui-architecture.md`, `flows.md`, proposal 003 status marker
+- [ ] Task 25 — Final baseline
 
 ---
 
@@ -3066,9 +3274,9 @@ This is a pure verification step. If any of the above fails, jump back to the re
   **Rationale:** `planFlow` is for in-progress PLANNING sessions, not for in-flight post-confirmation mutations — semantically different concerns. A new persisted field would survive bot restarts, but the re-proposer's output is derived from a wall-clock-dependent adapter snapshot; re-running the same pending mutation an hour later against a new clock could silently produce a different plan, which is worse than "you need to re-ask". Matching the in-memory lifetime of other BotCoreSession fields (flow state, surface context, recent turns) is the cheapest correct choice. The known edge case ("user walks away for an hour, bot restarts, they tap Confirm") produces a honest "no pending change" reply, which is acceptable for v0.0.5.
   **Date:** 2026-04-10
 
-- **Decision:** Post-confirmation clarifications are NOT persisted — the user re-states the full request on the next turn.
-  **Rationale:** In-session clarifications survive because `planFlow.pendingClarification` is a natural home; post-confirmation has no equivalent. Adding a new `pendingPostConfirmationClarification` field would be one more in-memory field with its own lifecycle and edge cases. In v0.0.5 the re-proposer's clarifications in post-confirmation mode are rare — most mutation phrasings are unambiguous enough that the dispatcher passes through a complete request. The known limitation ("re-state the full request") is documented in the flow spec. A future plan can persist clarifications when real-world usage proves it's worth the cost.
-  **Date:** 2026-04-10
+- **Decision:** Post-confirmation clarifications ARE persisted via `BotCoreSession.pendingPostConfirmationClarification` — the user answers the clarification question on the next turn, and the applier automatically prepends the original request. This fully honors proposal 003 invariant #5.
+  **Rationale:** Invariant #5 says "pending clarifications from sub-agents are carried in [state] and visible to the dispatcher." In-session, this is `planFlow.pendingClarification` (unchanged). Post-confirmation has no `planFlow`, so Plan D adds `pendingPostConfirmationClarification` on `BotCoreSession` as the equivalent carrier. The field shares the same lifecycle and clear rules as `pendingMutation` (both set by the post-confirmation mutation path, both cleared at every structural-invalidation site). The dispatcher context bundle includes a conditional section when the field is set, so the dispatcher knows the user's next message is likely a clarification answer and routes it to `mutate_plan`. The applier prepends `originalRequest` to the user's text so the re-proposer sees the full context. The UX is frictionless: user types "I'm eating out", re-proposer asks "lunch or dinner?", user types "dinner", applier sends "I'm eating out. To clarify: dinner" to the re-proposer.
+  **Date:** 2026-04-10 (originally deferred; promoted to full implementation during review cycle after reviewer flagged invariant #5 compliance)
 
 - **Decision:** `handleMutatePlanAction` calls the applier directly, not through an async dispatch queue.
   **Rationale:** The re-proposer call + solver + diff chain can take 5–15 seconds at mini-tier high-reasoning. A queue-based pattern would let the runner return quickly and update the user later, but Telegram has no "bot is still thinking" affordance beyond `startTyping()`. The simpler synchronous call + `stopTyping` pattern matches how `handleApprove` works today (`stopTyping` after `confirmPlanSession`). Complex async patterns are a later optimization if latency becomes a real user complaint.
@@ -3090,8 +3298,8 @@ This is a pure verification step. If any of the above fails, jump back to the re
   **Rationale:** `DraftPlanSession` requires `treatBudgetCalories` but Plan 026's `buildReplacingDraft` signature doesn't accept it (it's derived from the solver's weeklyTotals in the in-session flow). For post-confirmation mutations the solver runs on the active-slice only, and its weeklyTotals don't reflect the full horizon because past-slot calories aren't included. The conservative choice — copy the old session's treat budget verbatim — preserves the user's budget across mutations without producing wrong numbers. A future plan can re-derive the treat budget from the full reconstructed plan if that becomes important. Flagged in the applier's confirmation helper with a note.
   **Date:** 2026-04-10
 
-- **Decision:** Plan D adds 9 new scenarios (038–046), one per task. Scenarios 039 (Flow 1) and 042 (state preservation) are non-negotiable; 046 (retroactive) is required by proposal 003's explicit verification list; the others are important regression locks.
-  **Rationale:** Per CLAUDE.md's "new scenario is warranted when..." rule, every new user-facing behavior needs regression coverage. Plan D introduces 8 new behaviors mapped one-to-one to scenarios: in-session via dispatcher (038), post-confirmation happy path (039), flex move (040), recipe swap (041), state preservation with side conversation (042), adjust loop (043), no-target edge (044), meal-type lane enforcement (045), retroactive past-slot honest handling (046). Compressing them into fewer scenarios would bundle unrelated cases and make future regressions harder to localize. 9 scenarios is on the high end but each isolates one behavior clearly. Proposal 003 Plan D § "Verification" explicitly lists 5 scenarios (eat-out tonight, mid-planning flex move, post-confirm recipe swap, retroactive last-night, state preservation) — all 5 are covered. The additional 4 (in-session regression, flex move post-confirm, adjust loop, no-target) are important but not in the proposal's must-list.
+- **Decision:** Plan D adds 10 new scenarios (044–053), one per task. Scenarios 045 (Flow 1), 048 (state preservation), and 053 (invariant #5 post-confirmation clarification resume) are non-negotiable; 052 (retroactive) is required by proposal 003's explicit verification list; the others are important regression locks.
+  **Rationale:** Per CLAUDE.md's "new scenario is warranted when..." rule, every new user-facing behavior needs regression coverage. Plan D introduces 10 distinct behaviors mapped one-to-one to scenarios: in-session via dispatcher (044), post-confirmation happy path (045), flex move (046), recipe swap (047), state preservation with side conversation (048), adjust loop (049), no-target edge (050), meal-type lane enforcement (051), retroactive past-slot honest handling (052), and post-confirmation clarification multi-turn resume (053). Compressing them into fewer scenarios would bundle unrelated cases and make future regressions harder to localize. 10 scenarios is on the high end but each isolates one behavior clearly. Proposal 003 Plan D § "Verification" explicitly lists 5 scenarios (eat-out tonight, mid-planning flex move, post-confirm recipe swap, retroactive last-night, state preservation) — all 5 are covered. Proposal 003 line 453 mandates harness enforcement of invariant #5 — scenario 053 delivers that for post-confirmation. The additional 4 (in-session regression, flex move post-confirm, adjust loop, no-target) are important regression locks but not in the proposal's explicit must-list.
   **Date:** 2026-04-10
 
 - **Decision:** Plan D's dispatcher prompt includes few-shot examples for both in-session mutation and post-confirmation mutation, AND explicitly tells the LLM that picking `mutate_plan` during active planning is correct (not a precedence mistake with `flow_input`).
@@ -3106,8 +3314,8 @@ This is a pure verification step. If any of the above fails, jump back to the re
   **Rationale:** `buildSolverInput` is load-bearing — it's used by the in-session mutation path, the initial planning path, and regression tests. Changing its signature would invalidate every caller. The shim approach carries ~15 lines of inline state construction in the applier; the cost is localized and clearly documented. A future refactor can extract a `SolverInputShape` interface that both `PlanFlowState` and the shim conform to, but that's outside Plan D's scope.
   **Date:** 2026-04-10
 
-- **Decision:** Scenario 039 (Flow 1 canonical) is treated as **priority over all other Plan D work**. If any other task's scenario review finds a bug that would affect 039, fix 039 first and re-verify before regenerating any other scenario.
-  **Rationale:** Scenario 039 is the contract with the user. Every other scenario is a regression lock for a supporting behavior. If 039 captures the wrong plan rearrangement or a broken message, Plan D has failed its goal regardless of how many other scenarios are green. Treating 039 as the north star forces attention to the canonical case.
+- **Decision:** Scenario 045 (Flow 1 canonical) is treated as **priority over all other Plan D work**. If any other task's scenario review finds a bug that would affect 045, fix 045 first and re-verify before regenerating any other scenario.
+  **Rationale:** Scenario 045 is the contract with the user. Every other scenario is a regression lock for a supporting behavior. If 045 captures the wrong plan rearrangement or a broken message, Plan D has failed its goal regardless of how many other scenarios are green. Treating 045 as the north star forces attention to the canonical case.
   **Date:** 2026-04-10
 
 - **Decision:** Plan 029 has no fixture-edited scenarios. Every scenario uses `test:generate` (not `test:replay` from manual edits).
@@ -3124,18 +3332,27 @@ After every task: `npm test` stays green (or red only in ways explicitly expecte
   - Plan 028's baseline test count
   - + 3 Plan 029 dispatcher-agent unit tests (Task 3)
   - + ~5 Plan 029 applier unit tests (Tasks 7, 8, 10)
-  - + 9 new Plan 029 scenarios (038–046)
+  - + 10 new Plan 029 scenarios (044–053)
   - + regenerated existing scenarios from Task 12
 - `npx tsc --noEmit` reports no errors.
 - `src/agents/dispatcher.ts` exports `mutate_plan` as part of `DispatcherAction`, `AVAILABLE_ACTIONS_V0_0_5`, and `DispatcherDecision`. The system prompt marks `mutate_plan` as AVAILABLE with few-shot examples.
 - `src/plan/mutate-plan-applier.ts` exists and exports `PendingMutation`, `MutateResult`, `applyMutationRequest`, `applyMutationConfirmation`.
 - `src/telegram/dispatcher-runner.ts` exports `handleMutatePlanAction` (real body, not stub) and wires it into the runner's switch.
 - `src/telegram/core.ts`:
-  - `BotCoreSession` has `pendingMutation?: PendingMutation`.
-  - `reset()` clears `pendingMutation`.
-  - `plan_week` menu tap, `plan_cancel` callback, and `plan_approve` callback all clear `pendingMutation`.
-  - `mp_confirm` handler calls `applyMutationConfirmation` and handles persistence failure by restoring `pendingMutation`.
-  - `mp_adjust` handler clears `pendingMutation` and sends the re-prompt.
+  - `BotCoreSession` has `pendingMutation?: PendingMutation` AND `pendingPostConfirmationClarification?: { question, originalRequest, createdAt }`.
+  - `reset()` (harness-only helper) clears both `pendingMutation` and `pendingPostConfirmationClarification`.
+  - `handleCommand('start')` AND `handleCommand('cancel')` both clear `pendingMutation` AND `pendingPostConfirmationClarification` in the same block where they already clear `session.planFlow` / `session.recipeFlow` / `session.pendingReplan`. (These handlers do NOT call `reset()` — they clear fields manually, so both fields must be enumerated explicitly.)
+  - `plan_week` menu tap, `plan_cancel` callback, and `plan_approve` callback all clear both fields.
+  - `plan_replan_cancel` / `plan_replan_confirm` callbacks clear both fields alongside `pendingReplan`.
+  - `re_` recipe edit (~:487) clears both fields — starts a new flow (`createEditFlowState`), which is a terminal condition per proposal 003 line 536.
+  - `metaIntent === 'start_over'` and `metaIntent === 'cancel'` in `routeTextToActiveFlow` clear both fields (defense-in-depth).
+  - `mp_confirm` handler calls `applyMutationConfirmation` and handles persistence failure by restoring `pendingMutation`. Clears `pendingPostConfirmationClarification` on both success and failure.
+  - `mp_adjust` handler clears both fields and sends the re-prompt.
+  - **Every `pendingMutation = undefined` has a matching `pendingPostConfirmationClarification = undefined` nearby** — the two fields share the same lifecycle per Task 4 Step 5.
+  - **True navigation-only sites do NOT clear either field:** `view_shopping_list` (~:517) and `view_plan_recipes` (~:523) set `session.planFlow = null` but are browsing actions that don't create new flow state.
+- `src/telegram/dispatcher-runner.ts`:
+  - `DispatcherSession` has both `pendingMutation?` and `pendingPostConfirmationClarification?`.
+  - `handleMutatePlanAction` threads `pendingPostConfirmationClarification` into `applyMutationRequest` args, clears it after the call, and stashes it on the clarification branch (post-confirmation only).
 - `src/telegram/keyboards.ts` exports `mutateConfirmKeyboard` with `mp_confirm` and `mp_adjust` buttons.
 - `src/plan/session-to-proposal.ts` `buildReplacingDraft` accepts `calorieTolerance` as a required argument (no hard-coded 50).
 - `docs/product-specs/ui-architecture.md`:
@@ -3143,8 +3360,8 @@ After every task: `npm test` stays green (or red only in ways explicitly expecte
   - A new "Post-confirmation mutation lifecycle (Plan 029)" subsection exists.
 - `docs/product-specs/flows.md` has a new "Flow: Post-confirmation plan mutation (Plan 029 — Flow 1 from proposal 003)" section.
 - `docs/design-docs/proposals/003-freeform-conversation-layer.md` has the Plan D status marker at the top.
-- `test/scenarios/index.md` lists scenarios 038–046.
-- **Scenario 039 behavioral validation passes** (the Flow 1 canonical test): user types "I'm eating out tonight, friend invited me" on a confirmed plan, the dispatcher picks `mutate_plan`, the applier's post-confirmation branch runs the adapter + re-proposer + solver + diff, the user sees a sensible diff message + `[Confirm] [Adjust]`, tapping `[Confirm]` persists a new session via `confirmPlanSessionReplacing` with the extended `mutationHistory`, the old session is superseded, old batches are cancelled, and the new session's batches include both preserved past-slot halves and re-proposed active batches. No meal-type lane violations. Near-future days (tomorrow) are not silently rearranged.
+- `test/scenarios/index.md` lists scenarios 044–053.
+- **Scenario 045 behavioral validation passes** (the Flow 1 canonical test): user types "I'm eating out tonight, friend invited me" on a confirmed plan, the dispatcher picks `mutate_plan`, the applier's post-confirmation branch runs the adapter + re-proposer + solver + diff, the user sees a sensible diff message + `[Confirm] [Adjust]`, tapping `[Confirm]` persists a new session via `confirmPlanSessionReplacing` with the extended `mutationHistory`, the old session is superseded, old batches are cancelled, and the new session's batches include both preserved past-slot halves and re-proposed active batches. No meal-type lane violations. Near-future days observe the soft-lock rule correctly: Wednesday (tomorrow) keeps the same recipe (tagine) even though the batch shifts from `{Tue, Wed}` to `{Wed, Thu}` as the proposal's canonical example requires — cascading shifts within the same recipe are expected, not bugs; only silent recipe-level swaps on near-future days are violations (see scenario 045 criterion #4 for the full breakdown).
 - **The living-document promise is kept.** Proposal 003's north star is technically deliverable after this plan. Reality diverges from the plan, the plan adapts, nothing is lost.
 
 After this plan lands, Plan E remains for:

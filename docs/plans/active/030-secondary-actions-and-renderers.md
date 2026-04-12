@@ -231,7 +231,7 @@ If ANY of these checks fail, **STOP** — the missing plan must land first. Do n
 
 - [ ] **Step 6: Note the current scenario range**
 
-Use the Glob tool with pattern `test/scenarios/*/spec.ts`. Record the highest `NNN-` prefix. Expected: `046` (Plan D's highest — Plan 029 adds 038 through 046, with 046 being the retroactive "last night" mutate_plan regression lock from Plan 029 Task 21). Plan E uses 047–058.
+Use the Glob tool with pattern `test/scenarios/*/spec.ts`. Record the highest `NNN-` prefix. Expected: `053` (Plan D's highest — Plan 029 adds 044 through 053, with 053 being the invariant-#5 post-confirmation clarification resume scenario from Plan 029 Task 22). Plan E uses 054–065. **Note:** Plan 029's review cycle renumbered Plan D's scenarios from the originally-planned 038–046 to 044–053 (10 scenarios, including the clarification-resume lock added during review) to avoid collision with Plan 028's shipped 037–043 range. Plan E's scenario numbers must shift accordingly — 047→054, 048→055, ..., 058→065. Update all Plan E scenario paths, index entries, commit messages, and cross-references before Task 21.
 
 - [ ] **Step 7: Confirm there is no existing `src/telegram/view-renderers.ts`**
 
