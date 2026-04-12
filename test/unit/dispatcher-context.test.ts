@@ -169,5 +169,6 @@ test('buildDispatcherContext: allowedActions is the v0.0.5 minimal set', async (
     'clarify',
     'out_of_scope',
     'return_to_flow',
+    'mutate_plan',
   ]);
 });

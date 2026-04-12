@@ -152,19 +152,19 @@ test('dispatchMessage: first-pass JSON parse error → retries and succeeds', as
 test('dispatchMessage: first-pass disallowed action → retries and succeeds', async () => {
   const llm = stubLLM([
     JSON.stringify({
-      action: 'mutate_plan',
-      params: { request: 'move flex' },
-      response: null,
-      reasoning: 'User wants mutation (but mutate_plan is not allowed in v0.0.5).',
+      action: 'answer_plan_question',
+      params: { question: "when's my next cook day?" },
+      response: 'Your next cook day is Thursday.',
+      reasoning: 'User asked a plan question (but answer_plan_question is not allowed in v0.0.5).',
     }),
     JSON.stringify({
       action: 'clarify',
       params: {},
-      response: 'Plan changes after confirmation are coming soon.',
-      reasoning: 'Honest deferral.',
+      response: 'Plan questions are coming soon. Want me to show you the week overview?',
+      reasoning: 'Honest deferral after disallowed-action retry.',
     }),
   ]);
-  const decision = await dispatchMessage(baseContext(), 'move my flex', llm);
+  const decision = await dispatchMessage(baseContext(), "when's my next cook day?", llm);
   assert.equal(decision.action, 'clarify');
 });
 
@@ -218,4 +218,63 @@ test('dispatchMessage: flow_input with non-null response is rejected', async () 
     llm,
   );
   assert.equal(decision.action, 'flow_input');
+});
+
+// ─── Plan 029: mutate_plan tests ──────────────────────────────────────────────
+
+test('dispatchMessage: mutate_plan carries the request param', async () => {
+  const llm = stubLLM([
+    JSON.stringify({
+      action: 'mutate_plan',
+      params: { request: "I'm eating out tonight, friend invited me" },
+      response: null,
+      reasoning: 'Real-life deviation on a confirmed plan.',
+    }),
+  ]);
+  const decision = await dispatchMessage(
+    baseContext({ lifecycle: 'active_mid', surface: 'plan' }),
+    "I'm eating out tonight, friend invited me",
+    llm,
+  );
+  assert.equal(decision.action, 'mutate_plan');
+  const dec = decision as Extract<DispatcherDecision, { action: 'mutate_plan' }>;
+  assert.equal(dec.params.request, "I'm eating out tonight, friend invited me");
+});
+
+test('dispatchMessage: mutate_plan with empty request is rejected on first pass', async () => {
+  const llm = stubLLM([
+    JSON.stringify({
+      action: 'mutate_plan',
+      params: { request: '' },
+      response: null,
+      reasoning: 'Empty request — invalid.',
+    }),
+    JSON.stringify({
+      action: 'mutate_plan',
+      params: { request: 'move the flex to Sunday' },
+      response: null,
+      reasoning: 'Corrected.',
+    }),
+  ]);
+  const decision = await dispatchMessage(baseContext(), 'move the flex to Sunday', llm);
+  assert.equal(decision.action, 'mutate_plan');
+});
+
+test('dispatchMessage: mutate_plan with non-null response is rejected on first pass', async () => {
+  const llm = stubLLM([
+    JSON.stringify({
+      action: 'mutate_plan',
+      params: { request: 'move flex' },
+      response: 'The mutation has been applied.',
+      reasoning: 'Invalid — mutate_plan is handler-rendered.',
+    }),
+    JSON.stringify({
+      action: 'mutate_plan',
+      params: { request: 'move the flex to Sunday' },
+      response: null,
+      reasoning: 'Corrected.',
+    }),
+  ]);
+  const decision = await dispatchMessage(baseContext(), 'move flex', llm);
+  assert.equal(decision.action, 'mutate_plan');
 });
