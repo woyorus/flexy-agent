@@ -116,6 +116,17 @@ import type { StateStoreLike } from '../state/store.js';
 import { renderRecipe, renderCookView } from '../recipes/renderer.js';
 import { generateShoppingList } from '../shopping/generator.js';
 import {
+  renderNextAction,
+  renderWeekOverview,
+  renderDayDetail,
+  renderCookViewForBatch,
+  renderLibraryRecipeView,
+  renderRecipeLibrary,
+  renderShoppingListForScope,
+  renderProgressView,
+} from './view-renderers.js';
+import type { ShoppingScope } from '../shopping/generator.js';
+import {
   type RecipeFlowState,
   createRecipeFlowState,
   createEditFlowState,
@@ -476,15 +487,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     // Recipe list: view a specific recipe by slug
     if (action.startsWith('rv_')) {
       const slug = action.slice(3);
-      const recipe = recipes.getBySlug(slug) ?? findBySlugPrefix(recipes, slug);
-      if (recipe) {
-        session.lastRecipeSlug = recipe.slug;
-        setLastRenderedView(session, { surface: 'recipes', view: 'recipe_detail', slug: recipe.slug });
-        log.debug('FLOW', `recipe view: ${slug}`);
-        await sink.reply(renderRecipe(recipe), { reply_markup: recipeViewKeyboard(slug), parse_mode: 'MarkdownV2' });
-      } else {
-        await sink.reply('Recipe not found.', { reply_markup: await getMenuKeyboard() });
-      }
+      session.surfaceContext = 'recipes';
+      await renderLibraryRecipeView(session, { llm, recipes, store }, sink, slug);
       return;
     }
 
@@ -818,156 +822,87 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     }
 
     // ─── Plan view callbacks (Phase 3) ─────────────────────────────────
-    if (action === 'na_show' || action === 'wo_show' || action.startsWith('dd_')) {
-      const today = toLocalISODate(new Date());
-      const lifecycle = await getPlanLifecycle(session, store, today);
-      const planSession = await getVisiblePlanSession(store, today);
-      if (!planSession) {
-        await sink.reply('No active plan.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
-        return;
-      }
-
-      const { batchViews, allBatches } = await loadPlanBatches(planSession, recipes);
+    if (action === 'na_show') {
       session.surfaceContext = 'plan';
+      await renderNextAction(session, { llm, recipes, store }, sink);
+      return;
+    }
 
-      if (action === 'na_show') {
-        const text = formatNextAction(batchViews, planSession.events, planSession.flexSlots, today, planSession.horizonStart);
-        const nextCook = getNextCookDay(allBatches, today);
-        const nextCookBatchViews = nextCook
-          ? batchViews.filter(bv => bv.batch.eatingDays[0] === nextCook.date)
-          : [];
-        setLastRenderedView(session, { surface: 'plan', view: 'next_action' });
-        await sink.reply(text, { reply_markup: nextActionKeyboard(nextCookBatchViews, lifecycle), parse_mode: 'MarkdownV2' });
-        return;
-      }
+    if (action === 'wo_show') {
+      session.surfaceContext = 'plan';
+      await renderWeekOverview(session, { llm, recipes, store }, sink);
+      return;
+    }
 
-      if (action === 'wo_show') {
-        const breakfastRecipe = recipes.getBySlug(planSession.breakfast.recipeSlug);
-        const text = formatWeekOverview(planSession, batchViews, planSession.events, planSession.flexSlots, breakfastRecipe);
-        // Build 7-day array from horizon
-        const weekDays: string[] = [];
-        const d = new Date(planSession.horizonStart + 'T00:00:00');
-        for (let i = 0; i < 7; i++) {
-          weekDays.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
-          d.setDate(d.getDate() + 1);
-        }
-        setLastRenderedView(session, { surface: 'plan', view: 'week_overview' });
-        await sink.reply(text, { reply_markup: weekOverviewKeyboard(weekDays), parse_mode: 'MarkdownV2' });
-        return;
-      }
-
-      if (action.startsWith('dd_')) {
-        const date = action.slice(3);
-        // Validate ISO date and within horizon
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < planSession.horizonStart || date > planSession.horizonEnd) {
-          await sink.reply('Invalid or expired date.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
-          return;
-        }
-        const text = formatDayDetail(date, batchViews, planSession.events, planSession.flexSlots);
-        const cookBatchViews = batchViews.filter(bv => bv.batch.eatingDays[0] === date);
-        setLastRenderedView(session, { surface: 'plan', view: 'day_detail', day: date });
-        await sink.reply(text, { reply_markup: dayDetailKeyboard(date, cookBatchViews, today), parse_mode: 'MarkdownV2' });
-        return;
-      }
+    if (action.startsWith('dd_')) {
+      const day = action.slice(3);
+      session.surfaceContext = 'plan';
+      await renderDayDetail(session, { llm, recipes, store }, sink, day);
+      return;
     }
 
     // ─── Cook view callback (Phase 4) ─────────────────────────────────
     if (action.startsWith('cv_')) {
       const batchId = action.slice(3);
-      const batch = await store.getBatch(batchId);
-      if (!batch) {
-        const today = toLocalISODate(new Date());
-        const lifecycle = await getPlanLifecycle(session, store, today);
-        await sink.reply('Batch not found.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
-        return;
-      }
-      const recipe = recipes.getBySlug(batch.recipeSlug);
-      if (!recipe) {
-        const today = toLocalISODate(new Date());
-        const lifecycle = await getPlanLifecycle(session, store, today);
-        await sink.reply('Recipe not found.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
-        return;
-      }
-      session.lastRecipeSlug = batch.recipeSlug;
-      setLastRenderedView(session, {
-        surface: 'cooking',
-        view: 'cook_view',
-        batchId,
-        recipeSlug: batch.recipeSlug,
-      });
-      await sink.reply(
-        renderCookView(recipe, batch),
-        { reply_markup: cookViewKeyboard(batch.recipeSlug), parse_mode: 'MarkdownV2' },
-      );
+      session.surfaceContext = 'cooking';
+      await renderCookViewForBatch(session, { llm, recipes, store }, sink, batchId);
       return;
     }
 
     // ─── Shopping list callbacks (Phase 5) ─────────────────────────────
     if (action.startsWith('sl_')) {
-      const param = action.slice(3); // "next" or ISO date
+      const param = action.slice(3);
+      session.surfaceContext = 'shopping';
       const today = toLocalISODate(new Date());
-      const lifecycle = await getPlanLifecycle(session, store, today);
-      const planSession = await getVisiblePlanSession(store, today);
-      if (!planSession) {
+      const visible = await getVisiblePlanSession(store, today);
+      if (!visible) {
+        const lifecycle = await getPlanLifecycle(session, store, today);
         await sink.reply('No plan for this week.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
         return;
       }
 
-      const { allBatches } = await loadPlanBatches(planSession, recipes);
+      const { allBatches } = await loadPlanBatches(visible, recipes);
       const plannedBatches = allBatches.filter(b => b.status === 'planned');
 
-      let targetDate: string;
-      let scopeView: LastRenderedView;
+      let scope: ShoppingScope;
       if (param === 'next') {
         const nextCook = getNextCookDay(plannedBatches, today);
         if (!nextCook) {
           await sink.reply('All meals are prepped — no shopping needed\\!', { parse_mode: 'MarkdownV2' });
           return;
         }
-        targetDate = nextCook.date;
-        scopeView = { surface: 'shopping', view: 'next_cook' };
+        const remainingDays = Math.max(
+          1,
+          Math.round(
+            (new Date(visible.horizonEnd + 'T00:00:00Z').getTime() -
+              new Date(nextCook.date + 'T00:00:00Z').getTime()) /
+              86_400_000,
+          ) + 1,
+        );
+        scope = { kind: 'next_cook', targetDate: nextCook.date, remainingDays };
       } else {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(param) || param < today || param < planSession.horizonStart || param > planSession.horizonEnd) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(param) || param < today || param < visible.horizonStart || param > visible.horizonEnd) {
+          const lifecycle = await getPlanLifecycle(session, store, today);
           await sink.reply('This shopping list is from a different plan week.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
           return;
         }
-        targetDate = param;
-        scopeView = { surface: 'shopping', view: 'day', day: targetDate };
+        const remainingDays = Math.max(
+          1,
+          Math.round(
+            (new Date(visible.horizonEnd + 'T00:00:00Z').getTime() -
+              new Date(param + 'T00:00:00Z').getTime()) /
+              86_400_000,
+          ) + 1,
+        );
+        scope = { kind: 'next_cook', targetDate: param, remainingDays };
       }
 
-      const cookBatchesForDay = plannedBatches.filter(b => b.eatingDays[0] === targetDate);
-      if (cookBatchesForDay.length === 0 && param !== 'next') {
-        await sink.reply('No cooking scheduled for that day.', { reply_markup: buildMainMenuKeyboard(lifecycle) });
-        return;
+      await renderShoppingListForScope(session, { llm, recipes, store }, sink, scope);
+      // For explicit date params, override lastRenderedView to preserve the
+      // day-scoped variant that the original inline handler used.
+      if (param !== 'next') {
+        setLastRenderedView(session, { surface: 'shopping', view: 'day', day: param });
       }
-
-      const breakfastRecipe = recipes.getBySlug(planSession.breakfast.recipeSlug);
-      if (!breakfastRecipe) {
-        log.warn('CORE', `breakfast recipe not found: ${planSession.breakfast.recipeSlug}`);
-      }
-
-      // Compute remaining days inclusive
-      const horizonEnd = new Date(planSession.horizonEnd + 'T12:00:00');
-      const target = new Date(targetDate + 'T12:00:00');
-      const remainingDays = Math.round((horizonEnd.getTime() - target.getTime()) / 86400000) + 1;
-
-      const list = generateShoppingList(plannedBatches, breakfastRecipe ?? undefined, {
-        targetDate,
-        remainingDays,
-      });
-
-      // Build scope description
-      const scopeParts = cookBatchesForDay.map(b => {
-        const recipe = recipes.getBySlug(b.recipeSlug);
-        return `${recipe?.name ?? b.recipeSlug} (${b.servings} servings)`;
-      });
-      if (breakfastRecipe) scopeParts.push('Breakfast');
-
-      setLastRenderedView(session, scopeView);
-      await sink.reply(
-        formatShoppingList(list, targetDate, scopeParts.join(' + ')),
-        { reply_markup: buildShoppingListKeyboard(), parse_mode: 'MarkdownV2' },
-      );
       return;
     }
   }
@@ -1145,35 +1080,9 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
       case 'progress': {
+        session.surfaceContext = 'progress';
         session.lastRecipeSlug = undefined;
-
-        const today = toLocalISODate(new Date());
-        const existing = await store.getTodayMeasurement('default', today);
-
-        if (existing) {
-          session.progressFlow = null;
-          const { lastWeekStart, lastWeekEnd } = getCalendarWeekBoundaries(today);
-          const lastWeekData = await store.getMeasurements('default', lastWeekStart, lastWeekEnd);
-          const hasCompletedWeekReport = lastWeekData.length > 0;
-          const alreadyText = 'Already logged today ✓';
-          setLastRenderedView(session, { surface: 'progress', view: 'weekly_report' });
-          if (hasCompletedWeekReport) {
-            await sink.reply(alreadyText, { reply_markup: progressReportKeyboard });
-          } else {
-            await sink.reply(alreadyText);
-          }
-          return;
-        }
-
-        // No measurement today — prompt for input
-        session.progressFlow = { phase: 'awaiting_measurement' };
-        const hour = new Date().getHours();
-        const timeQualifier = hour >= 14
-          ? '\n\nIf this is your morning weight, drop it here.'
-          : '';
-        const prompt = `Drop your weight (and waist if you track it):\n\nExamples: "82.3 / 91" or just "82.3"${timeQualifier}`;
-        setLastRenderedView(session, { surface: 'progress', view: 'log_prompt' });
-        await sink.reply(prompt);
+        await renderProgressView(session, { llm, recipes, store }, sink, 'log_prompt');
         return;
       }
       // Legacy alias — old persistent keyboards may still show "Weekly Budget"
@@ -1216,36 +1125,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
   // ─── Paginated recipe list ─────────────────────────────────────────────
   async function showRecipeList(sink: OutputSink): Promise<void> {
-    const all = recipes.getAll();
-    const pageSize = 5;
-
-    // Check if there's an active plan with upcoming cook batches
-    const today = toLocalISODate(new Date());
-    const lifecycle = await getPlanLifecycle(session, store, today);
-    let cookingSoonBatchViews: BatchView[] | undefined;
-
-    if (lifecycle.startsWith('active_') || lifecycle === 'upcoming') {
-      const planSession = await getVisiblePlanSession(store, today);
-      if (planSession) {
-        const { batchViews } = await loadPlanBatches(planSession, recipes);
-        cookingSoonBatchViews = batchViews
-          .filter(bv => bv.batch.eatingDays.length > 0 && bv.batch.eatingDays[0]! >= today)
-          .sort((a, b) => a.batch.eatingDays[0]!.localeCompare(b.batch.eatingDays[0]!));
-      }
-    }
-
-    // Build the message text with section headers
-    let msg: string;
-    if (cookingSoonBatchViews && cookingSoonBatchViews.length > 0) {
-      msg = `COOKING SOON\n\nALL RECIPES (${all.length}):`;
-    } else {
-      msg = `Your recipes (${all.length}):`;
-    }
-
-    setLastRenderedView(session, { surface: 'recipes', view: 'library' });
-    await sink.reply(msg, {
-      reply_markup: recipeListKeyboard(all, session.recipeListPage, pageSize, cookingSoonBatchViews),
-    });
+    await renderRecipeLibrary(session, { llm, recipes, store }, sink);
   }
 
   // ─── Free-form text / voice routing ────────────────────────────────────
