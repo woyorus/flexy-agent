@@ -336,6 +336,7 @@ export async function applyMutationConfirmation(args: {
     newMutation: pending.newMutationRecord,
     recipeDb: recipes,
     llm,
+    calorieTolerance: (await import('../config.js')).config.planning.scalerCalorieTolerance,
   });
 
   // Copy treat budget from the old session (conservative default — see decision log).

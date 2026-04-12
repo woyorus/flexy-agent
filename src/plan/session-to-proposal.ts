@@ -339,6 +339,11 @@ export interface BuildReplacingDraftArgs {
   newMutation: MutationRecord;
   recipeDb: RecipeDatabase;
   llm: LLMProvider;
+  /**
+   * Calorie tolerance passed to the recipe scaler. Plan 029: threaded from
+   * `config.planning.scalerCalorieTolerance` by the mutate-plan applier.
+   */
+  calorieTolerance: number;
 }
 
 export interface BuildReplacingDraftResult {
@@ -441,7 +446,7 @@ export async function buildReplacingDraft(
           // has already allocated macros across the week's batches given the
           // weekly totals, flex bonuses, event offsets, and treat budget.
           targetCalories: batchTarget.targetPerServing.calories,
-          calorieTolerance: 50, // Plan D will thread config.planning.scalerCalorieTolerance
+          calorieTolerance: args.calorieTolerance,
           targetProtein: batchTarget.targetPerServing.protein,
           servings: eatingDays.length, // Plan 010: total portions, not solver servings
         }, args.llm);

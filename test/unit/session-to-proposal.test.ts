@@ -411,6 +411,7 @@ test('buildReplacingDraft: carries mutationHistory, preserves past batches + fle
     newMutation,
     recipeDb: fakeRecipeDb,
     llm: throwingLLM,
+    calorieTolerance: 20,
   });
 
   // Draft session: new id, same horizon, history extended.
@@ -635,6 +636,7 @@ test('end-to-end: confirmed plan → adapter → re-proposer (stubbed) → repla
     newMutation: { constraint: 'eating out tonight', appliedAt: '2026-04-07T19:30:00.000Z' },
     recipeDb: fakeRecipeDb,
     llm: throwingLLM,
+    calorieTolerance: 20,
   });
 
   // 4. Write via confirmPlanSessionReplacing.
