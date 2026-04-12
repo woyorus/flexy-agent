@@ -602,6 +602,20 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       return;
     }
 
+    // ─── Mutation confirmation callbacks (Plan 029) ────────────────────
+    if (action === 'mp_confirm') {
+      // Plan 029 Task 5 stub — Task 10 wires this to applyMutationConfirmation.
+      await sink.reply('Mutation confirmation is not wired yet (Plan 029 Task 5 stub).');
+      return;
+    }
+
+    if (action === 'mp_adjust') {
+      // Plan 029 Task 5 stub — Task 10 wires this to clear pendingMutation
+      // and re-prompt the user.
+      await sink.reply('Mutation adjustment is not wired yet (Plan 029 Task 5 stub).');
+      return;
+    }
+
     // ─── Plan flow callbacks ────────────────────────────────────────────
     if (action.startsWith('plan_') && session.planFlow) {
       // Breakfast confirmation

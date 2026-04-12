@@ -263,6 +263,18 @@ export const planMoreEventsKeyboard = new InlineKeyboard()
 export const planProposalKeyboard = new InlineKeyboard()
   .text('Looks good', 'plan_approve');
 
+/**
+ * Plan 029: Post-confirmation mutation review keyboard.
+ *
+ * Shown after the applier's post-confirmation branch produces a proposed
+ * diff. `[Confirm]` → mp_confirm persists via confirmPlanSessionReplacing.
+ * `[Adjust]` → mp_adjust clears pendingMutation and prompts for a new
+ * description.
+ */
+export const mutateConfirmKeyboard = new InlineKeyboard()
+  .text('Confirm', 'mp_confirm')
+  .text('Adjust', 'mp_adjust');
+
 /** After plan is confirmed — legacy, kept for backward compatibility */
 export const planConfirmedKeyboard = new InlineKeyboard()
   .text('🛒 Shopping list', 'view_shopping_list')
