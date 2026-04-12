@@ -3232,31 +3232,31 @@ This is a pure verification step. If any of the above fails, jump back to the re
 
 ## Progress
 
-- [ ] Task 1 — Green baseline + dependency verification
-- [ ] Task 2 — Expand dispatcher catalog — types + prompt + parser + runner stub
-- [ ] Task 3 — Update Plan 028 disallowed-action test + new mutate_plan dispatcher unit tests
-- [ ] Task 4 — Add `pendingMutation` to `BotCoreSession` + structural slice + `PendingMutation` type
-- [ ] Task 5 — `mutateConfirmKeyboard` + `mp_confirm` / `mp_adjust` stubs
-- [ ] Task 6 — `mutate-plan-applier.ts` — `MutateResult` + `applyMutationRequest` scaffold
-- [ ] Task 7 — Applier — in-session branch with unit tests
-- [ ] Task 8 — Applier — post-confirmation branch with unit tests
-- [ ] Task 9 — Replace runner stub with real `handleMutatePlanAction`
-- [ ] Task 10 — `mp_confirm` / `mp_adjust` real handlers + `applyMutationConfirmation`
-- [ ] Task 11 — Thread `calorieTolerance` through `buildReplacingDraft`
-- [ ] Task 12 — Regenerate scenarios affected by the dispatcher prompt change
-- [ ] Task 13 — Scenario 044 — in-session mutate_plan regression lock
-- [ ] Task 14 — Scenario 045 — Flow 1 canonical eating-out-tonight (THE core scenario)
-- [ ] Task 15 — Scenario 046 — post-confirmation flex move
-- [ ] Task 16 — Scenario 047 — post-confirmation recipe swap
-- [ ] Task 17 — Scenario 048 — side conversation mid-planning preserves history
-- [ ] Task 18 — Scenario 049 — mp_adjust loop
-- [ ] Task 19 — Scenario 050 — mutate_plan with no active plan → no_target
-- [ ] Task 20 — Scenario 051 — meal-type lane regression lock
-- [ ] Task 21 — Scenario 052 — retroactive "last night" honest forward-shift
-- [ ] Task 22 — Scenario 053 — post-confirmation clarification multi-turn resume (invariant #5 harness lock)
-- [ ] Task 23 — Update `test/scenarios/index.md`
-- [ ] Task 24 — Sync `ui-architecture.md`, `flows.md`, proposal 003 status marker
-- [ ] Task 25 — Final baseline
+- [x] Task 1 — Green baseline + dependency verification
+- [x] Task 2 — Expand dispatcher catalog — types + prompt + parser + runner stub
+- [x] Task 3 — Update Plan 028 disallowed-action test + new mutate_plan dispatcher unit tests
+- [x] Task 4 — Add `pendingMutation` to `BotCoreSession` + structural slice + `PendingMutation` type
+- [x] Task 5 — `mutateConfirmKeyboard` + `mp_confirm` / `mp_adjust` stubs
+- [x] Task 6 — `mutate-plan-applier.ts` — `MutateResult` + `applyMutationRequest` scaffold
+- [x] Task 7 — Applier — in-session branch with unit tests
+- [x] Task 8 — Applier — post-confirmation branch with unit tests
+- [x] Task 9 — Replace runner stub with real `handleMutatePlanAction`
+- [x] Task 10 — `mp_confirm` / `mp_adjust` real handlers + `applyMutationConfirmation`
+- [x] Task 11 — Thread `calorieTolerance` through `buildReplacingDraft`
+- [x] Task 12 — Regenerate scenarios affected by the dispatcher prompt change
+- [x] Task 13 — Scenario 044 — in-session mutate_plan regression lock
+- [x] Task 14 — Scenario 045 — Flow 1 canonical eating-out-tonight (THE core scenario)
+- [x] Task 15 — Scenario 046 — post-confirmation flex move
+- [x] Task 16 — Scenario 047 — post-confirmation recipe swap
+- [x] Task 17 — Scenario 048 — side conversation mid-planning preserves history
+- [x] Task 18 — Scenario 049 — mp_adjust loop
+- [x] Task 19 — Scenario 050 — mutate_plan with no active plan → no_target
+- [x] Task 20 — Scenario 051 — meal-type lane regression lock
+- [x] Task 21 — Scenario 052 — retroactive "last night" honest forward-shift
+- [x] Task 22 — Scenario 053 — post-confirmation clarification multi-turn resume (invariant #5 harness lock)
+- [x] Task 23 — Update `test/scenarios/index.md`
+- [x] Task 24 — Sync `ui-architecture.md`, `flows.md`, proposal 003 status marker
+- [x] Task 25 — Final baseline
 
 ---
 
