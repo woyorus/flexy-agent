@@ -42,3 +42,13 @@
 | 041 | dispatcher-cancel-precedence | Cancel phrase short-circuits the dispatcher during active planning. No dispatcher fixture for the cancel turn. Plan 028. |
 | 042 | dispatcher-numeric-prefilter | Numeric pre-filter short-circuits dispatcher for awaiting_measurement; subsequent text dispatches normally. Plan 028. |
 | 043 | dispatcher-plan-resume-callback | plan_resume inline back-button re-renders the planning proposal via handleReturnToFlowAction delegation. Regression lock for proposal 003 invariant #7 (button-tap / natural-language equivalence). Plan 028. |
+| 044 | mutate-plan-in-session | Dispatcher picks mutate_plan for in-session mutation text; applier's in-session branch delegates to handleMutationText; mutation history persists with the plan. Plan 029. |
+| 045 | mutate-plan-eat-out-tonight | Flow 1 canonical: user on confirmed plan types "I'm eating out tonight", applier's post-confirmation branch runs adapter+re-proposer+solver+diff, mp_confirm persists via confirmPlanSessionReplacing. THE core Plan D scenario. Plan 029. |
+| 046 | mutate-plan-flex-move | Post-confirmation flex move — simplest mutation shape. Plan 029. |
+| 047 | mutate-plan-recipe-swap | Post-confirmation recipe swap; re-proposer picks a different recipe from the library respecting meal-type lanes. Plan 029. |
+| 048 | mutate-plan-side-conversation-mid-planning | State preservation: off-topic question mid-planning doesn't clobber planFlow; subsequent mutate_plan routes to the active session's re-proposer; mutation history preserves both mutations. Plan 029. |
+| 049 | mutate-plan-adjust-loop | User taps [Adjust] after seeing a diff, types a new mutation, taps [Confirm] — only the second mutation persists. Plan 029. |
+| 050 | mutate-plan-no-target | Mutation text with no active plan → applier returns no_target → user sees "Tap Plan Week to start". Plan 029. |
+| 051 | mutate-plan-meal-type-lane | Regression lock: mutation that would cross meal-type lanes is caught by the re-proposer's prompt or validator invariant #14. Plan 029. |
+| 052 | mutate-plan-retroactive-honest | Retroactive "last night I went to Indian": past slots are frozen in the adapter, re-proposer sees only active slots, reply honestly notes that eat-out calories aren't tracked. Plan 029. |
+| 053 | mutate-plan-post-confirm-clarification-resume | Invariant #5 harness lock: ambiguous post-confirmation mutation → re-proposer clarification → terse answer auto-resumes via pendingPostConfirmationClarification → forward-shift → confirm. Plan 029. |

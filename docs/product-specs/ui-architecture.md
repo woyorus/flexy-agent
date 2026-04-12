@@ -757,7 +757,7 @@ Only four actions are implemented. The dispatcher's prompt describes the full pr
 | `clarify` | ✅ Plan 028 | Dispatcher asks a clarifying question; state unchanged. |
 | `out_of_scope` | ✅ Plan 028 | Dispatcher declines honestly and offers the menu. |
 | `return_to_flow` | ✅ Plan 028 | Re-render the active flow's last view, or `lastRenderedView`. |
-| `mutate_plan` | 🚧 Plan D | For v0.0.5 the dispatcher picks flow_input during active planning and clarify (honest deferral) post-confirmation. |
+| `mutate_plan` | ✅ Plan 029 | Classifies any plan-change request. In-session: delegates to handleMutationText. Post-confirmation: runs the split-aware adapter + re-proposer in post-confirmation mode + solver + diff, shows `[Confirm] [Adjust]`, persists via confirmPlanSessionReplacing. |
 | `answer_plan_question` / `answer_recipe_question` / `answer_domain_question` | 🚧 Plan E | Deferred; dispatcher clarifies honestly. |
 | `show_recipe` / `show_plan` / `show_shopping_list` / `show_progress` | 🚧 Plan E | Deferred; dispatcher declines with a "tap a button" hint. |
 | `log_measurement` | 🚧 Plan E | The numeric pre-filter handles the happy path during `awaiting_measurement`; other cases clarify. |
@@ -782,6 +782,24 @@ The runner and its action handlers enforce:
 #### Numeric measurement pre-filter
 
 One narrow exception to "dispatcher is the front door": during `progressFlow.phase === 'awaiting_measurement'`, the runner first tries `parseMeasurementInput(text)`. If it returns a non-null result, the measurement is logged (possibly after disambiguation) and the runner returns WITHOUT calling the dispatcher. If parsing fails, the runner proceeds to the dispatcher normally. The `recentTurns` buffer is NOT updated for pre-filter-handled turns.
+
+### Post-confirmation mutation lifecycle (Plan 029)
+
+When the dispatcher picks `mutate_plan` AND the session has no active planning flow AND the store has an active or upcoming plan, the applier runs the **post-confirmation branch**:
+
+1. **Load the active plan.** `getRunningPlanSession(today)` first, falling back to `getFuturePlanSessions(today)[0]` if no running session.
+2. **Split at the (date, mealType) cutoff.** Plan 026's `sessionToPostConfirmationProposal` produces `activeProposal`, `preservedPastBatches`, and `nearFutureDays`.
+3. **Call the re-proposer in `post-confirmation` mode** with the meal-type lane rule and near-future safety rule enforced.
+4. **Run the solver** on the re-proposer's active output.
+5. **Diff against the pre-mutation active view** using `diffProposals`.
+6. **Stash `PendingMutation` on `BotCoreSession.pendingMutation`.**
+7. **Show `[Confirm] [Adjust]`** — `mutateConfirmKeyboard`.
+
+The user then taps:
+- **`mp_confirm`** — `applyMutationConfirmation` calls `buildReplacingDraft` + `confirmPlanSessionReplacing`. Old session tombstoned, new session inserted with extended `mutationHistory`. User sees "Plan updated" + calorie-tracking disclaimer.
+- **`mp_adjust`** — `pendingMutation` cleared, user prompted for a new description.
+
+Post-confirmation clarifications persist via `BotCoreSession.pendingPostConfirmationClarification` (invariant #5). The user answers the question on the next turn without re-stating the full request.
 
 ---
 

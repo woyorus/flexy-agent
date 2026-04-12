@@ -78,3 +78,24 @@ Generated after plan confirmation from `src/shopping/generator.ts`. Aggregates `
 Displayed via [View shopping list] button. Supports:
 - [Add items] — user-added non-food items (water, paper towels)
 - [Share list] — forwards as a message
+
+## Flow: Post-confirmation plan mutation (Plan 029 — Flow 1 from proposal 003)
+
+**The living-document feature.** A confirmed plan adapts to real life when the user types what happened.
+
+**Entry points:** Any text or voice message during `lifecycle=active_*` or `lifecycle=upcoming` when no planning session is active. Typical phrasings: "I'm eating out tonight", "move the flex to Sunday", "swap tomorrow's dinner for fish".
+
+**Flow:**
+
+1. User's message goes through the dispatcher, which picks `mutate_plan` and forwards the request verbatim to the applier.
+2. Applier's post-confirmation branch loads the active plan, runs the split-aware adapter to separate past (frozen) from active (mutable) slots, calls the re-proposer in post-confirmation mode.
+3. Re-proposer produces either a new proposal or a clarification question. On proposal, the applier runs the solver and generates a change summary.
+4. User sees the change summary with `[Confirm] [Adjust]` inline buttons:
+   - `Confirm` → `confirmPlanSessionReplacing` persists the new session, old session is tombstoned.
+   - `Adjust` → `pendingMutation` is cleared, user is prompted to describe the change again.
+
+**Rules:** Meal-type lanes are never crossed (validator invariant #14). Near-future days (today + tomorrow) are soft-locked. Past slots are frozen.
+
+**Known v0.0.5 limitations:** Calorie tracking of eat-out events is not implemented. Retroactive events are handled by shifting forward only. Post-confirmation clarifications persist via `pendingPostConfirmationClarification` (invariant #5). In-memory only.
+
+See also: proposal 003 § "Flow 1 — Post-confirmation plan mutation".

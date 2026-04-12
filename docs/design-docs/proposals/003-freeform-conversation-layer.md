@@ -2,6 +2,10 @@
 
 > Status: approved
 > Date: 2026-04-10
+> Implementation: Plans A (026), B (027), C (028), D (029) complete.
+> Plan D delivers the living-document feature (mutate_plan action end-to-end,
+> both in-session and post-confirmation). Plan E delivers secondary actions
+> (answers, navigation, log_measurement) and extends show_shopping_list scopes.
 > JTBD: **C1 (missing ingredients) and C2 (unplanned social meal) are the primary jobs served** — this proposal exists to make those jobs addressable at all by delivering post-confirmation plan mutation. D1 (check budget after deviation) is a secondary read-only path. A1 (next action), A2 (shopping list), A4 (browse week), A5 (flex budget), and D2 (log measurements) get small freeform affordances as a side effect. Note: A6 (treat tracking) and the compound form of C2 (automatic eating-out event with calorie absorption) are committed in the catalog but their handlers are deferred to follow-up plans.
 > PRODUCT_SENSE alignment: **Flexibility is required** (principle 4) and **real life is the main environment** (principle 7). A plan that freezes on confirmation fails both principles. This proposal delivers the post-confirmation mutation entry point that makes the plan a living document, and bundles the supporting freeform infrastructure (dispatcher, catalog, state preservation) that makes the capability reachable and safe.
 
