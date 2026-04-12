@@ -89,11 +89,7 @@ export interface DispatcherSession {
     pendingDate?: string;
   } | null;
   surfaceContext: 'plan' | 'cooking' | 'shopping' | 'recipes' | 'progress' | null;
-  lastRenderedView?: {
-    surface: 'plan' | 'cooking' | 'shopping' | 'recipes' | 'progress';
-    view: string;
-    [key: string]: unknown;
-  };
+  lastRenderedView?: import('./navigation-state.js').LastRenderedView;
   recentTurns?: ConversationTurn[];
   pendingMutation?: import('../plan/mutate-plan-applier.js').PendingMutation;
   pendingPostConfirmationClarification?: {
@@ -674,44 +670,123 @@ async function rerenderLastView(
   deps: DispatcherRunnerDeps,
   sink: DispatcherOutputSink,
 ): Promise<void> {
-  const view = session.lastRenderedView!;
-  const { buildMainMenuKeyboard } = await import('./keyboards.js');
-  const today = toLocalISODate(new Date());
-  const lifecycle = await getPlanLifecycle(session as never, deps.store, today);
-  const menuKb = buildMainMenuKeyboard(lifecycle);
+  const view = session.lastRenderedView;
+  if (!view) {
+    const { buildMainMenuKeyboard } = await import('./keyboards.js');
+    const today = toLocalISODate(new Date());
+    const lifecycle = await getPlanLifecycle(session as never, deps.store, today);
+    await sink.reply("You're at the menu.", { reply_markup: buildMainMenuKeyboard(lifecycle) });
+    return;
+  }
+
+  const {
+    renderNextAction,
+    renderWeekOverview,
+    renderDayDetail,
+    renderCookViewForBatch,
+    renderLibraryRecipeView,
+    renderRecipeLibrary,
+    renderShoppingListForScope,
+    renderProgressView,
+  } = await import('./view-renderers.js');
+
+  // Restore surfaceContext to match what the callback handlers set.
+  session.surfaceContext = view.surface;
 
   switch (view.surface) {
     case 'plan':
-      await sink.reply('Back to your plan. Tap 📋 My Plan for the current view.', {
-        reply_markup: menuKb,
-      });
+      switch (view.view) {
+        case 'next_action':
+          await renderNextAction(session as never, deps, sink);
+          return;
+        case 'week_overview':
+          await renderWeekOverview(session as never, deps, sink);
+          return;
+        case 'day_detail':
+          await renderDayDetail(session as never, deps, sink, view.day);
+          return;
+      }
       return;
     case 'cooking':
-      await sink.reply('Back to cooking. Tap the cook-day button on your plan to return.', {
-        reply_markup: menuKb,
-      });
-      return;
-    case 'shopping':
-      await sink.reply('Back to the shopping list. Tap 🛒 Shopping List for the current view.', {
-        reply_markup: menuKb,
-      });
+      await renderCookViewForBatch(session as never, deps, sink, view.batchId);
       return;
     case 'recipes':
-      await sink.reply('Back to your recipes. Tap 📖 My Recipes for the full library.', {
-        reply_markup: menuKb,
-      });
+      switch (view.view) {
+        case 'recipe_detail':
+          await renderLibraryRecipeView(session as never, deps, sink, view.slug);
+          return;
+        case 'library':
+          await renderRecipeLibrary(session as never, deps, sink);
+          return;
+      }
       return;
+    case 'shopping': {
+      const { toLocalISODate: toIso, getVisiblePlanSession, getNextCookDay } = await import('../plan/helpers.js');
+      const today = toIso(new Date());
+      const visible = await getVisiblePlanSession(deps.store, today);
+      const horizonEnd = visible?.horizonEnd ?? today;
+      const horizonStart = visible?.horizonStart ?? today;
+
+      const computeRemainingDays = (fromDate: string): number =>
+        Math.max(
+          1,
+          Math.round(
+            (new Date(horizonEnd + 'T00:00:00Z').getTime() -
+              new Date(fromDate + 'T00:00:00Z').getTime()) /
+              86_400_000,
+          ) + 1,
+        );
+
+      switch (view.view) {
+        case 'next_cook': {
+          let targetDate = today;
+          if (visible) {
+            const ownBatches = await deps.store.getBatchesByPlanSessionId(visible.id);
+            const overlapBatches = await deps.store.getBatchesOverlapping({
+              horizonStart: visible.horizonStart,
+              horizonEnd: visible.horizonEnd,
+              statuses: ['planned'],
+            });
+            const seen = new Set<string>();
+            const allBatches = [...ownBatches, ...overlapBatches]
+              .filter((b) => (seen.has(b.id) ? false : (seen.add(b.id), true)))
+              .filter((b) => b.status === 'planned');
+            const nextCook = getNextCookDay(allBatches, today);
+            if (nextCook) targetDate = nextCook.date;
+          }
+          await renderShoppingListForScope(session as never, deps, sink, {
+            kind: 'next_cook',
+            targetDate,
+            remainingDays: computeRemainingDays(targetDate),
+          });
+          return;
+        }
+        case 'day':
+          await renderShoppingListForScope(session as never, deps, sink, {
+            kind: 'day',
+            day: view.day,
+            remainingDays: computeRemainingDays(view.day),
+          });
+          return;
+        case 'full_week':
+          await renderShoppingListForScope(session as never, deps, sink, {
+            kind: 'full_week',
+            horizonStart,
+            horizonEnd,
+          });
+          return;
+        case 'recipe':
+          await renderShoppingListForScope(session as never, deps, sink, {
+            kind: 'recipe',
+            recipeSlug: view.recipeSlug,
+          });
+          return;
+      }
+      return;
+    }
     case 'progress':
-      await sink.reply('Back to progress. Tap 📊 Progress to log or see your report.', {
-        reply_markup: menuKb,
-      });
+      await renderProgressView(session as never, deps, sink, view.view);
       return;
-    default:
-      log.warn(
-        'DISPATCHER',
-        `rerenderLastView: unknown surface ${String((view as { surface: string }).surface)}`,
-      );
-      await sink.reply('Back to the menu.', { reply_markup: menuKb });
   }
 }
 
