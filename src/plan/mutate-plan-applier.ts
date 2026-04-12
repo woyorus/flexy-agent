@@ -136,9 +136,8 @@ export async function applyMutationRequest(
     return applyInSession(session.planFlow, request, llm, recipes);
   }
 
-  // ── Post-confirmation branch — Task 8 fills this in ──
-  // ── No-target branch — Task 8 also handles this ──
-  throw new Error('applyMutationRequest: post-confirmation branch not wired yet (Task 8)');
+  // ── Post-confirmation branch ──────────────────────────────────────
+  return applyPostConfirmation(args);
 }
 
 /**
@@ -170,4 +169,138 @@ async function applyInSession(
   }
 
   return { kind: 'failure', message: response.text };
+}
+
+/**
+ * Post-confirmation branch — the core of Plan D.
+ *
+ * Loads the active persisted PlanSession + batches via the store, runs the
+ * Plan 026 adapter to split the plan at the (date, mealType) cutoff, calls
+ * the re-proposer in `post-confirmation` mode with `nearFutureDays`, runs
+ * the solver on the re-proposer's active output, diffs against the pre-
+ * mutation active view, and assembles a PendingMutation for the confirm tap.
+ */
+async function applyPostConfirmation(
+  args: ApplyMutationRequestArgs,
+): Promise<MutateResult> {
+  const { store, recipes, llm } = args;
+  const now = args.now ?? new Date();
+
+  // If there's a pending clarification from a prior turn, prepend the original
+  // request so the re-proposer has full context (invariant #5).
+  let request = args.request;
+  if (args.pendingClarification) {
+    request = `${args.pendingClarification.originalRequest}. To clarify: ${request}`;
+  }
+
+  const { sessionToPostConfirmationProposal } = await import('./session-to-proposal.js');
+  const { reProposePlan } = await import('../agents/plan-reproposer.js');
+  const { solve } = await import('../solver/solver.js');
+  const { buildSolverInput } = await import('../agents/plan-flow.js');
+  const { diffProposals } = await import('../agents/plan-diff.js');
+  const { buildRecipeSummaries } = await import('../agents/plan-proposer.js');
+  const { toLocalISODate } = await import('./helpers.js');
+  const { config } = await import('../config.js');
+
+  // 1. Load the active plan.
+  const today = toLocalISODate(now);
+  let activeSession = await store.getRunningPlanSession(today);
+  if (!activeSession) {
+    const future = await store.getFuturePlanSessions(today);
+    activeSession = future[0] ?? null;
+  }
+  if (!activeSession) {
+    log.debug('MUTATE', 'no active plan — returning no_target');
+    return {
+      kind: 'no_target',
+      message: "You don't have a plan yet. Tap 📋 Plan Week to start one.",
+    };
+  }
+
+  const activeBatches = await store.getBatchesByPlanSessionId(activeSession.id);
+
+  // 2. Split the plan at the cutoff boundary.
+  const forward = sessionToPostConfirmationProposal(activeSession, activeBatches, now);
+  const preMutationActive = forward.activeProposal;
+
+  // 3. Call the re-proposer in post-confirmation mode.
+  const result = await reProposePlan(
+    {
+      currentProposal: preMutationActive,
+      userMessage: request,
+      mutationHistory: activeSession.mutationHistory,
+      availableRecipes: buildRecipeSummaries(recipes.getAll()),
+      horizonDays: forward.horizonDays,
+      preCommittedSlots: [],
+      breakfast: {
+        name: activeSession.breakfast.recipeSlug,
+        caloriesPerDay: activeSession.breakfast.caloriesPerDay,
+        proteinPerDay: activeSession.breakfast.proteinPerDay,
+      },
+      weeklyTargets: config.targets.weekly,
+      mode: 'post-confirmation',
+      nearFutureDays: forward.nearFutureDays,
+    },
+    llm,
+    recipes,
+  );
+
+  // 4. Handle clarification / failure.
+  if (result.type === 'clarification') {
+    return { kind: 'clarification', question: result.question };
+  }
+  if (result.type === 'failure') {
+    return { kind: 'failure', message: result.message };
+  }
+
+  // 5. Run the solver on the re-proposed active proposal.
+  const proposal = result.proposal;
+  const flowShim: PlanFlowState = {
+    phase: 'proposal',
+    weekStart: activeSession.horizonStart,
+    weekDays: forward.horizonDays,
+    horizonStart: activeSession.horizonStart,
+    horizonDays: forward.horizonDays,
+    breakfast: {
+      recipeSlug: activeSession.breakfast.recipeSlug,
+      name: activeSession.breakfast.recipeSlug,
+      caloriesPerDay: activeSession.breakfast.caloriesPerDay,
+      proteinPerDay: activeSession.breakfast.proteinPerDay,
+    },
+    events: proposal.events,
+    proposal,
+    mutationHistory: activeSession.mutationHistory,
+    preCommittedSlots: [],
+  };
+  const solverInput = buildSolverInput(flowShim, proposal, recipes, []);
+  proposal.solverOutput = solve(solverInput);
+
+  // 6. Generate the diff against the pre-mutation view.
+  const summary = diffProposals(preMutationActive, proposal);
+
+  // 7. Assemble the PendingMutation.
+  const pending: PendingMutation = {
+    oldSessionId: activeSession.id,
+    preservedPastBatches: forward.preservedPastBatches,
+    preservedPastFlexSlots: forward.preservedPastFlexSlots,
+    preservedPastEvents: forward.preservedPastEvents,
+    reProposedActive: proposal,
+    newMutationRecord: {
+      constraint: request,
+      appliedAt: now.toISOString(),
+    },
+    createdAt: now.toISOString(),
+  };
+
+  const text = [
+    summary,
+    '',
+    'Tap Confirm to lock this in, or Adjust to change something.',
+  ].join('\n');
+
+  return {
+    kind: 'post_confirmation_proposed',
+    text,
+    pending,
+  };
 }
