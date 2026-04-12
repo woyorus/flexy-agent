@@ -52,3 +52,15 @@
 | 051 | mutate-plan-meal-type-lane | Regression lock: mutation that would cross meal-type lanes is caught by the re-proposer's prompt or validator invariant #14. Plan 029. |
 | 052 | mutate-plan-retroactive-honest | Retroactive "last night I went to Indian": past slots are frozen in the adapter, re-proposer sees only active slots, reply honestly notes that eat-out calories aren't tracked. Plan 029. |
 | 053 | mutate-plan-post-confirm-clarification-resume | Invariant #5 harness lock: ambiguous post-confirmation mutation → re-proposer clarification → terse answer auto-resumes via pendingPostConfirmationClarification → forward-shift → confirm. Plan 029. |
+| 054 | answer-plan-question | Plan E: dispatcher picks answer_plan_question for "when's my next cook day?" |
+| 055 | answer-recipe-question | Plan E: dispatcher picks answer_recipe_question for "can I freeze this?" |
+| 056 | answer-domain-question | Plan E: dispatcher picks answer_domain_question for "substitute for tahini?" |
+| 057 | show-recipe-in-plan | Plan E: show_recipe renders cook view when slug is in active batch |
+| 058 | show-recipe-library-only | Plan E: show_recipe falls back to library view when slug is not in plan |
+| 059 | show-recipe-multi-batch | Plan E: show_recipe multi-batch picks soonest cook day (regression lock) |
+| 060 | show-plan-day-detail-natural-language | Plan E: show_plan resolves "Thursday" to next Thursday's ISO date |
+| 061 | show-shopping-list-recipe-scope | Plan E: show_shopping_list scope=recipe filters to one recipe |
+| 062 | show-shopping-list-full-week | Plan E: show_shopping_list scope=full_week aggregates across cook days |
+| 063 | show-progress-weekly-report | Plan E: show_progress weekly_report renders the weekly summary |
+| 064 | log-measurement-cross-surface | Plan E: log_measurement persists from any surface, surfaceContext preserved |
+| 065 | answer-then-mutate-state-preservation | Plan E: cross-action state preservation (clarify + mutate preserves planFlow) |

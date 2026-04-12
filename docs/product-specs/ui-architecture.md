@@ -114,7 +114,7 @@ Every handler that produces a navigation render (Next Action, Week Overview, Day
 - `{ surface: 'progress', view: 'log_prompt' }`
 - `{ surface: 'progress', view: 'weekly_report' }`
 
-New render targets (e.g., `full_week` shopping scope in Plan E, product-question answers in a future plan) will be added here as new variants.
+New render targets (e.g., `full_week` and `recipe` shopping scopes added by Plan 030, product-question answers in a future plan) will be added here as new variants.
 
 ---
 
@@ -758,9 +758,9 @@ Only four actions are implemented. The dispatcher's prompt describes the full pr
 | `out_of_scope` | ✅ Plan 028 | Dispatcher declines honestly and offers the menu. |
 | `return_to_flow` | ✅ Plan 028 | Re-render the active flow's last view, or `lastRenderedView`. |
 | `mutate_plan` | ✅ Plan 029 | Classifies any plan-change request. In-session: delegates to handleMutationText. Post-confirmation: runs the split-aware adapter + re-proposer in post-confirmation mode + solver + diff, shows `[Confirm] [Adjust]`, persists via confirmPlanSessionReplacing. |
-| `answer_plan_question` / `answer_recipe_question` / `answer_domain_question` | 🚧 Plan E | Deferred; dispatcher clarifies honestly. |
-| `show_recipe` / `show_plan` / `show_shopping_list` / `show_progress` | 🚧 Plan E | Deferred; dispatcher declines with a "tap a button" hint. |
-| `log_measurement` | 🚧 Plan E | The numeric pre-filter handles the happy path during `awaiting_measurement`; other cases clarify. |
+| `answer_plan_question` / `answer_recipe_question` / `answer_domain_question` | ✅ Plan 030 | LLM-generated answers scoped to plan context, recipe context, or general food/nutrition domain. Read-only — never mutates state. |
+| `show_recipe` / `show_plan` / `show_shopping_list` / `show_progress` | ✅ Plan 030 | Natural-language navigation: resolves slugs, day names, and scopes to existing view renderers. `show_recipe` picks cook view for in-plan slugs, library view otherwise; multi-batch picks soonest cook day. `show_plan` resolves natural-language day references to ISO dates. `show_shopping_list` supports `recipe` and `full_week` scopes. |
+| `log_measurement` | ✅ Plan 030 | Logs a measurement from any surface (not just `awaiting_measurement`). Numeric pre-filter still handles the fast path; dispatcher handles the conversational path. `surfaceContext` preserved across the logging side-trip. |
 | `log_eating_out` / `log_treat` | 🚫 Deferred beyond v0.0.5 | Proposal-committed but not scoped for v0.0.5. |
 
 #### State preservation invariants (Plan 028)
@@ -775,7 +775,7 @@ The runner and its action handlers enforce:
    - **Byte-identical** for `planFlow.phase === 'proposal'` (reads stored `proposalText`) and `recipeFlow.phase === 'reviewing'` (reads `currentRecipe` via `renderRecipe`). Scenarios 039 and 043 are the regression locks.
    - **Phase-canonical prompt** for every other active-flow phase. The `getPlanFlowResumeView` / `getRecipeFlowResumeView` helpers (`src/telegram/flow-resume-views.ts`) emit a short re-entry prompt keyed on phase + structural state. Semantically correct, not byte-identical.
    - **Placeholder reply** for the no-flow case — "Back to X. Tap 📋 My Plan for the current view." plus the main menu reply keyboard.
-   Plan E Task 19 promotes tiers 2 and 3 to byte-identical via `lastRenderedText` persistence + a view-renderers module.
+   Plan 030 (Task 19) promoted tiers 2 and 3 to byte-identical via `rerenderLastView` delegation to the view-renderers module.
 6. **Natural-language back commands are equivalent to back-button taps (invariant #7).** Both typed "back to the plan" and the inline `[← Back to planning]` button delegate to `handleReturnToFlowAction` from the runner, with the callback path wrapping its sink for `recentTurns` capture so both paths contribute equivalent context for the next dispatcher call. Scenarios 039 and 043 lock this in jointly.
 7. **Recent turns are ring-buffered at 6 entries and capture both sides.** `recentTurns` records the user's message plus the **last** bot reply for every dispatcher-handled turn — including replies produced by downstream flow handlers (`flow_input` → re-proposer output, recipe renders) via `wrapSinkForBotTurnCapture`. Bot turns are truncated to `BOT_TURN_TEXT_MAX` (500) chars at capture time. The cancel meta-intent short-circuit and the numeric pre-filter are the two documented bypasses: they run with the raw sink and add nothing to `recentTurns` because they are flow terminations / parse-only fast paths, not conversational turns.
 
@@ -800,6 +800,23 @@ The user then taps:
 - **`mp_adjust`** — `pendingMutation` cleared, user prompted for a new description.
 
 Post-confirmation clarifications persist via `BotCoreSession.pendingPostConfirmationClarification` (invariant #5). The user answers the question on the next turn without re-stating the full request.
+
+### Secondary actions (Plan 030)
+
+Plan 030 promotes the remaining eight catalog actions from deferred to implemented, completing the v0.0.5 freeform conversation layer.
+
+**Answer actions** (`answer_plan_question`, `answer_recipe_question`, `answer_domain_question`): The dispatcher classifies the user's question into one of three scopes and routes to an LLM-generated answer. Plan-scoped questions receive the active plan summary as context. Recipe-scoped questions receive the recipe the user is currently viewing (via `lastRenderedView`). Domain-scoped questions are answered from general food/nutrition/cooking knowledge. All three are strictly read-only — they never mutate plan or session state. Each answer includes a `[← Back to ...]` inline button so the user can return to their previous surface.
+
+**Navigation actions** (`show_recipe`, `show_plan`, `show_shopping_list`, `show_progress`): The dispatcher extracts structured parameters (slug, date, scope) from the user's natural-language request and delegates to the existing view renderers.
+
+- `show_recipe` resolves a slug. If the slug appears in an active batch, the cook view renders (same as tapping the batch button from the plan). If not, the library detail view renders. When a recipe appears in multiple batches, the soonest cook day is picked.
+- `show_plan` resolves natural-language day references ("Thursday", "tomorrow", "next cook day") to ISO dates and renders the day-detail view.
+- `show_shopping_list` supports two scopes: `recipe` (filters ingredients to one recipe) and `full_week` (aggregates across all cook days — the same output as the main shopping list button but reachable conversationally).
+- `show_progress` renders the weekly summary report.
+
+**Measurement logging** (`log_measurement`): Extends the numeric pre-filter's capability to any surface. When the dispatcher picks `log_measurement`, the handler persists the measurement and confirms without requiring the user to navigate to the Progress screen first. `surfaceContext` is preserved so the user's previous view is undisturbed.
+
+**State preservation across secondary actions**: All secondary actions inherit the Plan 028 state-preservation invariants. `planFlow`, `recipeFlow`, `pendingClarification`, and `pendingPostConfirmationClarification` are never cleared by a secondary action. The user can ask a question, navigate to a recipe, log a measurement, and return to an in-progress planning session — all without losing state.
 
 ---
 

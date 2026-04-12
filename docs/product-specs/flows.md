@@ -99,3 +99,51 @@ Displayed via [View shopping list] button. Supports:
 **Known v0.0.5 limitations:** Calorie tracking of eat-out events is not implemented. Retroactive events are handled by shifting forward only. Post-confirmation clarifications persist via `pendingPostConfirmationClarification` (invariant #5). In-memory only.
 
 See also: proposal 003 § "Flow 1 — Post-confirmation plan mutation".
+
+## Flow: Side question during any phase (Plan 030)
+
+**The conversational affordance.** Users can ask questions at any point — mid-planning, on a recipe view, from the shopping list — and get an answer without losing their place.
+
+**Entry points:** Any text or voice message that the dispatcher classifies as `answer_plan_question`, `answer_recipe_question`, or `answer_domain_question`.
+
+**Flow:**
+
+1. Dispatcher classifies the question into one of three scopes:
+   - `answer_plan_question` — about the user's active plan ("when's my next cook day?", "how many calories is Thursday?"). The plan summary is injected as context.
+   - `answer_recipe_question` — about a specific recipe the user is viewing or recently viewed ("can I freeze this?", "what can I substitute for tahini in this?"). The recipe from `lastRenderedView` is injected as context.
+   - `answer_domain_question` — general food/nutrition/cooking knowledge ("how much protein in 100g of chicken?", "what's a good substitute for tahini?"). No plan or recipe context needed.
+2. An LLM-generated answer is returned. The answer is strictly read-only — no plan state, recipe state, or session state is mutated.
+3. The response includes a `[← Back to ...]` inline button targeting the user's previous surface via `lastRenderedView`.
+
+**Rules:** All three answer types are read-only. They must never trigger a plan mutation, recipe swap, or ingredient change. `planFlow`, `recipeFlow`, and all pending clarifications are preserved across the side conversation. The user returns exactly where they were.
+
+## Flow: Natural-language navigation (Plan 030)
+
+**Conversational shortcuts to existing views.** Users can type what they want to see instead of tapping through menus.
+
+**Entry points:** Any text or voice message that the dispatcher classifies as `show_recipe`, `show_plan`, `show_shopping_list`, or `show_progress`.
+
+**Flow:**
+
+1. Dispatcher extracts structured parameters from natural language:
+   - `show_recipe` — extracts a recipe slug. Resolves to cook view if the slug is in an active batch, library detail view otherwise. Multi-batch recipes pick the soonest cook day.
+   - `show_plan` — extracts a day reference ("Thursday", "tomorrow", "next cook day") and resolves to an ISO date. Renders the day-detail view.
+   - `show_shopping_list` — extracts a scope: `recipe` (filters to one recipe's ingredients) or `full_week` (aggregates across all cook days).
+   - `show_progress` — renders the weekly summary report.
+2. The resolved parameters are passed to the existing view renderers — the same code paths as the button-driven navigation.
+
+**Rules:** Navigation actions update `lastRenderedView` and `surfaceContext` to reflect the new view, exactly as button-driven navigation does. Flow state (`planFlow`, `recipeFlow`) is preserved.
+
+## Flow: Cross-surface measurement logging (Plan 030)
+
+**Log a measurement from anywhere.** The user doesn't need to navigate to the Progress screen to record their weight.
+
+**Entry points:** Any text or voice message that the dispatcher classifies as `log_measurement` when the user is NOT already in `awaiting_measurement` phase (that case is handled by the numeric pre-filter).
+
+**Flow:**
+
+1. Dispatcher picks `log_measurement` and extracts the measurement value from the user's message.
+2. The handler persists the measurement to the store.
+3. A confirmation message is shown. `surfaceContext` is preserved — the user's previous view is undisturbed.
+
+**Rules:** The numeric pre-filter (`awaiting_measurement` phase) still takes precedence for the fast path. The dispatcher-driven `log_measurement` extends coverage to all other surfaces. `planFlow` and `recipeFlow` are preserved across the logging side-trip.
