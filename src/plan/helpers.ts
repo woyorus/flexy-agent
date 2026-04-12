@@ -16,7 +16,7 @@
 
 import type { Batch, PlanSession } from '../models/types.js';
 import type { StateStoreLike } from '../state/store.js';
-import type { BotCoreSession } from '../telegram/core.js';
+import type { PlanFlowState } from '../agents/plan-flow.js';
 
 // ─── toLocalISODate (canonical location) ────────────────────────────────────
 
@@ -61,7 +61,7 @@ export type PlanLifecycle = 'no_plan' | 'planning' | 'upcoming' | 'active_early'
  * @param today - ISO date string for "today" (caller controls timezone)
  */
 export async function getPlanLifecycle(
-  session: BotCoreSession,
+  session: { planFlow: PlanFlowState | null },
   store: StateStoreLike,
   today: string,
 ): Promise<PlanLifecycle> {
