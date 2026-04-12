@@ -67,7 +67,8 @@ export type DispatcherAction =
   | 'flow_input'
   | 'clarify'
   | 'out_of_scope'
-  | 'return_to_flow';
+  | 'return_to_flow'
+  | 'mutate_plan';
 
 /**
  * The set of all actions the dispatcher knows about in v0.0.5. `mutate_plan`,
@@ -90,6 +91,7 @@ export const AVAILABLE_ACTIONS_V0_0_5: readonly DispatcherAction[] = [
   'clarify',
   'out_of_scope',
   'return_to_flow',
+  'mutate_plan',
 ] as const;
 
 // ─── Context bundle ──────────────────────────────────────────────────────────
@@ -207,6 +209,16 @@ export interface DispatcherContext {
   recipeIndex: DispatcherRecipeRow[];
   /** Which actions are currently reachable — enforced after parsing the LLM response. */
   allowedActions: readonly DispatcherAction[];
+  /**
+   * Plan 029: Set when the post-confirmation mutation applier returned a
+   * clarification ("lunch or dinner?") and the user's next message is likely
+   * the answer. The dispatcher uses this to route the terse answer to
+   * `mutate_plan` rather than treating it as unrelated text.
+   */
+  pendingPostConfirmationClarification?: {
+    question: string;
+    originalRequest: string;
+  };
 }
 
 // ─── Decision output ──────────────────────────────────────────────────────────
@@ -246,6 +258,21 @@ export type DispatcherDecision =
       action: 'return_to_flow';
       params: Record<string, never>;
       /** Always undefined — the handler re-renders the last view, it doesn't emit new text. */
+      response?: undefined;
+      reasoning: string;
+    }
+  | {
+      action: 'mutate_plan';
+      /**
+       * Plan 029: `request` is the user's raw natural-language mutation. The
+       * applier forwards it unchanged to the re-proposer (in the in-session
+       * case) or to the post-confirmation applier (which wraps the re-proposer
+       * with the split-aware adapter). The dispatcher does NOT resolve dates,
+       * meal times, or recipe references — the re-proposer has strictly more
+       * context for that work. The dispatcher's only job is to classify the
+       * intent and pass through the request verbatim.
+       */
+      params: { request: string };
       response?: undefined;
       reasoning: string;
     };
@@ -326,8 +353,22 @@ Response: null (the handler renders the previous view, no new text needed)
 When to pick: short phrases expressing "go back" intent AND there is something to go back to (active flow OR recent lastRenderedView).
 When NOT to pick: phrases matching the cancel set — "never mind", "forget it", "not now", "stop", "i'll do this later", "cancel". Those phrases route through the planning flow's cancel handler BEFORE this dispatcher runs; you will never see them when a planning flow is active. If you see "nevermind" without an active flow, prefer out_of_scope over return_to_flow (there is nothing to cancel and nothing meaningful to return to).
 
-### mutate_plan  (NOT AVAILABLE in v0.0.5 — Plan D)
-Future: user describes a change to their plan ("move the flex to Sunday", "swap tagine for fish", "I'm eating out tonight"). For v0.0.5 during an active planning proposal phase, pick flow_input — the existing re-proposer path handles mutations. For post-confirmation mutations (no active flow), pick clarify with an honest "post-confirmation plan changes aren't available yet — that ships next" response.
+### mutate_plan  (AVAILABLE)
+The user wants to change the plan in any way that requires the re-proposer agent: move a flex meal, swap a recipe, add or remove an event, shift a batch, absorb a real-life deviation like "I'm eating out tonight", "friend invited me for dinner", "I'm out of salmon", "my partner ate half the tagine", etc.
+Params: { "request": "<user's raw natural-language mutation — pass through verbatim, do NOT resolve dates or recipe refs>" }
+Response: null (the applier renders the proposed change with a Confirm/Adjust keyboard)
+When to pick:
+  - During active planning (phase=proposal): any mutation request, any rephrasing of "change the plan", including things the user could have said through the re-proposer before — "move the flex", "swap the chicken", "add an event".
+  - Post-confirmation (no active flow, lifecycle=active_*): any real-life deviation statement or plan-change request. "I'm eating out tonight." "Swap tomorrow's dinner for fish." "Move the flex to Sunday." "I already ate the chicken." "Skip Thursday's cooking." All mutate_plan, all the time.
+  - During awaiting_events: rarely — the user's text there is usually event input for flow_input, but if they clearly say "actually, change the plan to X" or "forget the events, just do Y" it's mutate_plan.
+When NOT to pick:
+  - Pure questions without an imperative request ("why so much pasta?" → clarify, answer actions deferred).
+  - Requests that name specific recipes but are read-only ("show me the tagine recipe" → NOT mutate_plan — that's show_recipe in Plan E; for v0.0.5, out_of_scope or clarify with a "tap a button" hint).
+  - Requests that are clearly events the planning flow is already expecting ("dinner out Friday" during awaiting_events → flow_input to reach the event parser).
+  - Navigation ("back to the plan" → return_to_flow).
+  - Out-of-domain ("what's the weather?" → out_of_scope).
+
+Precedence with flow_input: during an active planning proposal phase, "move the flex to Sunday" is structurally a mutation request that the existing re-proposer path handles. The applier's in-session branch delegates to the same re-proposer that flow_input would have reached. Pick mutate_plan in both cases — the applier routes by session state, not by the dispatcher's choice. Picking mutate_plan during active planning is NOT a mistake; the applier handles both modes uniformly.
 
 ### answer_plan_question  (NOT AVAILABLE in v0.0.5 — Plan E)
 ### answer_recipe_question  (NOT AVAILABLE in v0.0.5 — Plan E)
@@ -359,7 +400,19 @@ Future: record restaurant meals / treats. For v0.0.5, pick clarify with honest d
 
 (Active flow: plan / phase: proposal)
 User: "Put the flex meal on Sunday instead"
-→ { "action": "flow_input", "params": {}, "response": null, "reasoning": "Mutation request during proposal phase — route to re-proposer via flow_input." }
+→ { "action": "mutate_plan", "params": { "request": "Put the flex meal on Sunday instead" }, "response": null, "reasoning": "Plan mutation during active proposal phase; applier's in-session branch delegates to the re-proposer." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "I'm eating out tonight, friend invited me"
+→ { "action": "mutate_plan", "params": { "request": "I'm eating out tonight, friend invited me" }, "response": null, "reasoning": "Real-life deviation on a confirmed plan; applier's post-confirmation branch runs the adapter + re-proposer and presents a diff for confirmation." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "swap tomorrow's dinner for something lighter"
+→ { "action": "mutate_plan", "params": { "request": "swap tomorrow's dinner for something lighter" }, "response": null, "reasoning": "Post-confirmation recipe swap request; pass through verbatim." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "move the flex to Sunday"
+→ { "action": "mutate_plan", "params": { "request": "move the flex to Sunday" }, "response": null, "reasoning": "Post-confirmation flex move." }
 
 (Active flow: plan / phase: proposal)
 User: "why so much pasta this week?"
@@ -412,6 +465,17 @@ function buildUserPrompt(ctx: DispatcherContext, userText: string): string {
   );
 
   parts.push(`## ACTIVE FLOW\n${formatActiveFlow(ctx.activeFlow)}`);
+
+  if (ctx.pendingPostConfirmationClarification) {
+    parts.push(
+      `## Outstanding clarification (post-confirmation mutation)\n` +
+      `The re-proposer asked: "${ctx.pendingPostConfirmationClarification.question}"\n` +
+      `Original request: "${ctx.pendingPostConfirmationClarification.originalRequest}"\n` +
+      `The user's next message is likely the answer to this question. ` +
+      `Pick mutate_plan with the user's text as the request — the applier ` +
+      `will prepend the original request automatically.`,
+    );
+  }
 
   parts.push(
     `## RECENT TURNS (oldest first)\n${
@@ -528,6 +592,7 @@ function parseDecision(
     'clarify',
     'out_of_scope',
     'return_to_flow',
+    'mutate_plan',
   ];
   if (!knownActions.includes(action as DispatcherAction)) {
     throw new Error(
@@ -590,9 +655,24 @@ function parseDecision(
         throw new Error('return_to_flow must have response: null (the handler re-renders the last view).');
       }
       return { action: 'return_to_flow', params: {}, reasoning };
+
+    case 'mutate_plan': {
+      if (response !== undefined && response !== '') {
+        throw new Error('mutate_plan must have response: null (the applier renders the confirmation UI).');
+      }
+      const request = typeof params.request === 'string' ? params.request.trim() : '';
+      if (!request) {
+        throw new Error('mutate_plan requires a non-empty "request" string in params.');
+      }
+      return {
+        action: 'mutate_plan',
+        params: { request },
+        reasoning,
+      };
+    }
   }
 
-  // Unreachable — the action type check above narrows to the four known actions.
+  // Unreachable — the action type check above narrows to the known actions.
   throw new Error(`Dispatcher: unexpected action "${action as string}" after validation.`);
 }
 

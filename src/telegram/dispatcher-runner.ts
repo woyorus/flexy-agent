@@ -95,6 +95,11 @@ export interface DispatcherSession {
     [key: string]: unknown;
   };
   recentTurns?: ConversationTurn[];
+  pendingPostConfirmationClarification?: {
+    question: string;
+    originalRequest: string;
+    createdAt: string;
+  };
 }
 
 /**
@@ -284,6 +289,12 @@ export async function buildDispatcherContext(
     planSummary,
     recipeIndex,
     allowedActions: AVAILABLE_ACTIONS_V0_0_5,
+    ...(session.pendingPostConfirmationClarification && {
+      pendingPostConfirmationClarification: {
+        question: session.pendingPostConfirmationClarification.question,
+        originalRequest: session.pendingPostConfirmationClarification.originalRequest,
+      },
+    }),
   };
 }
 
@@ -756,6 +767,20 @@ async function rerenderLastView(
   }
 }
 
+/**
+ * `mutate_plan` — Plan 029 Task 2 stub. Tasks 6–9 replace this with the real
+ * handler that delegates to `applyMutationRequest`. Until then, throwing
+ * keeps any premature wiring loud — there is no silent path through.
+ */
+export async function handleMutatePlanAction(
+  _decision: Extract<DispatcherDecision, { action: 'mutate_plan' }>,
+  _deps: DispatcherRunnerDeps,
+  _session: DispatcherSession,
+  _sink: DispatcherOutputSink,
+): Promise<void> {
+  throw new Error('handleMutatePlanAction is not wired yet (Plan 029 Task 2 stub — replaced in Task 9)');
+}
+
 // ─── Runner front-door stub (full body lands in Task 11) ─────────────────────
 
 /**
@@ -863,6 +888,9 @@ export async function runDispatcherFrontDoor(
         return;
       case 'return_to_flow':
         await handleReturnToFlowAction(decision, deps, session, sink);
+        return;
+      case 'mutate_plan':
+        await handleMutatePlanAction(decision, deps, session, sink);
         return;
     }
   } finally {
