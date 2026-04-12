@@ -2,29 +2,30 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Active
+**Status:** Completed
 **Date:** 2026-04-11
+**Completed:** 2026-04-12
 **Affects:** `src/agents/dispatcher.ts`, `src/telegram/dispatcher-runner.ts`, `src/telegram/core.ts`, `src/telegram/view-renderers.ts` (new), `src/telegram/navigation-state.ts`, `src/shopping/generator.ts`, `test/unit/view-renderers.test.ts` (new), `test/unit/shopping-generator-scopes.test.ts` (new), `test/unit/dispatcher-secondary-actions.test.ts` (new), 12 new scenarios under `test/scenarios/`, `docs/product-specs/ui-architecture.md`, `docs/product-specs/flows.md`, `docs/design-docs/proposals/003-freeform-conversation-layer.md`, `test/scenarios/index.md`.
 
 **Goal:** Ship the remaining eight dispatcher actions from proposal 003's v0.0.5 catalog — `answer_plan_question`, `answer_recipe_question`, `answer_domain_question`, `show_recipe`, `show_plan`, `show_shopping_list`, `show_progress`, `log_measurement` — wiring each to the existing deterministic renderer or parser, extending the shopping generator with three new scopes (`full_week`, `recipe`, `day`), and promoting `rerenderLastView` in the dispatcher runner from Plan 028's placeholder to real re-render parity. **This is Plan E from proposal `003-freeform-conversation-layer.md`.** After this plan lands, the entire v0.0.5 catalog is live: the dispatcher can answer, navigate, log, and mutate from any surface during any phase, and the living-document promise from Flow 1 is surrounded by the full set of state-preserving secondary affordances.
 
 **Architecture:** Three layers stacked on top of Plans A/B/C/D:
 
-1. **View renderers extracted into a leaf module.** A new `src/telegram/view-renderers.ts` owns the small render helpers (`renderNextAction`, `renderWeekOverview`, `renderDayDetail`, `renderCookViewForBatch`, `renderCookViewForSlug`, `renderLibraryRecipeView`, `renderRecipeLibrary`, `renderShoppingListForScope`, `renderProgressView`) that today live inline inside `core.ts`'s callback `case` branches. Each helper takes `(session, deps, sink, params)`, loads its data, calls the existing formatters in `formatters.ts` and the keyboards in `keyboards.ts`, writes `setLastRenderedView(session, …)` (Plan 027 invariant), and invokes `sink.reply(...)`. `core.ts`'s callback handlers become thin wrappers that just parse the callback data and delegate. **The library list view (`showRecipeList` behind the `📖 My Recipes` reply-keyboard button) IS extracted as `renderRecipeLibrary` even though Plan E has no `show_recipe_library` action** — the second caller is `rerenderLastView`'s `recipes/library` variant, which must deliver full-fidelity parity per proposal 003 state preservation invariants #3 and #6 (natural-language "back to my recipes" after the user looked at the library should restore the exact pagination state, not emit a hint to tap a button). See the decision log for why the second-round review escalated this extraction from "deferred" to "required". The new module imports only from `models/`, `state/`, `recipes/`, `plan/helpers.ts`, `shopping/`, and `telegram/{formatters,keyboards,navigation-state}.ts` — no imports from `core.ts` so the dispatcher runner can use it without a cycle.
+1. **View renderers extracted into a leaf module.** A new `src/telegram/view-renderers.ts` owns the small render helpers (`renderNextAction`, `renderWeekOverview`, `renderDayDetail`, `renderCookViewForBatch`, `renderCookViewForSlug`, `renderLibraryRecipeView`, `renderRecipeLibrary`, `renderShoppingListForScope`, `renderProgressView`) that today live inline inside `core.ts`'s callback `case` branches. Each helper takes `(session, deps, sink, params)`, loads its data, calls the existing formatters in `formatters.ts` (plan/shopping/progress views) or `recipes/renderer.ts` (cook view and library recipe view), and the keyboards in `keyboards.ts`, writes `setLastRenderedView(session, …)` (Plan 027 invariant), and invokes `sink.reply(...)`. `core.ts`'s callback handlers become thin wrappers that just parse the callback data and delegate. **The library list view (`showRecipeList` behind the `📖 My Recipes` reply-keyboard button) IS extracted as `renderRecipeLibrary` even though Plan E has no `show_recipe_library` action** — the second caller is `rerenderLastView`'s `recipes/library` variant, which must deliver full-fidelity parity per proposal 003 state preservation invariants #3 and #6 (natural-language "back to my recipes" after the user looked at the library should restore the exact pagination state, not emit a hint to tap a button). See the decision log for why the second-round review escalated this extraction from "deferred" to "required". The new module imports only from `models/`, `state/`, `recipes/`, `plan/helpers.ts`, `shopping/`, and `telegram/{formatters,keyboards,navigation-state}.ts` — no imports from `core.ts` so the dispatcher runner can use it without a cycle.
 
-2. **Eight new action handlers in the dispatcher runner.** Each handler is a thin wrapper: `handleShowPlanAction` routes to `renderNextAction` / `renderWeekOverview` / `renderDayDetail` based on the `screen` param. `handleShowRecipeAction` resolves the slug into an active-plan batch if present (multi-batch disambiguation picks the soonest cook day per proposal 003 § "show_recipe"), otherwise renders the library view. `handleShowShoppingListAction` dispatches between the four scopes via the extended shopping generator. `handleShowProgressAction` delegates to `renderProgressView`. The three `answer_*` handlers send the dispatcher's pre-written reply verbatim with a `buildSideConversationKeyboard` back button. `handleLogMeasurementAction` is a thin wrapper around the existing `parseMeasurementInput` → `assignWeightWaist` → `formatMeasurementConfirmation` / disambiguation pipeline that `routeTextToActiveFlow` already calls for the `awaiting_measurement` phase.
+2. **Eight new action handlers in the dispatcher runner.** Each handler is a thin wrapper: `handleShowPlanAction` routes to `renderNextAction` / `renderWeekOverview` / `renderDayDetail` based on the `screen` param. `handleShowRecipeAction` resolves the slug into an active-plan batch if present (multi-batch disambiguation picks the soonest cook day per proposal 003 § "show_recipe"), otherwise renders the library view. `handleShowShoppingListAction` dispatches between the four scopes via the extended shopping generator. `handleShowProgressAction` delegates to `renderProgressView`. The three `answer_*` handlers send the dispatcher's pre-written reply verbatim with a `buildSideConversationKeyboard` back button. `handleLogMeasurementAction` is a thin wrapper around the existing `parseMeasurementInput` → `assignWeightWaist` → `formatMeasurementConfirmation` / disambiguation pipeline that `tryNumericPreFilter` in `dispatcher-runner.ts` already runs for the `awaiting_measurement` phase.
 
-3. **Shopping generator gains three new scopes, keeping the old signature untouched.** `generateShoppingList` (for `next_cook`) stays as-is. Three new exports land alongside it: `generateShoppingListForWeek(batches, breakfast, { horizonStart, horizonEnd })`, `generateShoppingListForRecipe(batches, { recipeSlug })`, `generateShoppingListForDay(batches, breakfast, { day, remainingDays })`. Each reuses the internal `classifyIngredient` and `addIngredient` helpers via a new shared `buildList(ingredients, tier2, customItems)` finisher. The existing `sl_next` / `sl_<date>` callbacks in `core.ts` continue to call `generateShoppingList` unchanged. Plan E's `handleShowShoppingListAction` calls the new function for the corresponding scope.
+3. **Shopping generator gains three new scopes, keeping the old signature untouched.** `generateShoppingList` (for `next_cook`) stays as-is. Three new exports land alongside it: `generateShoppingListForWeek(batches, breakfast, { horizonStart, horizonEnd })`, `generateShoppingListForRecipe(batches, { recipeSlug })`, `generateShoppingListForDay(batches, breakfast, { day, remainingDays })`. Each reuses the internal `classifyIngredient` and `addIngredient` helpers via a new shared `buildShoppingListFromAggregated(aggregated)` finisher. The existing `sl_next` / `sl_<date>` callbacks in `core.ts` continue to call `generateShoppingList` unchanged. Plan E's `handleShowShoppingListAction` calls the new function for the corresponding scope.
 
 **Tech Stack:** TypeScript, `node:test`, the existing scenario harness (`src/harness/runner.ts` + `test/scenarios/`), `LLMProvider` via `src/ai/provider.ts`, `FixtureLLMProvider` for scenario replay. No database changes, no new external dependencies, no changes to the grammY adapter.
 
 **Scope:** Exactly the eight remaining v0.0.5 catalog entries, the view-renderer extraction, the shopping generator scope extension, the `rerenderLastView` upgrade, and scenario coverage. **Out of scope (explicitly deferred):** `answer_product_question` (its own future plan with an opinionated methodology knowledge base), ingredient-level plan recipe updates (re-proposer capability extension), `log_treat` / `log_eating_out` handlers (deviation accounting plan), multi-user timezone-aware time semantics (v0.1.0), session state persistence across bot restarts (v0.1.0), auto-confirm for small mutations (forever until re-proposer is production-proven), full re-parse of recipe bodies for `answer_recipe_question` (v0.0.5 answers from the recipe index in the dispatcher context — body inclusion is a future optimization).
 
 **Dependencies:** Plan E has **HARD dependencies** on all four prior plans being fully merged and green.
-- **Plan 026 (Plan A — re-proposer post-confirmation enablement)** contributes the `mutation_history` column and Plan A's re-proposer rules. Plan E does not call the adapter directly, but the cross-action state preservation scenario (scenario 058) exercises an `answer_plan_question` → `mutate_plan` → `plan_approve` sequence whose persisted `mutationHistory` must be carried correctly — that guarantee is Plan A's.
+- **Plan 026 (Plan A — re-proposer post-confirmation enablement)** contributes the `mutation_history` column and Plan A's re-proposer rules. Plan E does not call the adapter directly, but the cross-action state preservation scenario (scenario 065) exercises an `answer_plan_question` → `mutate_plan` → `plan_approve` sequence whose persisted `mutationHistory` must be carried correctly — that guarantee is Plan A's.
 - **Plan 027 (Plan B — navigation state model)** provides `BotCoreSession.lastRenderedView` and `setLastRenderedView`. Plan E extends Plan B's `LastRenderedView` discriminated union with two new shopping variants (`full_week`, `recipe`) to cover the new scopes, and its view-renderers set the field via `setLastRenderedView` on every render.
 - **Plan 028 (Plan C — dispatcher infrastructure)** provides `src/agents/dispatcher.ts`, `src/telegram/dispatcher-runner.ts`, `runDispatcherFrontDoor`, the context bundle builder, `recentTurns`, and the four minimal actions. Plan E extends the catalog to eight more actions (twelve total, plus `mutate_plan` from Plan D for thirteen v0.0.5 actions) and promotes `rerenderLastView` from Plan C's placeholder implementation to real view-renderer dispatch.
-- **Plan 029 (Plan D — mutate_plan action)** provides the `mutate_plan` action already live in the dispatcher and the `applyMutationRequest` / `applyMutationConfirmation` applier. Plan E's cross-action state preservation scenario (scenario 058) sits on top of the full Plan D path.
+- **Plan 029 (Plan D — mutate_plan action)** provides the `mutate_plan` action already live in the dispatcher and the `applyMutationRequest` / `applyMutationConfirmation` applier. Plan E's cross-action state preservation scenario (scenario 065) sits on top of the full Plan D path.
 
 **Plan E does NOT start until Plans A/B/C/D are all merged and `npm test` is fully green.** Task 1 verifies every dependency artifact exists.
 
@@ -56,51 +57,51 @@ There is also a **fourth, smaller problem** this plan addresses in the same moti
   - `renderNextAction(session, deps, sink)` — mirrors the `na_show` callback body.
   - `renderWeekOverview(session, deps, sink)` — mirrors `wo_show`.
   - `renderDayDetail(session, deps, sink, day)` — mirrors `dd_<date>`; validates `day` is an ISO date that falls within the visible plan horizon.
-  - `renderCookViewForBatch(session, deps, sink, batchId)` — mirrors `cv_<batchId>`; loads the batch via `store.getBatch`, resolves the recipe via `recipes.getBySlug`, calls `renderCookView` from `formatters.ts`.
+  - `renderCookViewForBatch(session, deps, sink, batchId)` — mirrors `cv_<batchId>`; loads the batch via `store.getBatch`, resolves the recipe via `recipes.getBySlug`, calls `renderCookView` from `recipes/renderer.ts`.
   - `renderCookViewForSlug(session, deps, sink, slug)` — **new** helper built for `show_recipe`. Enumerates the active plan's planned batches, filters to those whose `recipeSlug === slug`, picks the batch with the soonest `eatingDays[0]` (ties broken by `batchId` for determinism), and delegates to `renderCookViewForBatch`. Returns `'rendered' | 'not_in_plan'` so the `show_recipe` handler can fall back to the library view when the slug isn't in any active batch.
   - `renderLibraryRecipeView(session, deps, sink, slug)` — mirrors the `rv_<slug>` callback body for library recipes (per-serving amounts). This is the single-recipe library view (used for `show_recipe` when the slug isn't in an active batch).
-  - `renderRecipeLibrary(session, deps, sink)` — mirrors the `showRecipeList` closure body that's today inlined in `core.ts` (`src/telegram/core.ts:1083–1113`). Reads `session.recipeListPage` from the structural slice, loads all recipes via `deps.recipes.getAll()`, checks plan lifecycle via `getPlanLifecycle`, computes `cookingSoonBatchViews` via `getVisiblePlanSession` + `loadPlanBatches`, builds the paginated `recipeListKeyboard`, sets `lastRenderedView = { surface: 'recipes', view: 'library' }`, and emits the reply. Task 6 replaces `core.ts`'s `showRecipeList` closure with a thin wrapper that delegates to this helper. The second caller is `rerenderLastView`'s `recipes/library` branch (Task 19), which relies on this helper to deliver invariant-#6 parity (exact-view restore on natural-language back navigation).
+  - `renderRecipeLibrary(session, deps, sink)` — mirrors the `showRecipeList` closure body that's today inlined in `core.ts` (`src/telegram/core.ts:1083–1113`). Reads `session.recipeListPage` from the structural slice, loads all recipes via `deps.recipes.getAll()`, checks plan lifecycle via `getPlanLifecycle`, computes `cookingSoonBatchViews` via the module-local `loadVisiblePlanAndBatches` helper, builds the paginated `recipeListKeyboard`, sets `lastRenderedView = { surface: 'recipes', view: 'library' }`, and emits the reply. Task 6 replaces `core.ts`'s `showRecipeList` closure with a thin wrapper that delegates to this helper. The second caller is `rerenderLastView`'s `recipes/library` branch (Task 19), which relies on this helper to deliver invariant-#6 parity (exact-view restore on natural-language back navigation).
   - `renderShoppingListForScope(session, deps, sink, scope)` — routes to the appropriate generator function based on `scope.kind`. The `scope` argument is a tagged union matching the new `ShoppingScope` type in `src/shopping/generator.ts`.
   - `renderProgressView(session, deps, sink, view)` — `view: 'log_prompt' | 'weekly_report'`. For `log_prompt`, mirrors the existing `progress` menu handler's "set awaiting_measurement phase + send prompt" path. For `weekly_report`, mirrors the `hasCompletedWeekReport` path that calls `formatWeeklyReport` from `formatters.ts`.
   - `ViewRendererDeps` — structural type alias equal to `BotCoreDeps` (`{ llm, recipes, store }`); aliased so the module doesn't take a transitive dependency on `core.ts`'s interface name.
   - `ViewRenderResult` — the `renderCookViewForSlug` return type alias `'rendered' | 'not_in_plan'`.
 
-- `test/unit/view-renderers.test.ts` — Unit tests for each renderer. Seeds a `TestStateStore` with a canonical plan (tagine dinner batch Mon–Wed + grain-bowl lunch batch Mon–Fri) and asserts each renderer produces the expected text + sets `session.lastRenderedView` + sets `session.surfaceContext`. Covers: `renderNextAction` success, `renderWeekOverview` success, `renderDayDetail` with valid day, `renderDayDetail` with out-of-horizon day (returns a graceful "not in this week" reply), `renderCookViewForSlug` with single batch, `renderCookViewForSlug` with multi-batch (soonest wins), `renderCookViewForSlug` with no matching batch (returns `'not_in_plan'`), `renderLibraryRecipeView`, `renderRecipeLibrary` with and without an active plan (cookingSoonBatchViews shown vs. absent), `renderShoppingListForScope` for each scope, `renderProgressView` for both views.
+- `test/unit/view-renderers.test.ts` — Unit tests for each renderer. Seeds a `TestStateStore` with a canonical plan (tagine dinner batch Mon–Wed + grain-bowl lunch batch Mon–Fri) and asserts each renderer produces the expected text + keyboard + sets `session.lastRenderedView`. (`surfaceContext` is set by the call sites in Task 6, not by the renderers.) Covers: `renderNextAction` success, `renderWeekOverview` success, `renderDayDetail` with valid day, `renderDayDetail` with out-of-horizon day (returns a graceful "not in this week" reply), `renderCookViewForSlug` with single batch, `renderCookViewForSlug` with multi-batch (soonest wins), `renderCookViewForSlug` with no matching batch (returns `'not_in_plan'`), `renderLibraryRecipeView`, `renderRecipeLibrary` with and without an active plan (cookingSoonBatchViews shown vs. absent), `renderShoppingListForScope` for each scope, `renderProgressView` for both views.
 
-- `test/unit/shopping-generator-scopes.test.ts` — Unit tests for the three new shopping generator functions. Covers: full-week aggregation across multiple cook days, recipe-scoped filtering, day-scoped filtering (eaten vs. cooked semantics — see Task 7), breakfast proration for `full_week` vs. no breakfast for `recipe`, empty-scope graceful handling.
+- `test/unit/shopping-generator-scopes.test.ts` — Unit tests for the three new shopping generator functions. Covers: full-week aggregation across multiple cook days, recipe-scoped filtering, day-scoped filtering (eaten vs. cooked semantics — defined in Task 2, tested in Task 3), breakfast proration for `full_week` vs. no breakfast for `recipe`, empty-scope graceful handling.
 
-- `test/unit/dispatcher-secondary-actions.test.ts` — Unit tests for the dispatcher's new action picks. Exercises `dispatchMessage` with stub LLM responses that claim each of the eight new actions and asserts the parser accepts them and the action is in `AVAILABLE_ACTIONS_V0_0_5`. Covers each action's required params (missing params → parser rejects → retry).
+- `test/unit/dispatcher-secondary-actions.test.ts` — Unit tests for the eight new dispatcher runner handlers (`handleAnswerPlanQuestionAction`, etc.). Each test exercises the handler directly with a stub `DispatcherRunnerDeps` and asserts the correct reply text, keyboard, and session state. The `dispatchMessage` parser and action-pick tests are in `test/unit/dispatcher-agent.test.ts` (extended in Task 10).
 
-- `test/scenarios/047-answer-plan-question/spec.ts` + `recorded.json` — User with an active plan types "When's my next cook day?". Dispatcher picks `answer_plan_question`, replies inline with the answer derived from the plan summary in context, session state unchanged.
+- `test/scenarios/054-answer-plan-question/spec.ts` + `recorded.json` — User with an active plan types "When's my next cook day?". Dispatcher picks `answer_plan_question`, replies inline with the answer derived from the plan summary in context, session state unchanged.
 
-- `test/scenarios/048-answer-recipe-question/spec.ts` + `recorded.json` — User on the cook view of a tagine batch types "Can I freeze this?". Dispatcher picks `answer_recipe_question` with `recipe_slug: 'tagine'`, replies inline using the recipe index data (`freezable`, `reheat`).
+- `test/scenarios/055-answer-recipe-question/spec.ts` + `recorded.json` — User on the cook view of a tagine batch types "Can I freeze this?". Dispatcher picks `answer_recipe_question` with `recipe_slug: 'tagine'`, replies inline using the recipe index data (`freezable`, `reheat`).
 
-- `test/scenarios/049-answer-domain-question/spec.ts` + `recorded.json` — User types "What's a good substitute for tahini?". Dispatcher picks `answer_domain_question`, replies inline with a short generic answer. Locks v0.0.5 behavior — generic model knowledge, no opinionated knowledge base yet.
+- `test/scenarios/056-answer-domain-question/spec.ts` + `recorded.json` — User types "What's a good substitute for tahini?". Dispatcher picks `answer_domain_question`, replies inline with a short generic answer. Locks v0.0.5 behavior — generic model knowledge, no opinionated knowledge base yet.
 
-- `test/scenarios/050-show-recipe-in-plan/spec.ts` + `recorded.json` — User on the menu types "show me the calamari pasta" and calamari pasta is in one active batch. Dispatcher picks `show_recipe({ recipe_slug: 'calamari-pasta' })`, handler renders the scaled cook view for that batch.
+- `test/scenarios/057-show-recipe-in-plan/spec.ts` + `recorded.json` — User on the menu types "show me the calamari pasta" and calamari pasta is in one active batch. Dispatcher picks `show_recipe({ recipe_slug: 'calamari-pasta' })`, handler renders the scaled cook view for that batch.
 
-- `test/scenarios/051-show-recipe-library-only/spec.ts` + `recorded.json` — User types "show me the lasagna" and lasagna is in the library but not in any active batch. Dispatcher picks `show_recipe`, handler renders the library view with per-serving amounts.
+- `test/scenarios/058-show-recipe-library-only/spec.ts` + `recorded.json` — User types "show me the lasagna" and lasagna is in the library but not in any active batch. Dispatcher picks `show_recipe`, handler renders the library view with per-serving amounts.
 
-- `test/scenarios/052-show-recipe-multi-batch/spec.ts` + `recorded.json` — User types "show me the grain bowl" and grain bowl appears in two active batches (one Mon–Wed lunch, one Fri–Sun lunch). Handler picks the batch with the soonest cook day (Mon) and renders its cook view. Regression lock for the v0.0.5 disambiguation rule.
+- `test/scenarios/059-show-recipe-multi-batch/spec.ts` + `recorded.json` — User types "show me the grain bowl" and grain bowl appears in two active batches (one Mon–Wed lunch, one Fri–Sun lunch). Handler picks the batch with the soonest cook day (Mon) and renders its cook view. Regression lock for the v0.0.5 disambiguation rule.
 
-- `test/scenarios/053-show-plan-day-detail-natural-language/spec.ts` + `recorded.json` — User types "what's Thursday looking like?". Dispatcher resolves "Thursday" to the next Thursday's ISO date using the plan horizon in context, picks `show_plan({ screen: 'day_detail', day: '<iso>' })`, handler calls `renderDayDetail` for that day.
+- `test/scenarios/060-show-plan-day-detail-natural-language/spec.ts` + `recorded.json` — User types "what's Thursday looking like?". Dispatcher resolves "Thursday" to the next Thursday's ISO date using the plan horizon in context, picks `show_plan({ screen: 'day_detail', day: '<iso>' })`, handler calls `renderDayDetail` for that day.
 
-- `test/scenarios/054-show-shopping-list-recipe-scope/spec.ts` + `recorded.json` — User types "shopping list for the tagine". Dispatcher picks `show_shopping_list({ scope: 'recipe', recipe_slug: 'tagine' })`, handler calls `generateShoppingListForRecipe` and renders the scoped list.
+- `test/scenarios/061-show-shopping-list-recipe-scope/spec.ts` + `recorded.json` — User types "shopping list for the tagine". Dispatcher picks `show_shopping_list({ scope: 'recipe', recipe_slug: 'tagine' })`, handler calls `generateShoppingListForRecipe` and renders the scoped list.
 
-- `test/scenarios/055-show-shopping-list-full-week/spec.ts` + `recorded.json` — User types "full shopping list for the week". Dispatcher picks `show_shopping_list({ scope: 'full_week' })`, handler calls `generateShoppingListForWeek` and renders the week-spanning list.
+- `test/scenarios/062-show-shopping-list-full-week/spec.ts` + `recorded.json` — User types "full shopping list for the week". Dispatcher picks `show_shopping_list({ scope: 'full_week' })`, handler calls `generateShoppingListForWeek` and renders the week-spanning list.
 
-- `test/scenarios/056-show-progress-weekly-report/spec.ts` + `recorded.json` — User types "how am I doing this week?" with a logged measurement today + measurements from last week. Dispatcher picks `show_progress({ view: 'weekly_report' })`, handler calls `renderProgressView('weekly_report')`.
+- `test/scenarios/063-show-progress-weekly-report/spec.ts` + `recorded.json` — User types "how am I doing this week?" with a logged measurement today + measurements from last week. Dispatcher picks `show_progress({ view: 'weekly_report' })`, handler calls `renderProgressView('weekly_report')`.
 
-- `test/scenarios/057-log-measurement-cross-surface/spec.ts` + `recorded.json` — User on the plan surface (no active `progressFlow`) types "82.3 today". Dispatcher picks `log_measurement({ weight: 82.3 })`, handler delegates to the existing parse → store → confirmation pipeline. The measurement lands in the store and `surfaceContext` stays `'plan'` — the user does not get teleported to the progress surface.
+- `test/scenarios/064-log-measurement-cross-surface/spec.ts` + `recorded.json` — User on the plan surface (no active `progressFlow`) types "82.3 today". Dispatcher picks `log_measurement({ weight: 82.3 })`, handler delegates to the existing parse → store → confirmation pipeline. The measurement lands in the store and `surfaceContext` stays `'plan'` — the user does not get teleported to the progress surface.
 
-- `test/scenarios/058-answer-then-mutate-state-preservation/spec.ts` + `recorded.json` — **The cross-action regression lock.** User is mid-planning at `phase: 'proposal'` with mutation history `[{ constraint: 'initial', … }]`. User types "when's my flex this week?" — dispatcher picks `answer_plan_question`, responds inline, planFlow preserved. Then types "move the flex to Sunday" — dispatcher picks `mutate_plan`, applier's in-session branch runs on the preserved planFlow, mutation history extends to 2 entries. User taps `plan_approve`. The persisted session's `mutationHistory` has BOTH entries. This scenario is the direct embodiment of proposal 003 state preservation invariant #1.
+- `test/scenarios/065-answer-then-mutate-state-preservation/spec.ts` + `recorded.json` — **The cross-action regression lock.** User is mid-planning at `phase: 'proposal'` with mutation history `[{ constraint: 'initial', … }]`. User types "when's my flex this week?" — dispatcher picks `answer_plan_question`, responds inline, planFlow preserved. Then types "move the flex to Sunday" — dispatcher picks `mutate_plan`, applier's in-session branch runs on the preserved planFlow, mutation history extends to 2 entries. User taps `plan_approve`. The persisted session's `mutationHistory` has BOTH entries. This scenario is the direct embodiment of proposal 003 state preservation invariant #1.
 
 **Files to modify:**
 
 - `src/agents/dispatcher.ts`:
   - Extend `DispatcherAction` union with the eight new actions: `'answer_plan_question' | 'answer_recipe_question' | 'answer_domain_question' | 'show_recipe' | 'show_plan' | 'show_shopping_list' | 'show_progress' | 'log_measurement'`.
   - Extend `AVAILABLE_ACTIONS_V0_0_5` with the same eight actions.
-  - Extend `DispatcherDecision` union with one variant per new action, each carrying its params. See Task 9's variant specs.
+  - Extend `DispatcherDecision` union with one variant per new action, each carrying its params. See Tasks 7–8 for variant specs.
   - Update `buildSystemPrompt` to flip each NOT AVAILABLE marker to AVAILABLE and add usage guidance + few-shot examples. Remove the "pick clarify / out_of_scope with honest deferral" instructions for every Plan E action.
   - Update `parseDecision` to handle each new action variant: extract required params, validate types, reject invalid shapes so the retry loop can correct them.
 
@@ -108,12 +109,12 @@ There is also a **fourth, smaller problem** this plan addresses in the same moti
   - Add `handleAnswerPlanQuestionAction`, `handleAnswerRecipeQuestionAction`, `handleAnswerDomainQuestionAction`, `handleShowRecipeAction`, `handleShowPlanAction`, `handleShowShoppingListAction`, `handleShowProgressAction`, `handleLogMeasurementAction`.
   - Wire all eight handlers into the `switch (decision.action)` inside `runDispatcherFrontDoor`.
   - Replace the minimal `rerenderLastView` body with a dispatch over `session.lastRenderedView` that calls the new view-renderers for real re-render parity. This removes Plan C's Task 10 TODO.
+  - Extract `renderMeasurementConfirmation` from `tryNumericPreFilter` as a shared helper — both `tryNumericPreFilter` and `handleLogMeasurementAction` call it, eliminating code duplication. No cross-module import needed since both live in `dispatcher-runner.ts`.
   - Add `DispatcherRunnerDeps` no-op — the existing `{ llm, recipes, store }` shape is sufficient for the new handlers because they go through the view-renderers, which take the same deps.
 
 - `src/telegram/core.ts`:
-  - Refactor the callback handlers to delegate to the new view-renderers. Each change is surgical: the `case` body becomes a parse + delegate. See Task 3 for the per-case changes.
-  - `routeTextToActiveFlow`'s `awaiting_measurement` path (~lines 1128–1195, exact numbers drift from Plans 027/028) STAYS unchanged — Plan E's `handleLogMeasurementAction` handles the cross-surface case by wrapping the same pipeline, but the in-progress-flow path is still reached via `flow_input`.
-  - Export a named helper `renderMeasurementConfirmation(session, deps, sink, parsed)` that the Plan E handler calls. The helper encapsulates the "call `assignWeightWaist` → either auto-apply or route to disambiguation" decision that's today inline in `routeTextToActiveFlow`. After Plan E lands, the `awaiting_measurement` text path AND the cross-surface `handleLogMeasurementAction` both call this one helper, eliminating code duplication.
+  - Refactor the callback handlers to delegate to the new view-renderers. Each change is surgical: the `case` body becomes a parse + delegate. See Task 6 for the per-case changes.
+  - `routeTextToActiveFlow`'s `awaiting_measurement` path was already moved to `tryNumericPreFilter` in `dispatcher-runner.ts` by Plan 028 Task 6/8. Only the `confirming_disambiguation` fallthrough remains in `core.ts`. No changes needed to the measurement pipeline in `core.ts`.
 
 - `src/telegram/navigation-state.ts`:
   - Extend the `LastRenderedView` discriminated union with two new shopping variants:
@@ -132,8 +133,8 @@ There is also a **fourth, smaller problem** this plan addresses in the same moti
       | { kind: 'recipe'; recipeSlug: string }
       | { kind: 'day'; day: string; remainingDays: number };
     ```
-  - Add three new exported functions: `generateShoppingListForWeek`, `generateShoppingListForRecipe`, `generateShoppingListForDay`. Each calls a new internal `buildListFromAggregated(aggregated)` helper that runs classification + tier assignment (extracted from the existing `generateShoppingList` body).
-  - Existing `generateShoppingList` stays. It continues to call `buildListFromAggregated` internally after the refactor, so there's no behavioral change — Task 7 verifies with a snapshot comparison.
+  - Add three new exported functions: `generateShoppingListForWeek`, `generateShoppingListForRecipe`, `generateShoppingListForDay`. Each calls a new internal `buildShoppingListFromAggregated(aggregated)` helper that runs classification + tier assignment (extracted from the existing `generateShoppingList` body).
+  - Existing `generateShoppingList` stays. It continues to call `buildShoppingListFromAggregated` internally after the refactor, so there's no behavioral change — Task 3 verifies with unit tests.
 
 - `docs/product-specs/ui-architecture.md`:
   - Flip all eight Plan E rows in the "v0.0.5 minimal action catalog" table from "🚧 Plan E" to "✅ Plan 030".
@@ -146,18 +147,14 @@ There is also a **fourth, smaller problem** this plan addresses in the same moti
   - Update the implementation marker near the top: `Implementation: Plans A (026), B (027), C (028), D (029), E (030) all complete. v0.0.5 catalog fully live.`
 
 - `test/scenarios/index.md`:
-  - Add rows for scenarios 047–058 with short descriptions.
+  - Add rows for scenarios 054–065 with short descriptions.
 
-- Scenarios where the dispatcher currently picks `clarify` / `out_of_scope` for what Plan E makes AVAILABLE — **regenerate**. The candidate list (verified at Task 33 regen time):
-  - `test/scenarios/017-free-text-fallback/recorded.json` — Plan C regenerated this once; Plan E regenerates again if any of its inputs match new AVAILABLE actions.
-  - `test/scenarios/033-dispatcher-out-of-scope/recorded.json` — the "weather" input stays `out_of_scope`, no change expected, but re-verified.
-  - `test/scenarios/035-dispatcher-clarify-multiturn/recorded.json` — depends on the specific ambiguous input; likely no change.
-  - Any other Plan C/D scenario whose dispatcher fixture text mentions Plan E action markers.
+- **Every pre-Task-9 scenario that fires text through the dispatcher** needs regeneration after the prompt flip, because the fixture hash changes when the prompt changes — not just scenarios where the action pick would change. Task 33 runs `npm test` to identify all affected scenarios by "fixture not found" failures, then regenerates in parallel and reviews serially. See Task 33 for the full candidate list and process.
 
 **Files NOT modified (deliberate scope guard):**
 
-- `src/plan/session-to-proposal.ts` (Plan A) — untouched. Plan E's scenario 058 exercises the full Plan D path without touching the adapter directly.
-- `src/plan/mutate-plan-applier.ts` (Plan D) — untouched. Plan E's scenario 058 invokes it via the existing `handleMutatePlanAction`.
+- `src/plan/session-to-proposal.ts` (Plan A) — untouched. Plan E's scenario 065 exercises the full Plan D path without touching the adapter directly.
+- `src/plan/mutate-plan-applier.ts` (Plan D) — untouched. Plan E's scenario 065 invokes it via the existing `handleMutatePlanAction`.
 - `src/agents/plan-reproposer.ts`, `src/agents/plan-flow.ts`, `src/solver/solver.ts`, `src/qa/validators/proposal.ts` — untouched. Plan E is pure UI / dispatcher surface work.
 - `src/state/store.ts`, `src/harness/test-store.ts`, `supabase/migrations/*`, `supabase/schema.sql` — no schema changes. `LastRenderedView` extensions live in-memory only and the shopping generator doesn't persist anything.
 - `src/telegram/bot.ts` — no grammY adapter changes.
@@ -173,19 +170,19 @@ Tasks run strictly top-to-bottom.
 - **Task 4** extends Plan B's `LastRenderedView` union with the two new shopping variants (`full_week`, `recipe`) so subsequent tasks can use them.
 - **Task 5** creates `src/telegram/view-renderers.ts` with every extracted render helper — the biggest structural task in the plan. The module is standalone until Task 6 wires it in.
 - **Task 6** refactors `core.ts` callback handlers to delegate to the view-renderers module — one `case` body at a time, with `npm test` staying green after each step. This task also replaces `showRecipeList`'s closure body with a thin delegation to `renderRecipeLibrary` (Step 9) so natural-language back navigation for the library variant can deliver full parity in Task 19.
-- **Tasks 7–9** expand the dispatcher catalog: Task 7 adds the `DispatcherAction` / `AVAILABLE_ACTIONS_V0_0_5` / `DispatcherDecision` type extensions, Task 8 extends `parseDecision` for each new action variant, Task 9 flips each of the eight Plan E actions in `buildSystemPrompt` from NOT AVAILABLE to AVAILABLE and adds few-shot examples. Task 9 is the "intentional red" task — the prompt change invalidates cached dispatcher fixtures and a handful of existing scenarios go red pending Task 33's regeneration.
-- **Task 10** updates the Plan C/D dispatcher-agent unit tests that used Plan E actions as disallowed examples so the tests still exercise disallowed-action rejection after the promotion.
+- **Tasks 7–9** expand the dispatcher catalog: Task 7 adds the `DispatcherAction` / `AVAILABLE_ACTIONS_V0_0_5` / `DispatcherDecision` type extensions AND updates the disallowed-action unit test (since `answer_plan_question` is now allowed), Task 8 extends `parseDecision` for each new action variant (Tasks 7+8 are a combined commit pair), Task 9 flips each of the eight Plan E actions in `buildSystemPrompt` from NOT AVAILABLE to AVAILABLE and adds few-shot examples. Task 9 is the "intentional red" task — the prompt change invalidates cached dispatcher fixtures and a handful of existing scenarios go red pending Task 33's regeneration.
+- **Task 10** adds positive dispatcher-agent unit tests for the eight new Plan E actions (confirming `parseDecision` accepts valid responses for each).
 - **Tasks 11–17** add the eight new dispatcher runner handlers. Task 12 bundles `handleAnswerRecipeQuestionAction` + `handleAnswerDomainQuestionAction` because both answer handlers have the same shape (dispatcher-authored reply + side-conversation keyboard). That leaves seven task headers for eight handlers. Each handler is a small wrapper over the view-renderers or existing helpers, TDD-tested via unit tests in `test/unit/dispatcher-secondary-actions.test.ts`.
 - **Task 18** wires all eight handlers into the runner's decision `switch`.
 - **Task 19** upgrades `rerenderLastView` to call the real renderers — closes the last Plan C TODO and delivers proposal 003 invariant #6 for every `LastRenderedView` variant, including `recipes/library` (via `renderRecipeLibrary`).
 - **Task 20** adds the integration unit tests for the view-renderers against a `TestStateStore` seeded with a canonical plan.
-- **Tasks 21–32** add the twelve new scenarios (one per task — 047 through 058), each generated + behaviorally reviewed + committed individually, per CLAUDE.md's "regenerate in parallel, review serially" rule adapted for new authoring.
+- **Tasks 21–32** add the twelve new scenarios (one per task — 054 through 065), each generated + behaviorally reviewed + committed individually, per CLAUDE.md's "regenerate in parallel, review serially" rule adapted for new authoring.
 - **Task 33** regenerates existing scenarios that captured pre-Task-9 dispatcher fixtures.
-- **Task 34** updates `test/scenarios/index.md` with rows for 047–058.
+- **Task 34** updates `test/scenarios/index.md` with rows for 054–065.
 - **Task 35** syncs `ui-architecture.md`, `flows.md`, and proposal 003's status marker.
 - **Task 36** is the final baseline + commit chain verification.
 
-Every task ends with a commit. `npm test` stays green after every task except Task 9 (where the dispatcher prompt flips and a handful of existing scenarios go red pending Task 33's regeneration — same intentional-red pattern Plans B/C/D used).
+Every task ends with a commit. `npm test` stays green after every task except Task 9 (where the dispatcher prompt flips and a handful of existing scenarios go red pending Task 33's regeneration — same intentional-red pattern Plans B/C/D used). **Note:** Tasks 7 and 8 are a combined commit pair — Task 7 extends the types (typecheck fails until Task 8 adds the `parseDecision` cases) and also updates the disallowed-action unit test that would otherwise break when `AVAILABLE_ACTIONS_V0_0_5` is extended.
 
 ---
 
@@ -231,7 +228,7 @@ If ANY of these checks fail, **STOP** — the missing plan must land first. Do n
 
 - [ ] **Step 6: Note the current scenario range**
 
-Use the Glob tool with pattern `test/scenarios/*/spec.ts`. Record the highest `NNN-` prefix. Expected: `053` (Plan D's highest — Plan 029 adds 044 through 053, with 053 being the invariant-#5 post-confirmation clarification resume scenario from Plan 029 Task 22). Plan E uses 054–065. **Note:** Plan 029's review cycle renumbered Plan D's scenarios from the originally-planned 038–046 to 044–053 (10 scenarios, including the clarification-resume lock added during review) to avoid collision with Plan 028's shipped 037–043 range. Plan E's scenario numbers must shift accordingly — 047→054, 048→055, ..., 058→065. Update all Plan E scenario paths, index entries, commit messages, and cross-references before Task 21.
+Use the Glob tool with pattern `test/scenarios/*/spec.ts`. Record the highest `NNN-` prefix. Expected: `053` (Plan D's highest — Plan 029 adds 044 through 053, with 053 being the invariant-#5 post-confirmation clarification resume scenario from Plan 029 Task 22). Plan E uses 054–065. Scenario paths and cross-references throughout this plan already use the corrected 054–065 numbering.
 
 - [ ] **Step 7: Confirm there is no existing `src/telegram/view-renderers.ts`**
 
@@ -500,7 +497,7 @@ Append:
  * a shopping list for that day would just be the cook-day list already.
  * A user asking "what's for Friday" wants Day Detail; a user asking
  * "shopping list for Friday" wants the cook-day shopping list. Document
- * this decision in the scenario 055 behavioral review so the review
+ * this decision in the scenario 062 behavioral review so the review
  * picks up any disagreement.
  */
 export function generateShoppingListForDay(
@@ -539,7 +536,7 @@ git commit -m "Plan 030: extract buildShoppingListFromAggregated + add week/reci
 
 ### Task 3: Unit test the new shopping scope functions
 
-**Rationale:** The three new shopping generator functions are pure, deterministic, and fully unit-testable without touching the harness. Landing a unit test before the view-renderer module is created ensures the Task 4 renderer has a green pedestal to stand on.
+**Rationale:** The three new shopping generator functions are pure, deterministic, and fully unit-testable without touching the harness. Landing a unit test before the view-renderer module is created ensures the Task 5 renderer module has a green pedestal to stand on.
 
 **Files:**
 - Create: `test/unit/shopping-generator-scopes.test.ts`
@@ -829,7 +826,7 @@ Create `src/telegram/view-renderers.ts`:
  * ## Contract for every renderer
  *
  *   1. Load whatever plan / recipe / measurement data it needs.
- *   2. Call the formatter in `formatters.ts` to produce text.
+ *   2. Call the formatter (`formatters.ts` or `recipes/renderer.ts`) to produce text.
  *   3. Attach the appropriate keyboard from `keyboards.ts`.
  *   4. Call `setLastRenderedView(session, …)` (Plan 027 invariant).
  *   5. `await sink.reply(text, { reply_markup, parse_mode? })`.
@@ -861,15 +858,18 @@ import {
   formatDayDetail,
   formatShoppingList,
   formatWeeklyReport,
-  renderCookView,
-  renderRecipe,
 } from './formatters.js';
+import { renderCookView, renderRecipe } from '../recipes/renderer.js';
 import {
   buildMainMenuKeyboard,
   cookViewKeyboard,
+  recipeViewKeyboard,
+  nextActionKeyboard,
+  weekOverviewKeyboard,
+  dayDetailKeyboard,
+  buildShoppingListKeyboard,
   progressReportKeyboard,
-  shoppingListKeyboard,
-  recipeDetailKeyboard,
+  recipeListKeyboard,
 } from './keyboards.js';
 import {
   generateShoppingList,
@@ -881,6 +881,7 @@ import {
 import {
   getVisiblePlanSession,
   getPlanLifecycle,
+  getNextCookDay,
   toLocalISODate,
 } from '../plan/helpers.js';
 import { log } from '../debug/logger.js';
@@ -991,8 +992,13 @@ export async function renderNextAction(
     today,
     loaded.session.horizonStart,
   );
+  const nextCook = getNextCookDay(loaded.allBatches, today);
+  const nextCookBatchViews = nextCook
+    ? loaded.batchViews.filter(bv => bv.batch.eatingDays[0] === nextCook.date)
+    : [];
+  const lifecycle = await getPlanLifecycle(session, deps.store, today);
   setLastRenderedView(session, { surface: 'plan', view: 'next_action' });
-  await sink.reply(text, { parse_mode: 'MarkdownV2' });
+  await sink.reply(text, { reply_markup: nextActionKeyboard(nextCookBatchViews, lifecycle), parse_mode: 'MarkdownV2' });
 }
 
 /**
@@ -1020,8 +1026,15 @@ export async function renderWeekOverview(
     loaded.session.flexSlots,
     breakfastRecipe,
   );
+  // Build 7-day array from horizon for the keyboard
+  const weekDays: string[] = [];
+  const d = new Date(loaded.session.horizonStart + 'T00:00:00');
+  for (let i = 0; i < 7; i++) {
+    weekDays.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    d.setDate(d.getDate() + 1);
+  }
   setLastRenderedView(session, { surface: 'plan', view: 'week_overview' });
-  await sink.reply(text, { parse_mode: 'MarkdownV2' });
+  await sink.reply(text, { reply_markup: weekOverviewKeyboard(weekDays), parse_mode: 'MarkdownV2' });
 }
 
 /**
@@ -1056,8 +1069,9 @@ export async function renderDayDetail(
     return;
   }
   const text = formatDayDetail(day, loaded.batchViews, loaded.session.events, loaded.session.flexSlots);
+  const cookBatchViews = loaded.batchViews.filter(bv => bv.batch.eatingDays[0] === day);
   setLastRenderedView(session, { surface: 'plan', view: 'day_detail', day });
-  await sink.reply(text, { parse_mode: 'MarkdownV2' });
+  await sink.reply(text, { reply_markup: dayDetailKeyboard(day, cookBatchViews, today), parse_mode: 'MarkdownV2' });
 }
 ```
 
@@ -1095,7 +1109,7 @@ export async function renderCookViewForBatch(
   });
   session.lastRecipeSlug = batch.recipeSlug;
   await sink.reply(text, {
-    reply_markup: cookViewKeyboard,
+    reply_markup: cookViewKeyboard(batch.recipeSlug),
     parse_mode: 'MarkdownV2',
   });
 }
@@ -1144,8 +1158,11 @@ Append both `renderLibraryRecipeView` (single recipe, per-serving amounts) and `
 ```typescript
 /**
  * Render a library recipe view — per-serving amounts, no batch context.
- * Mirrors the `rv_<slug>` callback case body when the recipe isn't in
- * an active batch.
+ * Mirrors the `rv_<slug>` callback case body (`src/telegram/core.ts:477`).
+ *
+ * Includes the `findBySlugPrefix` fallback for truncated callback-data
+ * slugs (Telegram's 64-byte callback limit). Uses the resolved canonical
+ * `recipe.slug` for state, not the raw input slug.
  */
 export async function renderLibraryRecipeView(
   session: RenderSession,
@@ -1153,16 +1170,22 @@ export async function renderLibraryRecipeView(
   sink: ViewOutputSink,
   slug: string,
 ): Promise<void> {
-  const recipe = deps.recipes.getBySlug(slug);
+  const recipe =
+    deps.recipes.getBySlug(slug) ??
+    deps.recipes.getAll().find((r) => r.slug.startsWith(slug));
   if (!recipe) {
-    await sink.reply(`I couldn't find a recipe called "${slug}".`);
+    const today = toLocalISODate(new Date());
+    const lifecycle = await getPlanLifecycle(session, deps.store, today);
+    await sink.reply('Recipe not found.', {
+      reply_markup: buildMainMenuKeyboard(lifecycle),
+    });
     return;
   }
   const text = renderRecipe(recipe);
-  setLastRenderedView(session, { surface: 'recipes', view: 'recipe_detail', slug });
-  session.lastRecipeSlug = slug;
+  setLastRenderedView(session, { surface: 'recipes', view: 'recipe_detail', slug: recipe.slug });
+  session.lastRecipeSlug = recipe.slug;
   await sink.reply(text, {
-    reply_markup: recipeDetailKeyboard(slug),
+    reply_markup: recipeViewKeyboard(slug),
     parse_mode: 'MarkdownV2',
   });
 }
@@ -1189,10 +1212,9 @@ export async function renderRecipeLibrary(
 
   let cookingSoonBatchViews: BatchView[] | undefined;
   if (lifecycle.startsWith('active_') || lifecycle === 'upcoming') {
-    const planSession = await getVisiblePlanSession(deps.store, today);
-    if (planSession) {
-      const { batchViews } = await loadPlanBatches(planSession, deps.recipes);
-      cookingSoonBatchViews = batchViews
+    const loaded = await loadVisiblePlanAndBatches(deps, today);
+    if (loaded) {
+      cookingSoonBatchViews = loaded.batchViews
         .filter((bv) => bv.batch.eatingDays.length > 0 && bv.batch.eatingDays[0]! >= today)
         .sort((a, b) => a.batch.eatingDays[0]!.localeCompare(b.batch.eatingDays[0]!));
     }
@@ -1210,7 +1232,7 @@ export async function renderRecipeLibrary(
 }
 ```
 
-**Import additions for this step:** `renderRecipeLibrary` needs `BatchView` type, `getVisiblePlanSession`, and `loadPlanBatches` — all imported from `../plan/helpers.js` (already imported in Task 5 Step 2's module header), plus `recipeListKeyboard` from `./keyboards.js`. Add any missing imports to the module header.
+**Import additions for this step:** `renderRecipeLibrary` needs `BatchView` type (already imported in Task 5 Step 2) and `recipeListKeyboard` from `./keyboards.js` (already imported in the corrected module header). It uses the module-local `loadVisiblePlanAndBatches` helper instead of `core.ts`'s closure-scoped `loadPlanBatches`. No new imports needed.
 
 - [ ] **Step 6: Append the shopping-list dispatcher**
 
@@ -1248,9 +1270,16 @@ export async function renderShoppingListForScope(
         targetDate: scope.targetDate,
         remainingDays: scope.remainingDays,
       });
-      const text = formatShoppingList(list, scope.targetDate, `Cook ${scope.targetDate}`);
+      // Build recipe-based scope text matching the live sl_next handler
+      const cookBatchesForDay = loaded.allBatches.filter(b => b.eatingDays[0] === scope.targetDate);
+      const scopeParts = cookBatchesForDay.map(b => {
+        const recipe = deps.recipes.getBySlug(b.recipeSlug);
+        return `${recipe?.name ?? b.recipeSlug} (${b.servings} servings)`;
+      });
+      if (breakfastRecipe) scopeParts.push('Breakfast');
+      const text = formatShoppingList(list, scope.targetDate, scopeParts.join(' + '));
       setLastRenderedView(session, { surface: 'shopping', view: 'next_cook' });
-      await sink.reply(text, { reply_markup: shoppingListKeyboard, parse_mode: 'MarkdownV2' });
+      await sink.reply(text, { reply_markup: buildShoppingListKeyboard(), parse_mode: 'MarkdownV2' });
       return;
     }
     case 'full_week': {
@@ -1264,7 +1293,7 @@ export async function renderShoppingListForScope(
         `Full week ${scope.horizonStart} — ${scope.horizonEnd}`,
       );
       setLastRenderedView(session, { surface: 'shopping', view: 'full_week' });
-      await sink.reply(text, { reply_markup: shoppingListKeyboard, parse_mode: 'MarkdownV2' });
+      await sink.reply(text, { reply_markup: buildShoppingListKeyboard(), parse_mode: 'MarkdownV2' });
       return;
     }
     case 'recipe': {
@@ -1279,7 +1308,7 @@ export async function renderShoppingListForScope(
         view: 'recipe',
         recipeSlug: scope.recipeSlug,
       });
-      await sink.reply(text, { reply_markup: shoppingListKeyboard, parse_mode: 'MarkdownV2' });
+      await sink.reply(text, { reply_markup: buildShoppingListKeyboard(), parse_mode: 'MarkdownV2' });
       return;
     }
     case 'day': {
@@ -1289,7 +1318,7 @@ export async function renderShoppingListForScope(
       });
       const text = formatShoppingList(list, scope.day, `Day ${scope.day}`);
       setLastRenderedView(session, { surface: 'shopping', view: 'day', day: scope.day });
-      await sink.reply(text, { reply_markup: shoppingListKeyboard, parse_mode: 'MarkdownV2' });
+      await sink.reply(text, { reply_markup: buildShoppingListKeyboard(), parse_mode: 'MarkdownV2' });
       return;
     }
   }
@@ -1330,7 +1359,7 @@ export async function renderProgressView(
     }
     const report = formatWeeklyReport(lastWeek, prevWeek, lastWeekStart, lastWeekEnd);
     setLastRenderedView(session, { surface: 'progress', view: 'weekly_report' });
-    await sink.reply(report, { parse_mode: 'MarkdownV2' });
+    await sink.reply(report, { parse_mode: 'Markdown' });
     return;
   }
 
@@ -1340,7 +1369,7 @@ export async function renderProgressView(
     const { lastWeekStart, lastWeekEnd } = getWeekBoundariesForReport(today);
     const lastWeek = await deps.store.getMeasurements('default', lastWeekStart, lastWeekEnd);
     const hasCompletedWeekReport = lastWeek.length > 0;
-    setLastRenderedView(session, { surface: 'progress', view: 'log_prompt' });
+    setLastRenderedView(session, { surface: 'progress', view: 'weekly_report' });
     if (hasCompletedWeekReport) {
       await sink.reply('Already logged today ✓', { reply_markup: progressReportKeyboard });
     } else {
@@ -1493,7 +1522,7 @@ The renderer sets `session.lastRecipeSlug` itself, so the previous inline `sessi
 
 - [ ] **Step 6: Refactor `rv_<slug>`**
 
-Find `if (action.startsWith('rv_'))`. The current body distinguishes library view from cook view based on whether the slug is in the active plan. The refactor keeps the same logic but delegates the actual rendering. Replace body:
+Find `if (action.startsWith('rv_'))`. The current body (`src/telegram/core.ts:477`) is a straight library-recipe render: it resolves the recipe via `getBySlug` / `findBySlugPrefix`, sets `lastRecipeSlug` and `lastRenderedView`, and replies with `renderRecipe(recipe)` + `recipeViewKeyboard`. There is no active-plan cook-view branch — this callback always renders the library view. Replace body:
 
 ```typescript
     if (action.startsWith('rv_')) {
@@ -1504,7 +1533,7 @@ Find `if (action.startsWith('rv_'))`. The current body distinguishes library vie
     }
 ```
 
-**Note:** The old `rv_<slug>` callback may have had logic that switched between library view and cook view based on whether the slug was in the plan. Re-read the existing body and preserve that logic OUTSIDE the renderer if it's there — `renderLibraryRecipeView` always renders the library view. If the existing logic prefers a cook view when the slug is in the plan, leave the existing inline body alone for `rv_<slug>` and only delegate the library-view fallback. Document the decision in the commit message.
+`renderLibraryRecipeView` handles slug resolution (including `findBySlugPrefix` fallback), `lastRecipeSlug`, `lastRenderedView`, and the reply — a direct 1:1 replacement of the inline body.
 
 - [ ] **Step 7: Refactor `sl_<param>`**
 
@@ -1524,13 +1553,14 @@ Find `if (action.startsWith('sl_'))`. The current body parses `sl_next` or `sl_<
         return;
       }
 
+      // Load deduped own + overlap batches — same as the live handler.
+      const { allBatches } = await loadPlanBatches(visible, recipes);
+      const plannedBatches = allBatches.filter(b => b.status === 'planned');
+
       // Build the scope from the callback param.
       let scope: ShoppingScope;
       if (param === 'next') {
-        const next = getNextCookDay(
-          await store.getBatchesByPlanSessionId(visible.id),
-          today,
-        );
+        const next = getNextCookDay(plannedBatches, today);
         const targetDate = next?.date ?? today;
         const remainingDays = Math.max(
           0,
@@ -1623,10 +1653,11 @@ git commit -m "Plan 030: refactor core.ts callback handlers to delegate to view-
 
 ### Task 7: Expand the dispatcher catalog — types
 
-**Rationale:** Plan E adds eight new actions to the dispatcher. The first step is purely type-level: extend `DispatcherAction`, `AVAILABLE_ACTIONS_V0_0_5`, and `DispatcherDecision` so the parser and the prompt have something to refer to. No prompt changes yet.
+**Rationale:** Plan E adds eight new actions to the dispatcher. The first step is purely type-level: extend `DispatcherAction`, `AVAILABLE_ACTIONS_V0_0_5`, and `DispatcherDecision` so the parser and the prompt have something to refer to. No prompt changes yet. **This task also updates the disallowed-action unit test** because the test uses `answer_plan_question` as its disallowed example, and extending `AVAILABLE_ACTIONS_V0_0_5` immediately breaks it.
 
 **Files:**
 - Modify: `src/agents/dispatcher.ts`
+- Modify: `test/unit/dispatcher-agent.test.ts`
 
 - [ ] **Step 1: Extend `DispatcherAction`**
 
@@ -1746,7 +1777,32 @@ Append to the existing `DispatcherDecision` union (after the `mutate_plan` varia
 
 **Note on `log_measurement` params:** The dispatcher can extract numeric values from the user's text ("82.3 today" → `{ weight: 82.3 }`, "82.3 / 91" → `{ weight: 82.3, waist: 91 }`). The handler validates and falls through to disambiguation if both numbers could be interpreted as either. The same numeric pre-filter Plan C added still runs FIRST when `progressFlow.phase === 'awaiting_measurement'` — `log_measurement` is ONLY reached for cross-surface logging.
 
-- [ ] **Step 4: Typecheck**
+- [ ] **Step 4: Update the disallowed-action unit test**
+
+The live test at `test/unit/dispatcher-agent.test.ts:152` (`'dispatchMessage: first-pass disallowed action → retries and succeeds'`) uses `answer_plan_question` as the disallowed example, and `baseContext()` references `AVAILABLE_ACTIONS_V0_0_5`. Since Step 2 just added `answer_plan_question` to that set, the test would now pass for the wrong reason (the parser accepts it on first pass, no retry). Update it NOW — before Task 8 — to use a still-deferred action:
+
+```typescript
+test('dispatchMessage: first-pass disallowed action → retries and succeeds', async () => {
+  const llm = stubLLM([
+    JSON.stringify({
+      action: 'log_eating_out',
+      params: { description: 'Indian restaurant', meal_time: 'dinner', day: 'today' },
+      response: null,
+      reasoning: 'User described eating out — would route to log_eating_out if available.',
+    }),
+    JSON.stringify({
+      action: 'mutate_plan',
+      params: { request: 'I went out for Indian for dinner' },
+      response: null,
+      reasoning: 'Honest fallback after disallowed-action retry — Plan D handles eating-out via mutate_plan.',
+    }),
+  ]);
+  const decision = await dispatchMessage(baseContext({ lifecycle: 'active_mid' }), 'I went out for Indian for dinner', llm);
+  assert.equal(decision.action, 'mutate_plan');
+});
+```
+
+- [ ] **Step 5: Typecheck**
 
 Run: `npx tsc --noEmit`
 Expected: errors in `parseDecision` (every new action variant is unhandled in the switch). Task 8 fixes them.
@@ -1957,13 +2013,15 @@ Expected: no errors.
 - [ ] **Step 4: Run tests**
 
 Run: `npm test`
-Expected: PASS — the parser is more permissive (more actions allowed) but no existing scenario fixtures use the new actions yet, so no test fires the new code paths. Plan C's dispatcher-agent unit test that uses `mutate_plan` as an example continues to work; Plan D updated the disallowed-action test to use `answer_plan_question`. **Plan E will need to update Plan D's "first-pass disallowed action" test in Task 9 because `answer_plan_question` is now ALLOWED.**
+Expected: PASS — the parser is more permissive (more actions allowed) but no existing scenario fixtures use the new actions yet, so no test fires the new code paths. The disallowed-action test was already updated in Task 7 Step 4 to use `log_eating_out` instead of the now-allowed `answer_plan_question`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/agents/dispatcher.ts
-git commit -m "Plan 030: extend dispatcher catalog with 8 new action types + parseDecision cases"
+git add src/agents/dispatcher.ts test/unit/dispatcher-agent.test.ts
+git commit -m "Plan 030: extend dispatcher catalog with 8 new action types + parseDecision cases
+
+Also updates the disallowed-action unit test to use log_eating_out (answer_plan_question is now AVAILABLE)."
 ```
 
 ---
@@ -2135,48 +2193,14 @@ Existing dispatcher-fixture scenarios go red until Task 33 regenerates them."
 
 ---
 
-### Task 10: Update the dispatcher-agent unit tests for promoted actions
+### Task 10: Add dispatcher-agent unit tests for the eight new Plan E actions
 
-**Rationale:** Plan D Task 3 wrote a test `'dispatchMessage: first-pass disallowed action → retries and succeeds'` that used `answer_plan_question` as the disallowed example. Plan E promotes `answer_plan_question` to AVAILABLE, so that test would now pass for the wrong reason (the parser accepts it on first pass, no retry). Plan E updates the test to use a still-disallowed action.
+**Rationale:** Task 7 already updated the disallowed-action test (swapped `answer_plan_question` → `log_eating_out`). This task adds positive tests that confirm `parseDecision` accepts valid responses for each of the eight new actions.
 
 **Files:**
 - Modify: `test/unit/dispatcher-agent.test.ts`
 
-- [ ] **Step 1: Read the existing disallowed-action test**
-
-Use Grep on `test/unit/dispatcher-agent.test.ts` for `first-pass disallowed action`. Read the surrounding 30 lines.
-
-- [ ] **Step 2: Update the disallowed example to use a deferred action**
-
-Replace the test body so the first LLM response picks `'log_eating_out'` (deferred — listed in the dispatcher prompt as DEFERRED, never in `AVAILABLE_ACTIONS_V0_0_5`):
-
-```typescript
-test('dispatchMessage: first-pass disallowed action → retries and succeeds', async () => {
-  const llm = stubLLM([
-    JSON.stringify({
-      action: 'log_eating_out',
-      params: { description: 'Indian restaurant', meal_time: 'dinner', day: 'today' },
-      response: null,
-      reasoning: 'User described eating out — would route to log_eating_out if available.',
-    }),
-    JSON.stringify({
-      action: 'mutate_plan',
-      params: { request: 'I went out for Indian for dinner' },
-      response: null,
-      reasoning: 'Honest fallback after disallowed-action retry — Plan D handles eating-out via mutate_plan.',
-    }),
-  ]);
-  const decision = await dispatchMessage(baseContext({ lifecycle: 'active_mid' }), 'I went out for Indian for dinner', llm);
-  assert.equal(decision.action, 'mutate_plan');
-});
-```
-
-- [ ] **Step 3: Run the existing test**
-
-Run: `npm test -- --test-name-pattern="disallowed action"`
-Expected: PASS.
-
-- [ ] **Step 4: Add new tests for the eight Plan E actions**
+- [ ] **Step 1: Add new tests for the eight Plan E actions**
 
 Append to `test/unit/dispatcher-agent.test.ts` one test per new action that confirms `parseDecision` accepts a valid response:
 
@@ -2413,7 +2437,7 @@ function fakeDeps(): DispatcherRunnerDeps {
   };
 }
 
-test('handleAnswerPlanQuestionAction: sends decision.response and pushes bot turn', async () => {
+test('handleAnswerPlanQuestionAction: sends decision.response with side-conversation keyboard', async () => {
   const session = emptySession();
   const { sink, replies } = recordingSink();
   const decision: Extract<DispatcherDecision, { action: 'answer_plan_question' }> = {
@@ -2425,8 +2449,10 @@ test('handleAnswerPlanQuestionAction: sends decision.response and pushes bot tur
   await handleAnswerPlanQuestionAction(decision, fakeDeps(), session, sink);
   assert.equal(replies.length, 1);
   assert.equal(replies[0]!.text, 'Thursday — Greek lemon chicken.');
-  // Bot turn was pushed for recent-turns context.
-  assert.equal((session as { recentTurns?: unknown[] }).recentTurns?.length, 1);
+  // Bot-turn capture is NOT this handler's job — it's done by
+  // wrapSinkForBotTurnCapture / flushBotTurn in runDispatcherFrontDoor.
+  // The handler must NOT call pushTurn (see handleClarifyAction for precedent).
+  assert.ok(replies[0]!.options?.reply_markup, 'should include side-conversation keyboard');
 });
 ```
 
@@ -2453,8 +2479,9 @@ export async function handleAnswerPlanQuestionAction(
   sink: DispatcherOutputSink,
 ): Promise<void> {
   const kb = await buildSideConversationKeyboard(session, deps.store);
+  // Bot-turn capture is handled by wrapSinkForBotTurnCapture / flushBotTurn
+  // in runDispatcherFrontDoor — do NOT call pushTurn here (it would duplicate).
   await sink.reply(decision.response, { reply_markup: kb });
-  pushTurn(session, 'bot', decision.response);
 }
 ```
 
@@ -2527,8 +2554,8 @@ export async function handleAnswerRecipeQuestionAction(
 ): Promise<void> {
   log.debug('DISPATCHER', `answer_recipe_question for slug=${decision.params.recipe_slug ?? '(none)'}`);
   const kb = await buildSideConversationKeyboard(session, deps.store);
+  // Bot-turn capture handled by wrapSinkForBotTurnCapture — no pushTurn here.
   await sink.reply(decision.response, { reply_markup: kb });
-  pushTurn(session, 'bot', decision.response);
 }
 
 /**
@@ -2541,8 +2568,8 @@ export async function handleAnswerDomainQuestionAction(
   sink: DispatcherOutputSink,
 ): Promise<void> {
   const kb = await buildSideConversationKeyboard(session, deps.store);
+  // Bot-turn capture handled by wrapSinkForBotTurnCapture — no pushTurn here.
   await sink.reply(decision.response, { reply_markup: kb });
-  pushTurn(session, 'bot', decision.response);
 }
 ```
 
@@ -2566,7 +2593,7 @@ Append to `test/unit/dispatcher-secondary-actions.test.ts`:
 test('handleShowRecipeAction: delegates to renderCookViewForSlug; falls back to library', async () => {
   // This test exercises the integration with view-renderers via a mock
   // that records which renderer was called. Real rendering is tested in
-  // the view-renderers unit tests (Task 20) and scenarios 050–052.
+  // the view-renderers unit tests (Task 20) and scenarios 057–059.
   // Here we just verify the action handler routes correctly.
   // Implementation: use a deps.store stub that returns null for plan
   // session → 'not_in_plan' → handler falls back to library view.
@@ -2902,67 +2929,72 @@ git commit -m "Plan 030: handleShowProgressAction delegates to renderProgressVie
 
 ### Task 17: `handleLogMeasurementAction`
 
-**Rationale:** This handler is the only Plan E delegation handler that touches state directly (via the measurement store). It must use the **exact same** code path as the existing `awaiting_measurement` text handler in `core.ts` so the persistence and confirmation behavior is identical. The cleanest way to share the path is to extract a `renderMeasurementConfirmation(session, deps, sink, parsed)` helper from `core.ts` that both call sites use.
+**Rationale:** This handler is the only Plan E delegation handler that touches state directly (via the measurement store). It must use the **exact same** code path as the existing `awaiting_measurement` numeric pre-filter. **Important:** Plan 028 Task 6/8 already moved the measurement fast path from `core.ts`'s `routeTextToActiveFlow` into `tryNumericPreFilter` in `dispatcher-runner.ts` (`src/telegram/dispatcher-runner.ts:361`). The `core.ts` `routeTextToActiveFlow` now only handles the `confirming_disambiguation` fallthrough (`src/telegram/core.ts:1264`). The shared helper must be extracted from `tryNumericPreFilter` in `dispatcher-runner.ts`, NOT from `core.ts`.
 
 **Files:**
-- Modify: `src/telegram/core.ts` (extract helper)
-- Modify: `src/telegram/dispatcher-runner.ts` (handler)
+- Modify: `src/telegram/dispatcher-runner.ts` (extract helper + handler)
 - Modify: `test/unit/dispatcher-secondary-actions.test.ts`
 
-- [ ] **Step 1: Extract `renderMeasurementConfirmation` from `core.ts`**
+- [ ] **Step 1: Extract `renderMeasurementConfirmation` from `tryNumericPreFilter`**
 
-In `src/telegram/core.ts`, find the `awaiting_measurement` block in `routeTextToActiveFlow` (Grep for `parseMeasurementInput` — multiple hits, find the one inside the awaiting_measurement branch). The current body roughly:
-
-```typescript
-const parsed = parseMeasurementInput(text);
-if (!parsed) { /* "I didn't catch that — try '82.3'." */ return; }
-if (parsed.values.length === 1) {
-  // Single number → treat as weight, persist, confirm.
-}
-if (parsed.values.length === 2) {
-  // Two numbers → assignWeightWaist + maybe disambiguate.
-}
-```
-
-Extract this into a new exported helper:
+In `src/telegram/dispatcher-runner.ts`, find `tryNumericPreFilter` (line ~361). The current body handles: parse → single number → persist → confirm; parse → two numbers → assignWeightWaist → persist OR disambiguate. Extract the post-parse logic into a new exported helper:
 
 ```typescript
 /**
- * Plan 030: Shared measurement confirmation path. Called by both the
- * `awaiting_measurement` text branch in `routeTextToActiveFlow` and the
+ * Plan 030: Shared measurement confirmation path. Called by both
+ * `tryNumericPreFilter` (in-flow awaiting_measurement) and the
  * dispatcher's cross-surface `handleLogMeasurementAction`. Encapsulates
- * parse → persist → confirm OR parse → disambiguate decisions.
+ * persist → confirm OR disambiguate decisions.
+ *
+ * Note: The measurement pipeline was moved from core.ts to
+ * dispatcher-runner.ts in Plan 028 Task 6/8. This helper is extracted
+ * from `tryNumericPreFilter` to share with the cross-surface handler.
  */
 export async function renderMeasurementConfirmation(
-  session: BotCoreSession,
-  deps: BotCoreDeps,
-  sink: OutputSink,
+  session: DispatcherSession,
+  store: StateStoreLike,
+  sink: DispatcherOutputSink,
   parsed: { values: number[] },
 ): Promise<void> {
   const today = toLocalISODate(new Date());
   // Single value → weight only.
   if (parsed.values.length === 1) {
     const weight = parsed.values[0]!;
-    await deps.store.logMeasurement('default', { date: today, weightKg: weight });
-    let confirmText = formatMeasurementConfirmation(weight, null);
+    const isFirst = (await store.getLatestMeasurement('default')) === null;
+    await store.logMeasurement('default', today, weight, null);
     session.progressFlow = null;
-    await sink.reply(confirmText);
+    let confirmText = formatMeasurementConfirmation(weight, null);
+    if (isFirst) {
+      confirmText +=
+        "\n\nWe track weekly averages, not daily -- so don't worry about day-to-day swings. Come back tomorrow -- we'll start tracking your trend.";
+    }
+    const reportKb = await getProgressReportKeyboardIfAvailable(store, today);
+    if (reportKb) {
+      await sink.reply(confirmText, { reply_markup: reportKb });
+    } else {
+      await sink.reply(confirmText);
+    }
     return;
   }
   // Two values → ambiguity check.
-  const lastMeasurement = await deps.store.getLatestMeasurement('default');
-  const a = parsed.values[0]!;
-  const b = parsed.values[1]!;
+  const [a, b] = parsed.values as [number, number];
+  const lastMeasurement = await store.getLatestMeasurement('default');
   const assignment = assignWeightWaist(a, b, lastMeasurement);
   if (!assignment.ambiguous) {
-    await deps.store.logMeasurement('default', {
-      date: today,
-      weightKg: assignment.weight,
-      waistCm: assignment.waist,
-    });
-    const confirmText = formatMeasurementConfirmation(assignment.weight, assignment.waist);
+    const isFirst = lastMeasurement === null;
+    await store.logMeasurement('default', today, assignment.weight, assignment.waist);
     session.progressFlow = null;
-    await sink.reply(confirmText);
+    let confirmText = formatMeasurementConfirmation(assignment.weight, assignment.waist);
+    if (isFirst) {
+      confirmText +=
+        "\n\nWe track weekly averages, not daily -- so don't worry about day-to-day swings. Come back tomorrow -- we'll start tracking your trend.";
+    }
+    const reportKb = await getProgressReportKeyboardIfAvailable(store, today);
+    if (reportKb) {
+      await sink.reply(confirmText, { reply_markup: reportKb });
+    } else {
+      await sink.reply(confirmText);
+    }
     return;
   }
   // Ambiguous — enter confirming_disambiguation phase.
@@ -2978,21 +3010,30 @@ export async function renderMeasurementConfirmation(
 }
 ```
 
-Replace the inline body in `routeTextToActiveFlow`'s `awaiting_measurement` branch with:
+Then refactor `tryNumericPreFilter` to delegate to this helper after the guard checks:
 
 ```typescript
-        const parsed = parseMeasurementInput(text);
-        if (!parsed) {
-          await sink.reply("I didn't catch that — try '82.3' or '82.3 / 91'.");
-          return;
-        }
-        await renderMeasurementConfirmation(session, { llm, recipes, store }, sink, parsed);
-        return;
+export async function tryNumericPreFilter(
+  text: string,
+  session: DispatcherSession,
+  store: StateStoreLike,
+  sink: DispatcherOutputSink,
+): Promise<boolean> {
+  if (!session.progressFlow || session.progressFlow.phase !== 'awaiting_measurement') {
+    return false;
+  }
+  const parsed = parseMeasurementInput(text);
+  if (!parsed) {
+    return false;
+  }
+  await renderMeasurementConfirmation(session, store, sink, parsed);
+  return true;
+}
 ```
 
 - [ ] **Step 2: Add the dispatcher handler**
 
-In `src/telegram/dispatcher-runner.ts`:
+In `src/telegram/dispatcher-runner.ts` (same file — no cross-module import needed):
 
 ```typescript
 /**
@@ -3008,7 +3049,6 @@ export async function handleLogMeasurementAction(
   session: DispatcherSession,
   sink: DispatcherOutputSink,
 ): Promise<void> {
-  const { renderMeasurementConfirmation } = await import('./core.js');
   // Build the same parsed shape parseMeasurementInput would produce.
   const values: number[] = [];
   if (decision.params.weight !== undefined) values.push(decision.params.weight);
@@ -3017,13 +3057,10 @@ export async function handleLogMeasurementAction(
     await sink.reply("I didn't catch a number. Try '82.3' or '82.3 / 91'.");
     return;
   }
-  await renderMeasurementConfirmation(session as never, deps as never, sink as never, { values });
+  await renderMeasurementConfirmation(session, deps.store, sink, { values });
 }
 ```
 
-**Note on the `core.ts` import:** This is the ONE place Plan E's runner touches `core.ts`. The import is inside an `async import` so it doesn't trigger a top-level circular dependency. The structural cast `session as never` is acceptable here because `BotCoreSession` and `DispatcherSession` overlap structurally on every field `renderMeasurementConfirmation` reads.
-
-If circular-import warnings appear at runtime, fall back to extracting `renderMeasurementConfirmation` into a NEW leaf module `src/telegram/measurement-renderer.ts` and have both `core.ts` and `dispatcher-runner.ts` import from there. Document this fallback in the commit message.
 
 - [ ] **Step 3: Add unit test**
 
@@ -3031,15 +3068,16 @@ If circular-import warnings appear at runtime, fall back to extracting `renderMe
 test('handleLogMeasurementAction: weight only delegates to renderMeasurementConfirmation', async () => {
   const session = emptySession();
   const { sink, replies } = recordingSink();
-  let logged: { date: string; weightKg: number; waistCm?: number } | null = null;
+  let logged: { userId: string; date: string; weightKg: number; waistCm: number | null } | null = null;
   const deps: DispatcherRunnerDeps = {
     llm: fakeDeps().llm,
     recipes: { getAll: () => [], getBySlug: () => undefined } as never,
     store: {
-      async logMeasurement(_userId: string, m: { date: string; weightKg: number; waistCm?: number }) {
-        logged = m;
+      async logMeasurement(userId: string, date: string, weightKg: number, waistCm: number | null) {
+        logged = { userId, date, weightKg, waistCm };
       },
       async getLatestMeasurement() { return null; },
+      async getMeasurements() { return []; },
     } as never,
   };
   const decision: Extract<DispatcherDecision, { action: 'log_measurement' }> = {
@@ -3050,6 +3088,7 @@ test('handleLogMeasurementAction: weight only delegates to renderMeasurementConf
   await handleLogMeasurementAction(decision, deps, session, sink);
   assert.ok(logged, 'logMeasurement should be called');
   assert.equal(logged!.weightKg, 82.3);
+  assert.equal(logged!.waistCm, null);
 });
 ```
 
@@ -3057,8 +3096,8 @@ test('handleLogMeasurementAction: weight only delegates to renderMeasurementConf
 
 ```bash
 npm test -- --test-name-pattern="handleLogMeasurementAction"
-git add src/telegram/dispatcher-runner.ts src/telegram/core.ts test/unit/dispatcher-secondary-actions.test.ts
-git commit -m "Plan 030: handleLogMeasurementAction + extract renderMeasurementConfirmation helper"
+git add src/telegram/dispatcher-runner.ts test/unit/dispatcher-secondary-actions.test.ts
+git commit -m "Plan 030: handleLogMeasurementAction + extract renderMeasurementConfirmation from tryNumericPreFilter"
 ```
 
 ---
@@ -3159,6 +3198,12 @@ async function rerenderLastView(
     renderProgressView,
   } = await import('./view-renderers.js');
 
+  // Restore surfaceContext to match what the callback handlers set in
+  // Task 6 before delegating. Without this, surfaceContext would remain
+  // stale after a natural-language return_to_flow, breaking parity with
+  // the callback path.
+  session.surfaceContext = view.surface;
+
   switch (view.surface) {
     case 'plan':
       switch (view.view) {
@@ -3192,37 +3237,58 @@ async function rerenderLastView(
       }
       return;
     case 'shopping': {
-      // Reconstruct ShoppingScope from the variant. Need to compute
-      // remainingDays / horizon dates from the visible plan; Plan 030 uses
-      // sane defaults if no plan is visible (the renderer falls through to
-      // the no-plan branch).
-      const { toLocalISODate, getVisiblePlanSession } = await import('../plan/helpers.js');
+      // Reconstruct ShoppingScope from the variant. Mirrors the scope
+      // construction in Task 6 Step 7's sl_<param> refactor: next_cook
+      // uses getNextCookDay to find the real target date, and remainingDays
+      // is computed from the actual target/requested date, not from today.
+      const { toLocalISODate, getVisiblePlanSession, getNextCookDay } = await import('../plan/helpers.js');
       const today = toLocalISODate(new Date());
       const visible = await getVisiblePlanSession(deps.store, today);
       const horizonEnd = visible?.horizonEnd ?? today;
       const horizonStart = visible?.horizonStart ?? today;
-      const remainingDays = Math.max(
-        1,
-        Math.round(
-          (new Date(horizonEnd + 'T00:00:00Z').getTime() -
-            new Date(today + 'T00:00:00Z').getTime()) /
-            86_400_000,
-        ) + 1,
-      );
+
+      /** Compute remaining plan days from a given date to horizon end. */
+      const computeRemainingDays = (fromDate: string): number =>
+        Math.max(
+          1,
+          Math.round(
+            (new Date(horizonEnd + 'T00:00:00Z').getTime() -
+              new Date(fromDate + 'T00:00:00Z').getTime()) /
+              86_400_000,
+          ) + 1,
+        );
 
       switch (view.view) {
-        case 'next_cook':
+        case 'next_cook': {
+          // Must resolve the actual next cook day, not just use today.
+          // Mirrors the sl_next callback path in Task 6 Step 7.
+          let targetDate = today;
+          if (visible) {
+            const ownBatches = await deps.store.getBatchesByPlanSessionId(visible.id);
+            const overlapBatches = await deps.store.getBatchesOverlapping({
+              horizonStart: visible.horizonStart,
+              horizonEnd: visible.horizonEnd,
+              statuses: ['planned'],
+            });
+            const seen = new Set<string>();
+            const allBatches = [...ownBatches, ...overlapBatches]
+              .filter((b) => (seen.has(b.id) ? false : (seen.add(b.id), true)))
+              .filter((b) => b.status === 'planned');
+            const nextCook = getNextCookDay(allBatches, today);
+            if (nextCook) targetDate = nextCook.date;
+          }
           await renderShoppingListForScope(session as never, deps, sink, {
             kind: 'next_cook',
-            targetDate: today,
-            remainingDays,
+            targetDate,
+            remainingDays: computeRemainingDays(targetDate),
           });
           return;
+        }
         case 'day':
           await renderShoppingListForScope(session as never, deps, sink, {
             kind: 'day',
             day: view.day,
-            remainingDays,
+            remainingDays: computeRemainingDays(view.day),
           });
           return;
         case 'full_week':
@@ -3346,7 +3412,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 21: Scenario 047 — `answer_plan_question`
+### Task 21: Scenario 054 — `answer_plan_question`
 
 **Goal:** User on the menu types "When's my next cook day?". Dispatcher picks `answer_plan_question`, replies with the answer derived from the plan summary in context, planFlow stays `null`, surfaceContext stays `'plan'`.
 
@@ -3370,21 +3436,21 @@ The next twelve tasks each add one scenario.
 - The answer text must NOT invent dates or recipes — every claim must be derivable from the seeded plan.
 
 **Steps:**
-- [ ] Author `test/scenarios/047-answer-plan-question/spec.ts`.
-- [ ] Run `npm run test:generate -- 047-answer-plan-question --yes` and wait for completion.
+- [ ] Author `test/scenarios/054-answer-plan-question/spec.ts`.
+- [ ] Run `npm run test:generate -- 054-answer-plan-question --yes` and wait for completion.
 - [ ] Behavioral review per the assertions above. If the dispatcher fabricated a date or invented a recipe name, the no-fabrication rule failed — fix the prompt (Task 9) and regenerate.
-- [ ] `git add test/scenarios/047-answer-plan-question/`
-- [ ] `git commit -m "Plan 030: scenario 047 — dispatcher picks answer_plan_question"`
+- [ ] `git add test/scenarios/054-answer-plan-question/`
+- [ ] `git commit -m "Plan 030: scenario 054 — dispatcher picks answer_plan_question"`
 
 ---
 
-### Task 22: Scenario 048 — `answer_recipe_question`
+### Task 22: Scenario 055 — `answer_recipe_question`
 
 **Goal:** User on a tagine cook view types "Can I freeze this?". Dispatcher picks `answer_recipe_question` with `recipe_slug: 'tagine'`, replies using the recipe index data.
 
 **Setup:**
 - Clock: `2026-04-07T18:00:00` (Tuesday evening — tagine cook day).
-- Seed: same plan as scenario 047.
+- Seed: same plan as scenario 054.
 - The tagine recipe in the recipe DB has `freezable: true` and a non-empty `reheat` instruction.
 
 **Script:**
@@ -3411,7 +3477,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 23: Scenario 049 — `answer_domain_question`
+### Task 23: Scenario 056 — `answer_domain_question`
 
 **Goal:** User types "What's a substitute for tahini?". Dispatcher picks `answer_domain_question`, replies with a generic substitute suggestion.
 
@@ -3435,7 +3501,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 24: Scenario 050 — `show_recipe` for a recipe in the active plan
+### Task 24: Scenario 057 — `show_recipe` for a recipe in the active plan
 
 **Goal:** User on the menu types "show me the calamari pasta", calamari pasta is in one active batch. Dispatcher picks `show_recipe`, handler renders the cook view.
 
@@ -3460,7 +3526,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 25: Scenario 051 — `show_recipe` for a library-only recipe
+### Task 25: Scenario 058 — `show_recipe` for a library-only recipe
 
 **Goal:** User types "show me the lasagna", lasagna is in the library but not in any active batch. Dispatcher picks `show_recipe`, handler renders the library view.
 
@@ -3486,7 +3552,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 26: Scenario 052 — `show_recipe` multi-batch tie-break
+### Task 26: Scenario 059 — `show_recipe` multi-batch tie-break
 
 **Goal:** User types "show me the grain bowl", grain-bowl is in TWO active batches (early batch Mon–Wed, late batch Fri–Sun). Handler picks the soonest cook day (Mon).
 
@@ -3511,7 +3577,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 27: Scenario 053 — `show_plan` day_detail via natural-language day name
+### Task 27: Scenario 060 — `show_plan` day_detail via natural-language day name
 
 **Goal:** User types "what's Thursday looking like?". Dispatcher resolves "Thursday" to the next Thursday's ISO date and picks `show_plan({ screen: 'day_detail', day: <iso> })`.
 
@@ -3534,7 +3600,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 28: Scenario 054 — `show_shopping_list` scope=recipe
+### Task 28: Scenario 061 — `show_shopping_list` scope=recipe
 
 **Goal:** User types "shopping list for the tagine". Dispatcher picks `show_shopping_list({ scope: 'recipe', recipe_slug: 'tagine' })`. Handler calls `generateShoppingListForRecipe` and renders the scoped list.
 
@@ -3557,7 +3623,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 29: Scenario 055 — `show_shopping_list` scope=full_week
+### Task 29: Scenario 062 — `show_shopping_list` scope=full_week
 
 **Goal:** User types "full shopping list for the week". Dispatcher picks `show_shopping_list({ scope: 'full_week' })`. Handler calls `generateShoppingListForWeek` and renders the week-spanning list.
 
@@ -3581,7 +3647,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 30: Scenario 056 — `show_progress` weekly_report
+### Task 30: Scenario 063 — `show_progress` weekly_report
 
 **Goal:** User types "how am I doing this week?" with measurements logged for both the current week (today) and last week. Dispatcher picks `show_progress({ view: 'weekly_report' })`, handler renders the weekly report.
 
@@ -3605,7 +3671,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 31: Scenario 057 — `log_measurement` cross-surface
+### Task 31: Scenario 064 — `log_measurement` cross-surface
 
 **Goal:** User on the plan view (NOT in `awaiting_measurement` phase) types "82.3 today". Dispatcher picks `log_measurement({ weight: 82.3 })`, handler delegates to `renderMeasurementConfirmation`. The measurement persists, the user sees the confirmation, `surfaceContext` stays `'plan'`.
 
@@ -3636,7 +3702,7 @@ The next twelve tasks each add one scenario.
 
 ---
 
-### Task 32: Scenario 058 — Cross-action state preservation (the load-bearing regression lock)
+### Task 32: Scenario 065 — Cross-action state preservation (the load-bearing regression lock)
 
 **Goal:** User is mid-planning at `phase: 'proposal'` with mutation history `[{ constraint: 'initial', … }]`. User types "when's my flex this week?" — dispatcher picks `answer_plan_question`, planFlow preserved. Then types "actually move the flex to Sunday" — dispatcher picks `mutate_plan`, applier's in-session branch runs, mutation history extends to 2 entries. User taps `plan_approve`. The persisted session's `mutationHistory` has BOTH entries.
 
@@ -3671,7 +3737,7 @@ The next twelve tasks each add one scenario.
 - [ ] Author the scenario carefully — copy the planning happy-path callback sequence from scenario 002 or 020 to reach `proposal` phase.
 - [ ] Generate the recording.
 - [ ] **Manually inspect `recorded.json` for the two assertions above.** If `mutationHistory` has only 1 entry after the mutation turn, the in-session applier branch isn't being called. If `planFlow === null` after the answer turn, the answer handler is clearing flow state — both are bugs.
-- [ ] If the recording is correct, `git add test/scenarios/058-answer-then-mutate-state-preservation/` + commit.
+- [ ] If the recording is correct, `git add test/scenarios/065-answer-then-mutate-state-preservation/` + commit.
 
 ---
 
@@ -3696,9 +3762,9 @@ Note the list. Common candidates:
 - `034-dispatcher-return-to-flow` (Plan C)
 - `035-dispatcher-clarify-multiturn` (Plan C)
 - `037-dispatcher-numeric-prefilter` (Plan C)
-- Any Plan D scenario that fires the dispatcher (038–046)
+- Any Plan D scenario that fires the dispatcher (044–053)
 
-Scenarios not affected by Task 33's regeneration pass fall into two buckets: (1) **pure callback-driven** scenarios that never hit the dispatcher: 001–016, 018, 019, 022–028, 030, 031, 036; and (2) **newly-authored scenarios from this plan** (the 047–058 range added in Tasks 21–32), which are text-dispatcher scenarios by construction BUT are generated AFTER the Task 9 prompt flip, so their captured dispatcher fixtures already use the post-flip prompt. A scenario only needs regeneration in Task 33 if it was recorded BEFORE Task 9 against the old prompt — i.e., anything from Plans A/B/C/D that fires text through the dispatcher.
+Scenarios not affected by Task 33's regeneration pass fall into two buckets: (1) **pure callback-driven** scenarios that never hit the dispatcher: 001–016, 018, 019, 022–028, 030, 031, 036; and (2) **newly-authored scenarios from this plan** (the 054–065 range added in Tasks 21–32), which are text-dispatcher scenarios by construction BUT are generated AFTER the Task 9 prompt flip, so their captured dispatcher fixtures already use the post-flip prompt. A scenario only needs regeneration in Task 33 if it was recorded BEFORE Task 9 against the old prompt — i.e., anything from Plans A/B/C/D that fires text through the dispatcher.
 
 - [ ] **Step 2: Regenerate each affected scenario IN PARALLEL**
 
@@ -3745,30 +3811,30 @@ intended new dispatcher behavior."
 **Files:**
 - Modify: `test/scenarios/index.md`
 
-- [ ] **Step 1: Add rows for scenarios 047–058**
+- [ ] **Step 1: Add rows for scenarios 054–065**
 
 Append to the table in `test/scenarios/index.md`:
 
 ```markdown
-| 047 | answer-plan-question | Plan E: dispatcher picks answer_plan_question for "when's my next cook day?" |
-| 048 | answer-recipe-question | Plan E: dispatcher picks answer_recipe_question for "can I freeze the tagine?" |
-| 049 | answer-domain-question | Plan E: dispatcher picks answer_domain_question for "substitute for tahini?" |
-| 050 | show-recipe-in-plan | Plan E: show_recipe renders cook view when slug is in active batch |
-| 051 | show-recipe-library-only | Plan E: show_recipe falls back to library view when slug is not in plan |
-| 052 | show-recipe-multi-batch | Plan E: show_recipe multi-batch picks soonest cook day (regression lock) |
-| 053 | show-plan-day-detail-natural-language | Plan E: show_plan resolves "Thursday" to next Thursday's ISO date |
-| 054 | show-shopping-list-recipe-scope | Plan E: show_shopping_list scope=recipe filters to one recipe |
-| 055 | show-shopping-list-full-week | Plan E: show_shopping_list scope=full_week aggregates across cook days |
-| 056 | show-progress-weekly-report | Plan E: show_progress weekly_report renders the weekly summary |
-| 057 | log-measurement-cross-surface | Plan E: log_measurement persists from any surface, surfaceContext preserved |
-| 058 | answer-then-mutate-state-preservation | Plan E: answer → mutate cross-action preserves planFlow + mutationHistory (load-bearing) |
+| 054 | answer-plan-question | Plan E: dispatcher picks answer_plan_question for "when's my next cook day?" |
+| 055 | answer-recipe-question | Plan E: dispatcher picks answer_recipe_question for "can I freeze the tagine?" |
+| 056 | answer-domain-question | Plan E: dispatcher picks answer_domain_question for "substitute for tahini?" |
+| 057 | show-recipe-in-plan | Plan E: show_recipe renders cook view when slug is in active batch |
+| 058 | show-recipe-library-only | Plan E: show_recipe falls back to library view when slug is not in plan |
+| 059 | show-recipe-multi-batch | Plan E: show_recipe multi-batch picks soonest cook day (regression lock) |
+| 060 | show-plan-day-detail-natural-language | Plan E: show_plan resolves "Thursday" to next Thursday's ISO date |
+| 061 | show-shopping-list-recipe-scope | Plan E: show_shopping_list scope=recipe filters to one recipe |
+| 062 | show-shopping-list-full-week | Plan E: show_shopping_list scope=full_week aggregates across cook days |
+| 063 | show-progress-weekly-report | Plan E: show_progress weekly_report renders the weekly summary |
+| 064 | log-measurement-cross-surface | Plan E: log_measurement persists from any surface, surfaceContext preserved |
+| 065 | answer-then-mutate-state-preservation | Plan E: answer → mutate cross-action preserves planFlow + mutationHistory (load-bearing) |
 ```
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add test/scenarios/index.md
-git commit -m "Plan 030: index entries for scenarios 047-058"
+git commit -m "Plan 030: index entries for scenarios 054-065"
 ```
 
 ---
@@ -3816,7 +3882,7 @@ After Plan 030 lands, the v0.0.5 dispatcher catalog is fully live with 13 active
 - `recipe` — filter to one recipe, no breakfast. Reuses `generateShoppingListForRecipe`.
 - `day` — alias for `next_cook` with an explicit target day. Reuses `generateShoppingListForDay` which delegates to `generateShoppingList`.
 
-**Cross-surface `log_measurement`**: when the user types numbers from a non-progress surface, the dispatcher picks `log_measurement` and the handler delegates to `renderMeasurementConfirmation` (extracted from `core.ts`'s `awaiting_measurement` text path in Plan 030 Task 17). The persistence and confirmation behavior is byte-identical to the in-flow path. `surfaceContext` is preserved — the user does NOT get teleported to the progress surface.
+**Cross-surface `log_measurement`**: when the user types numbers from a non-progress surface, the dispatcher picks `log_measurement` and the handler delegates to `renderMeasurementConfirmation` (extracted from `tryNumericPreFilter` in `dispatcher-runner.ts` in Plan 030 Task 17). The persistence and confirmation behavior is byte-identical to the in-flow path. `surfaceContext` is preserved — the user does NOT get teleported to the progress surface.
 
 **`rerenderLastView` upgrade**: Plan 028 left this helper as a placeholder that emitted "Back to your plan" text. Plan 030 promotes it to delegate to the view-renderers — `return_to_flow` now produces a real re-render of the exact view the user was last on.
 ```
@@ -3905,7 +3971,7 @@ git commit -m "Plan 030: sync ui-architecture.md, flows.md, and proposal 003 sta
 - [ ] **Step 1: Run the full test suite one final time**
 
 Run: `npm test`
-Expected: PASS. Test count: Plan D's baseline + ~10 view-renderers unit tests (Task 20) + ~10 dispatcher-secondary-actions unit tests (Tasks 11–17) + ~7 shopping generator scope tests (Task 3) + ~9 dispatcher-agent unit tests (Task 10 additions) + 12 new Plan E scenarios (047–058) + regenerated scenarios from Task 33.
+Expected: PASS. Test count: Plan D's baseline + ~10 view-renderers unit tests (Task 20) + ~10 dispatcher-secondary-actions unit tests (Tasks 11–17) + ~7 shopping generator scope tests (Task 3) + ~9 dispatcher-agent unit tests (Task 10 additions) + 12 new Plan E scenarios (054–065) + regenerated scenarios from Task 33.
 
 - [ ] **Step 2: Run typecheck**
 
@@ -3920,7 +3986,7 @@ Expected: no errors.
 - `grep -n "generateShoppingListForWeek\|generateShoppingListForRecipe\|generateShoppingListForDay" src/shopping/generator.ts` returns three function definitions.
 - `grep -n "ShoppingScope" src/shopping/generator.ts src/telegram/view-renderers.ts src/telegram/dispatcher-runner.ts` returns the type export and consumer references.
 - `grep -n "rerenderLastView" src/telegram/dispatcher-runner.ts` returns the upgraded body. The placeholder string "Back to your plan. Tap 📋 My Plan for the current view." must NOT appear.
-- `grep -n "renderMeasurementConfirmation" src/telegram/core.ts src/telegram/dispatcher-runner.ts` returns one definition (in core.ts) and one call site (in the dispatcher runner's `handleLogMeasurementAction` via dynamic import).
+- `grep -n "renderMeasurementConfirmation" src/telegram/dispatcher-runner.ts` returns one definition and two call sites (in `tryNumericPreFilter` and `handleLogMeasurementAction`, both in the same file — no dynamic import needed).
 - `grep -c "setLastRenderedView" src/telegram/view-renderers.ts` returns at least 10 (one per render variant).
 - The `LastRenderedView` union in `src/telegram/navigation-state.ts` contains `'shopping' + 'full_week'` and `'shopping' + 'recipe'` variants.
 
@@ -3936,7 +4002,7 @@ Expected: each Plan 030 task produced exactly one commit (or two for tasks that 
 ```bash
 ls test/scenarios/ | grep -E '^[0-9]' | sort | tail -15
 ```
-Expected: scenarios 047–058 all present.
+Expected: scenarios 054–065 all present.
 
 - [ ] **Step 6: Move plan file from `active/` to `completed/`**
 
@@ -3977,17 +4043,17 @@ The proposal 003 § show_recipe text says "v0.0.5 picks the batch with the soone
 **Why post-confirmation `answer_plan_question` does not include reasoning history:**
 The persisted `mutationHistory` shape is `{ constraint, appliedAt }` — it does NOT carry the re-proposer's reasoning. Answering "why" questions about plan composition would require either (a) persisting reasoning alongside each mutation, or (b) re-deriving reasoning at answer time. Both are out of scope for v0.0.5. The dispatcher prompt instructs the LLM to pick `clarify` for "why" questions with an honest "I can tell you what's in your plan but not why" response.
 
-**Why `log_measurement` reuses `renderMeasurementConfirmation` from `core.ts` via dynamic import:**
-The cleanest separation would put the measurement helper in a third leaf module. The dynamic import pattern works for v0.0.5 because the cycle only triggers at first call time, not at module load time. If the cycle causes runtime issues (uncommon in Node ESM with circular dependencies), the fallback is to extract `renderMeasurementConfirmation` into `src/telegram/measurement-renderer.ts` — a one-line move noted in Task 17 Step 2's commit message.
+**Why `log_measurement` reuses `renderMeasurementConfirmation` from `dispatcher-runner.ts` directly (no dynamic import):**
+Plan 028 Task 6/8 already moved the measurement fast path from `core.ts`'s `routeTextToActiveFlow` into `tryNumericPreFilter` in `dispatcher-runner.ts`. Since both `tryNumericPreFilter` and `handleLogMeasurementAction` live in the same file, the shared helper is extracted in-place — no cross-module import needed, no circular dependency risk. The helper takes `(session, store, sink, parsed)` and encapsulates the persist → confirm OR disambiguate decisions that both callers share.
 
 **Why the sl_<param> callback in core.ts is refactored to use `renderShoppingListForScope` instead of staying inline:**
 Consistency and centralization. Before the refactor, `core.ts`'s sl_<param> case had its own `loadVisiblePlanAndBatches` + `getNextCookDay` + `generateShoppingList` chain inline. After the refactor, `core.ts` constructs a `ShoppingScope` object and delegates to the renderer. Both call sites (the callback and the dispatcher handler) end up in the same code path — any future bug fix lands in one place.
 
-**Why scenarios 054/055 use new shopping scopes instead of testing them via `sl_*` callbacks:**
+**Why scenarios 061/062 use new shopping scopes instead of testing them via `sl_*` callbacks:**
 The new scopes (`full_week`, `recipe`, `day`) don't have callback affordances yet — there are no `[Full week]` or `[For this recipe]` buttons in the UI. The dispatcher is the ONLY way to reach the new scopes in v0.0.5. Adding buttons is a future affordance plan.
 
-**Why scenario 058 (cross-action state preservation) is the highest-stakes Plan E scenario:**
-It directly verifies proposal 003 state preservation invariant #1 ("the dispatcher never clears flow state"). If `handleAnswerPlanQuestionAction` accidentally cleared `planFlow`, every mid-planning question would silently kill the planning session and the user would have to start over — exactly the failure mode the proposal exists to prevent. Scenario 058 catches this regression on the next `npm test` after a future bug.
+**Why scenario 065 (cross-action state preservation) is the highest-stakes Plan E scenario:**
+It directly verifies proposal 003 state preservation invariant #1 ("the dispatcher never clears flow state"). If `handleAnswerPlanQuestionAction` accidentally cleared `planFlow`, every mid-planning question would silently kill the planning session and the user would have to start over — exactly the failure mode the proposal exists to prevent. Scenario 065 catches this regression on the next `npm test` after a future bug.
 
 ---
 
@@ -4000,7 +4066,7 @@ It directly verifies proposal 003 state preservation invariant #1 ("the dispatch
 - `src/state/store.ts`, `src/harness/test-store.ts` — untouched. No schema changes.
 - `supabase/migrations/*`, `supabase/schema.sql` — no new migrations.
 - `src/telegram/bot.ts`, `src/ai/*` — untouched.
-- Plan D's 9 mutation scenarios (038–046) — untouched (some may be regenerated in Task 33 if their dispatcher fixtures contain the now-promoted action references, but their behavior is unchanged).
+- Plan D's 10 mutation scenarios (044–053) — untouched (some may be regenerated in Task 33 if their dispatcher fixtures contain the now-promoted action references, but their behavior is unchanged).
 
 This plan ships exactly the secondary catalog. No re-proposer changes. No solver changes. No data model changes.
 
