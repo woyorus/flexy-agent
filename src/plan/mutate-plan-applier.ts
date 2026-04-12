@@ -224,14 +224,22 @@ async function applyPostConfirmation(
   const preMutationActive = forward.activeProposal;
 
   // 3. Call the re-proposer in post-confirmation mode.
+  //
+  // Both `activeHorizonDays` and `preCommittedSlots` come from the forward
+  // adapter. Trimming the horizon to forward-only keeps past slots out of the
+  // validator's coverage check (they're historical record, not slots the
+  // re-proposer can modify); materializing past batches as pre-committed
+  // slots gives the solver the consumed calorie/protein mass to subtract
+  // from the weekly budget, and lets invariant #9 catch any accidental
+  // displacement. See sessionToPostConfirmationProposal for the contract.
   const result = await reProposePlan(
     {
       currentProposal: preMutationActive,
       userMessage: request,
       mutationHistory: activeSession.mutationHistory,
       availableRecipes: buildRecipeSummaries(recipes.getAll()),
-      horizonDays: forward.horizonDays,
-      preCommittedSlots: [],
+      horizonDays: forward.activeHorizonDays,
+      preCommittedSlots: forward.preCommittedSlots,
       breakfast: {
         name: activeSession.breakfast.recipeSlug,
         caloriesPerDay: activeSession.breakfast.caloriesPerDay,
@@ -258,9 +266,9 @@ async function applyPostConfirmation(
   const flowShim: PlanFlowState = {
     phase: 'proposal',
     weekStart: activeSession.horizonStart,
-    weekDays: forward.horizonDays,
+    weekDays: forward.activeHorizonDays,
     horizonStart: activeSession.horizonStart,
-    horizonDays: forward.horizonDays,
+    horizonDays: forward.activeHorizonDays,
     breakfast: {
       recipeSlug: activeSession.breakfast.recipeSlug,
       name: activeSession.breakfast.recipeSlug,
@@ -270,9 +278,9 @@ async function applyPostConfirmation(
     events: proposal.events,
     proposal,
     mutationHistory: activeSession.mutationHistory,
-    preCommittedSlots: [],
+    preCommittedSlots: forward.preCommittedSlots,
   };
-  const solverInput = buildSolverInput(flowShim, proposal, recipes, []);
+  const solverInput = buildSolverInput(flowShim, proposal, recipes, forward.preCommittedSlots);
   proposal.solverOutput = solve(solverInput);
 
   // 6. Generate the diff against the pre-mutation view.

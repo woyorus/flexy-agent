@@ -9,11 +9,21 @@
  * mutate_plan cycle runs again (dispatcher → applier → re-proposer →
  * diff), and the user taps `[Confirm]` (`mp_confirm`) to persist.
  *
- * Seed: active plan Apr 6–12 with:
- *   - Chicken grain-bowl lunch batch Mon–Wed (Apr 6–8)
- *   - Tagine dinner batch Mon–Wed (Apr 6–8)
- *   - Bolognese lunch batch Thu–Sat (Apr 9–11)
- *   - Pork rice bowls dinner batch Thu–Fri (Apr 9–10), flex Sat dinner
+ * Seed: active plan Apr 6–12 with FULL 7-day coverage:
+ *   - Chicken grain-bowl lunch batch Mon–Wed (Apr 6–8, 3 servings)
+ *   - Tagine dinner batch Mon–Wed (Apr 6–8, 3 servings)
+ *   - Mediterranean tuna lunch batch Thu–Sat (Apr 9–11, 3 servings)
+ *   - Pork rice bowls dinner batch Thu–Sat (Apr 9–11, 3 servings)
+ *   - Chicken grain-bowl lunch batch Sun (Apr 12, 1 serving)
+ *   - Flex slot: Sunday dinner (Apr 12)
+ *
+ * The Sun lunch 1-serving batch + flex on Sun dinner give the LLM a
+ * self-consistent starting plan: the adjust-loop's second mutation
+ * ("move flex to Friday dinner") has a clean rearrangement path
+ * (displace pork Fri, cover Sat dinner from the Thu–Sat pork batch,
+ * replant flex on Fri dinner). Without that, both re-proposer attempts
+ * hit invariant #1 gaps on Sun and the scenario degenerates into a
+ * double failure rather than proving the adjust-and-retry cycle.
  *
  * Clock: 2026-04-09T12:00:00Z (Wednesday noon).
  *
@@ -43,7 +53,7 @@ const activeSession: PlanSession = {
   },
   treatBudgetCalories: 1050,
   flexSlots: [
-    { day: '2026-04-11', mealTime: 'dinner' as const, flexBonus: 300, note: 'flex dinner' },
+    { day: '2026-04-12', mealTime: 'dinner' as const, flexBonus: 300, note: 'flex dinner' },
   ],
   events: [],
   mutationHistory: [{ constraint: 'initial plan', appliedAt: '2026-04-05T18:00:00.000Z' }],
@@ -89,38 +99,57 @@ const activeBatches: Batch[] = [
     status: 'planned',
     createdInPlanSessionId: activeSession.id,
   },
-  // Batch 3: Thu–Sat Lunch (bolognese)
+  // Batch 3: Thu–Sat Lunch (Mediterranean tuna — lunch-compatible recipe)
   {
     id: 'batch-049-lunch2-0000-0000-000000000003',
-    recipeSlug: 'ground-beef-rigatoni-bolognese',
+    recipeSlug: 'mediterranean-tuna-chickpea-feta-rice-bowl',
     mealType: 'lunch',
     eatingDays: ['2026-04-09', '2026-04-10', '2026-04-11'],
     servings: 3,
     targetPerServing: { calories: 780, protein: 52 },
-    actualPerServing: { calories: 780, protein: 52, fat: 32, carbs: 78 },
+    actualPerServing: { calories: 780, protein: 52, fat: 28, carbs: 82 },
     scaledIngredients: [
-      { name: 'ground beef', amount: 180, unit: 'g', totalForBatch: 540, role: 'protein' as const },
-      { name: 'rigatoni', amount: 90, unit: 'g', totalForBatch: 270, role: 'carb' as const },
-      { name: 'cherry tomatoes', amount: 150, unit: 'g', totalForBatch: 450, role: 'vegetable' as const },
+      { name: 'canned tuna, drained', amount: 150, unit: 'g', totalForBatch: 450, role: 'protein' as const },
+      { name: 'chickpeas, canned, drained', amount: 80, unit: 'g', totalForBatch: 240, role: 'carb' as const },
+      { name: 'feta cheese', amount: 30, unit: 'g', totalForBatch: 90, role: 'fat' as const },
+      { name: 'basmati rice', amount: 80, unit: 'g', totalForBatch: 240, role: 'carb' as const },
       { name: 'olive oil', amount: 15, unit: 'ml', totalForBatch: 45, role: 'fat' as const },
     ],
     status: 'planned',
     createdInPlanSessionId: activeSession.id,
   },
-  // Batch 4: Thu–Fri Dinner (pork rice bowls — Sat is flex)
+  // Batch 4: Thu–Sat Dinner (pork rice bowls — covers Sat dinner so flex can sit on Sun)
   {
     id: 'batch-049-dinner2-0000-0000-000000000004',
     recipeSlug: 'soy-ginger-pork-rice-bowls-broccoli-carrots-scallions',
     mealType: 'dinner',
-    eatingDays: ['2026-04-09', '2026-04-10'],
-    servings: 2,
+    eatingDays: ['2026-04-09', '2026-04-10', '2026-04-11'],
+    servings: 3,
     targetPerServing: { calories: 650, protein: 44 },
     actualPerServing: { calories: 650, protein: 44, fat: 22, carbs: 65 },
     scaledIngredients: [
-      { name: 'pork tenderloin', amount: 180, unit: 'g', totalForBatch: 360, role: 'protein' as const },
-      { name: 'broccoli', amount: 100, unit: 'g', totalForBatch: 200, role: 'vegetable' as const },
-      { name: 'basmati rice', amount: 80, unit: 'g', totalForBatch: 160, role: 'carb' as const },
-      { name: 'soy sauce', amount: 20, unit: 'ml', totalForBatch: 40, role: 'seasoning' as const },
+      { name: 'pork tenderloin', amount: 180, unit: 'g', totalForBatch: 540, role: 'protein' as const },
+      { name: 'broccoli', amount: 100, unit: 'g', totalForBatch: 300, role: 'vegetable' as const },
+      { name: 'basmati rice', amount: 80, unit: 'g', totalForBatch: 240, role: 'carb' as const },
+      { name: 'soy sauce', amount: 20, unit: 'ml', totalForBatch: 60, role: 'seasoning' as const },
+    ],
+    status: 'planned',
+    createdInPlanSessionId: activeSession.id,
+  },
+  // Batch 5: Sun Lunch (chicken, 1 serving — cooked fresh Sun)
+  {
+    id: 'batch-049-lunch3-0000-0000-000000000005',
+    recipeSlug: 'chicken-black-bean-avocado-rice-bowl',
+    mealType: 'lunch',
+    eatingDays: ['2026-04-12'],
+    servings: 1,
+    targetPerServing: { calories: 893, protein: 56 },
+    actualPerServing: { calories: 893, protein: 56, fat: 46, carbs: 68 },
+    scaledIngredients: [
+      { name: 'chicken breast, raw', amount: 190, unit: 'g', totalForBatch: 190, role: 'protein' as const },
+      { name: 'black beans, canned, drained', amount: 75, unit: 'g', totalForBatch: 75, role: 'carb' as const },
+      { name: 'small avocado', amount: 1, unit: 'whole', totalForBatch: 1, role: 'fat' as const },
+      { name: 'olive oil', amount: 22, unit: 'ml', totalForBatch: 22, role: 'fat' as const },
     ],
     status: 'planned',
     createdInPlanSessionId: activeSession.id,

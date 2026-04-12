@@ -25,7 +25,7 @@ import type {
   PlanSession,
   ScaledIngredient,
 } from '../models/types.js';
-import type { PlanProposal, ProposedBatch } from '../solver/types.js';
+import type { PlanProposal, PreCommittedSlot, ProposedBatch } from '../solver/types.js';
 import type { LLMProvider } from '../ai/provider.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import { toLocalISODate } from './helpers.js';
@@ -185,6 +185,15 @@ function scaleIngredientTotals<T extends { amount: number; totalForBatch: number
  * round-trip into the rewritten session so the user's historical record is not
  * erased on every mutate. `nearFutureDays` captures the 2-day soft-locked
  * window for the re-proposer's post-confirmation safety rule.
+ *
+ * `horizonDays` is the FULL session horizon (used for round-trip / rendering).
+ * `activeHorizonDays` is the subset from the cutoff forward — this is what the
+ * re-proposer and its validator operate over, because past days are
+ * historical record and must not be required to appear as proposal sources.
+ * `preCommittedSlots` materializes the past eating days of `preservedPastBatches`
+ * so the solver can subtract their consumed calories/protein from the weekly
+ * budget (and so invariant #9 catches any accidental displacement of a past
+ * slot by a new proposal).
  */
 export interface PostConfirmationProposal {
   activeProposal: PlanProposal;
@@ -192,6 +201,8 @@ export interface PostConfirmationProposal {
   preservedPastFlexSlots: FlexSlot[];
   preservedPastEvents: MealEvent[];
   horizonDays: string[];
+  activeHorizonDays: string[];
+  preCommittedSlots: PreCommittedSlot[];
   nearFutureDays: string[];
 }
 
@@ -303,12 +314,81 @@ export function sessionToPostConfirmationProposal(
     recipesToGenerate: [],
   };
 
+  // Trim the horizon at the cutoff. The re-proposer / validator only walks
+  // these days: past days are historical record, not slots that need a
+  // proposal source. Kept as a plain filter on `horizonDays` (not on `now`)
+  // so the split here matches classifySlot's day-level classification used
+  // above for batches/flex/events.
+  const today = toLocalISODate(now);
+  const activeHorizonDays = horizonDays.filter((d) => d >= today);
+
+  // Materialize pre-committed slots from every preserved past source — past
+  // batches, past flex slots, and past meal events. Three reasons all three
+  // matter:
+  //
+  //   1. The validator walks `activeHorizonDays × {lunch, dinner}` and requires
+  //      a source per slot. `activeHorizonDays` is day-granular, while
+  //      `classifySlot()` is slot-granular — so a mid-day mutation after the
+  //      lunch cutoff (15:00 local) leaves today's lunch in the past half even
+  //      though today stays in the active horizon. Without a pre-committed
+  //      entry for that consumed lunch slot, invariant #1 fires on the
+  //      already-past slot even when the underlying source was a flex or an
+  //      event, not a batch.
+  //   2. The solver subtracts pre-committed calories/protein from the weekly
+  //      budget, so past flex bonuses and past event calories get deducted
+  //      from the forward allocation — matching the fact that the user has
+  //      already consumed them.
+  //   3. Validator invariant #9 ("proposal must not displace a pre-committed
+  //      slot") keeps the re-proposer from silently reassigning a slot the
+  //      user has already lived through.
+  //
+  // Synthetic slug/sourceBatchId values: flex and events have no backing
+  // Recipe, so the slug is a human-readable marker (displayed in the
+  // re-proposer's prompt under "Pre-committed slots") and the sourceBatchId
+  // uses a distinguishable prefix so nothing downstream confuses it for a
+  // real batch id.
+  const preCommittedSlots: PreCommittedSlot[] = [];
+  for (const past of preservedPastBatches) {
+    for (const day of past.eatingDays) {
+      preCommittedSlots.push({
+        day,
+        mealTime: past.mealType,
+        recipeSlug: past.recipeSlug,
+        calories: past.actualPerServing.calories,
+        protein: past.actualPerServing.protein,
+        sourceBatchId: past.id,
+      });
+    }
+  }
+  for (const flex of preservedPastFlexSlots) {
+    preCommittedSlots.push({
+      day: flex.day,
+      mealTime: flex.mealTime,
+      recipeSlug: '(flex meal)',
+      calories: flex.flexBonus,
+      protein: 0,
+      sourceBatchId: `past-flex:${flex.day}:${flex.mealTime}`,
+    });
+  }
+  for (const ev of preservedPastEvents) {
+    preCommittedSlots.push({
+      day: ev.day,
+      mealTime: ev.mealTime,
+      recipeSlug: ev.name,
+      calories: ev.estimatedCalories,
+      protein: 0,
+      sourceBatchId: `past-event:${ev.day}:${ev.mealTime}`,
+    });
+  }
+
   return {
     activeProposal,
     preservedPastBatches,
     preservedPastFlexSlots,
     preservedPastEvents,
     horizonDays,
+    activeHorizonDays,
+    preCommittedSlots,
     nearFutureDays: computeNearFutureDays(now, horizonDays),
   };
 }

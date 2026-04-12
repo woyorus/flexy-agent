@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-04-07T19:00:00.000Z",
-  "specHash": "d93cb96927e7b08b8c57e7384bb01440ac483fd0e9409249bad3583e836a763c",
+  "generatedAt": "2026-04-07T17:00:00.000Z",
+  "specHash": "6d6ff511d9941327fb0e3fcf8a7f4443e720d1c7b02dbb910f89b336e4886e8a",
   "llmFixtures": [
     {
-      "hash": "6b6551ec44f167b6b05f760bdf66337368a2af9502832ad4a8e733bdd4214b3d",
+      "hash": "33aaf76a4b9be19da3f98ccf68af92142789e59c505f8c8b895d44a64ed054c1",
       "callIndex": 1,
       "model": "mini",
       "reasoning": "high",
@@ -15,17 +15,17 @@
         },
         {
           "role": "user",
-          "content": "## TODAY\n2026-04-07  (server-local; assume single-user.)\n\n## SURFACE\nsurfaceContext: none\nlifecycle: active_early\nlastRenderedView: none\n\n## ACTIVE FLOW\nnone\n\n## RECENT TURNS (oldest first)\n(no prior turns)\n\n## PLAN SUMMARY\nhorizon: 2026-04-06..2026-04-12\nweekly target: 17052 kcal / 1050g protein\nbatches:\n  - chicken-black-bean-avocado-rice-bowl (Chicken Black Bean Bowl), 3 servings, 2026-04-06/2026-04-07/2026-04-08 lunch\n  - moroccan-beef-tagine-style-skillet-with-lemon-couscous (Beef Tagine), 3 servings, 2026-04-06/2026-04-07/2026-04-08 dinner\n  - ground-beef-rigatoni-bolognese (Beef Bolognese), 3 servings, 2026-04-09/2026-04-10/2026-04-11 lunch\n  - soy-ginger-pork-rice-bowls-broccoli-carrots-scallions (Soy Ginger Pork Bowls), 2 servings, 2026-04-09/2026-04-10 dinner\nflex slots:\n  - 2026-04-11 dinner (+300 kcal flex — flex dinner)\nevents:\n  (none)\n\n## RECIPE LIBRARY (7 recipes)\nchicken-black-bean-avocado-rice-bowl | Chicken Black Bean Bowl | Mexican-inspired | lunch | 893kcal 56gP | fridge=3d freezable=false | reheat: Microwave the rice, chicken, black beans, and swee\ncreamy-salmon-and-shrimp-linguine | Salmon Shrimp Linguine | Spanish-inspired Mediterranean | dinner | 867kcal 56gP | fridge=3d freezable=false | reheat: Refrigerate in airtight containers for up to 3 day\nground-beef-rigatoni-bolognese | Beef Bolognese | Italian-inspired | dinner | 888kcal 55gP | fridge=3d freezable=true | reheat: Reheat the lean beef bolognese and pasta separatel\nmediterranean-tuna-chickpea-feta-rice-bowl | Tuna Chickpea Bowl | Mediterranean | lunch | 886kcal 54.3gP | fridge=3d freezable=false | reheat: Microwave covered until hot, stirring once halfway\nmoroccan-beef-tagine-style-skillet-with-lemon-couscous | Beef Tagine | Moroccan-inspired | dinner | 908kcal 56gP | fridge=3d freezable=true | reheat: Store the beef tagine-style skillet and couscous s\nsalmon-avocado-toast-soft-eggs-cinnamon-yogurt | Salmon Toast & Eggs | Modern Mediterranean | breakfast | 658kcal 41gP | fridge=2d freezable=false | reheat: Store the components separately in the fridge. Toa\nsoy-ginger-pork-rice-bowls-broccoli-carrots-scallions | Soy Ginger Pork Bowls | Asian-inspired | lunch/dinner | 889kcal 57gP | fridge=3d freezable=true | reheat: Microwave until steaming hot, stirring once halfwa\n\n## ALLOWED ACTIONS\nflow_input, clarify, out_of_scope, return_to_flow, mutate_plan, answer_plan_question, answer_recipe_question, answer_domain_question, show_recipe, show_plan, show_shopping_list, show_progress, log_measurement\n(If you would pick a NOT AVAILABLE action, choose clarify or out_of_scope instead with an honest deferral.)\n\n## USER MESSAGE\nI'm eating out"
+          "content": "## TODAY\n2026-04-07  (server-local; assume single-user.)\n\n## SURFACE\nsurfaceContext: none\nlifecycle: active_early\nlastRenderedView: none\n\n## ACTIVE FLOW\nnone\n\n## RECENT TURNS (oldest first)\n(no prior turns)\n\n## PLAN SUMMARY\nhorizon: 2026-04-06..2026-04-12\nweekly target: 17052 kcal / 1050g protein\nbatches:\n  - chicken-black-bean-avocado-rice-bowl (Chicken Black Bean Bowl), 3 servings, 2026-04-06/2026-04-07/2026-04-08 lunch\n  - moroccan-beef-tagine-style-skillet-with-lemon-couscous (Beef Tagine), 3 servings, 2026-04-06/2026-04-07/2026-04-08 dinner\n  - mediterranean-tuna-chickpea-feta-rice-bowl (Tuna Chickpea Bowl), 3 servings, 2026-04-09/2026-04-10/2026-04-11 lunch\n  - soy-ginger-pork-rice-bowls-broccoli-carrots-scallions (Soy Ginger Pork Bowls), 3 servings, 2026-04-09/2026-04-10/2026-04-11 dinner\n  - chicken-black-bean-avocado-rice-bowl (Chicken Black Bean Bowl), 1 servings, 2026-04-12 lunch\nflex slots:\n  - 2026-04-12 dinner (+300 kcal flex — flex dinner)\nevents:\n  (none)\n\n## RECIPE LIBRARY (7 recipes)\nchicken-black-bean-avocado-rice-bowl | Chicken Black Bean Bowl | Mexican-inspired | lunch | 893kcal 56gP | fridge=3d freezable=false | reheat: Microwave the rice, chicken, black beans, and swee\ncreamy-salmon-and-shrimp-linguine | Salmon Shrimp Linguine | Spanish-inspired Mediterranean | dinner | 867kcal 56gP | fridge=3d freezable=false | reheat: Refrigerate in airtight containers for up to 3 day\nground-beef-rigatoni-bolognese | Beef Bolognese | Italian-inspired | dinner | 888kcal 55gP | fridge=3d freezable=true | reheat: Reheat the lean beef bolognese and pasta separatel\nmediterranean-tuna-chickpea-feta-rice-bowl | Tuna Chickpea Bowl | Mediterranean | lunch | 886kcal 54.3gP | fridge=3d freezable=false | reheat: Microwave covered until hot, stirring once halfway\nmoroccan-beef-tagine-style-skillet-with-lemon-couscous | Beef Tagine | Moroccan-inspired | dinner | 908kcal 56gP | fridge=3d freezable=true | reheat: Store the beef tagine-style skillet and couscous s\nsalmon-avocado-toast-soft-eggs-cinnamon-yogurt | Salmon Toast & Eggs | Modern Mediterranean | breakfast | 658kcal 41gP | fridge=2d freezable=false | reheat: Store the components separately in the fridge. Toa\nsoy-ginger-pork-rice-bowls-broccoli-carrots-scallions | Soy Ginger Pork Bowls | Asian-inspired | lunch/dinner | 889kcal 57gP | fridge=3d freezable=true | reheat: Microwave until steaming hot, stirring once halfwa\n\n## ALLOWED ACTIONS\nflow_input, clarify, out_of_scope, return_to_flow, mutate_plan, answer_plan_question, answer_recipe_question, answer_domain_question, show_recipe, show_plan, show_shopping_list, show_progress, log_measurement\n(If you would pick a NOT AVAILABLE action, choose clarify or out_of_scope instead with an honest deferral.)\n\n## USER MESSAGE\nI'm eating out"
         }
       ],
-      "response": "{\"action\":\"mutate_plan\",\"params\":{\"request\":\"I'm eating out\"},\"response\":null,\"reasoning\":\"Real-life deviation on an active plan; route to plan mutation so the re-proposer can adjust the affected meal(s).\"}",
+      "response": "{\"action\":\"mutate_plan\",\"params\":{\"request\":\"I'm eating out\"},\"response\":null,\"reasoning\":\"Real-life deviation affecting the plan; route to plan mutation so it can be re-proposed.\"}",
       "usage": {
-        "inputTokens": 6084,
-        "outputTokens": 149
+        "inputTokens": 6123,
+        "outputTokens": 144
       }
     },
     {
-      "hash": "133580e81e68b3f61f7610b4a2658319f9d72d4ed9fcea0f43adb1c24a97987c",
+      "hash": "954c7f9e04525f1830b17137ea20fcec5caa947c7330801bb833151f0ca0d668",
       "callIndex": 2,
       "model": "mini",
       "reasoning": "high",
@@ -37,17 +37,17 @@
         },
         {
           "role": "user",
-          "content": "## HORIZON: 2026-04-06 to 2026-04-12\nDays: Mon 2026-04-06, Tue 2026-04-07, Wed 2026-04-08, Thu 2026-04-09, Fri 2026-04-10, Sat 2026-04-11, Sun 2026-04-12\n\n## CURRENT PLAN\n\nBreakfast (daily, fixed): salmon-avocado-toast-soft-eggs-cinnamon-yogurt — 390 cal\n\nBatches:\n  dinner [2026-04-08]: moroccan-beef-tagine-style-skillet-with-lemon-couscous (moroccan-beef-tagine-style-skillet-with-lemon-couscous) — 1 servings\n  lunch [2026-04-08]: chicken-black-bean-avocado-rice-bowl (chicken-black-bean-avocado-rice-bowl) — 1 servings\n  dinner [2026-04-09, 2026-04-10]: soy-ginger-pork-rice-bowls-broccoli-carrots-scallions (soy-ginger-pork-rice-bowls-broccoli-carrots-scallions) — 2 servings\n  lunch [2026-04-09, 2026-04-10, 2026-04-11]: ground-beef-rigatoni-bolognese (ground-beef-rigatoni-bolognese) — 3 servings\n\nFlex slots:\n  2026-04-11 dinner: flex dinner\n\n## PRIOR CHANGES (load-bearing — do not undo unless explicitly asked)\n- \"initial plan\" (2026-04-05T18:00:00.000Z)\n\n## AVAILABLE RECIPES\n- chicken-black-bean-avocado-rice-bowl: \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" | lunch | Mexican-inspired | chicken | 893 cal, 56g P | fridge_days: 3\n- creamy-salmon-and-shrimp-linguine: \"Creamy Salmon and Shrimp Linguine\" | dinner | Spanish-inspired Mediterranean | salmon | 867 cal, 56g P | fridge_days: 3\n- ground-beef-rigatoni-bolognese: \"Ground Beef Rigatoni Bolognese\" | dinner | Italian-inspired | beef | 888 cal, 55g P | fridge_days: 3\n- mediterranean-tuna-chickpea-feta-rice-bowl: \"Mediterranean Tuna, Chickpea and Feta Rice Bowl\" | lunch | Mediterranean | tuna | 886 cal, 54.3g P | fridge_days: 3\n- moroccan-beef-tagine-style-skillet-with-lemon-couscous: \"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\" | dinner | Moroccan-inspired | beef | 908 cal, 56g P | fridge_days: 3\n- soy-ginger-pork-rice-bowls-broccoli-carrots-scallions: \"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\" | lunch/dinner | Asian-inspired | pork | 889 cal, 57g P | fridge_days: 3\n\n## USER REQUEST\nI'm eating out\n\n## OUTPUT FORMAT\nReturn JSON with type \"proposal\" or \"clarification\". For proposals:\n{\n  \"type\": \"proposal\",\n  \"batches\": [{ \"recipe_slug\": \"...\", \"recipe_name\": \"...\", \"meal_type\": \"lunch|dinner\", \"eating_days\": [\"ISO dates\"], \"overflow_days\": [\"ISO dates past horizon end\"], \"servings\": N }],\n  \"flex_slots\": [{ \"day\": \"ISO date\", \"meal_time\": \"lunch|dinner\", \"flex_bonus\": 300-400, \"note\": \"...\" }],\n  \"events\": [{ \"day\": \"ISO date\", \"meal_time\": \"lunch|dinner\", \"name\": \"...\", \"estimated_calories\": N }],\n  \"reasoning\": \"...\"\n}"
+          "content": "## HORIZON: 2026-04-07 to 2026-04-12\nDays: Tue 2026-04-07, Wed 2026-04-08, Thu 2026-04-09, Fri 2026-04-10, Sat 2026-04-11, Sun 2026-04-12\n\n## CURRENT PLAN\n\nBreakfast (daily, fixed): salmon-avocado-toast-soft-eggs-cinnamon-yogurt — 390 cal\n\nBatches:\n  dinner [2026-04-07, 2026-04-08]: moroccan-beef-tagine-style-skillet-with-lemon-couscous (moroccan-beef-tagine-style-skillet-with-lemon-couscous) — 2 servings\n  lunch [2026-04-08]: chicken-black-bean-avocado-rice-bowl (chicken-black-bean-avocado-rice-bowl) — 1 servings\n  dinner [2026-04-09, 2026-04-10, 2026-04-11]: soy-ginger-pork-rice-bowls-broccoli-carrots-scallions (soy-ginger-pork-rice-bowls-broccoli-carrots-scallions) — 3 servings\n  lunch [2026-04-09, 2026-04-10, 2026-04-11]: mediterranean-tuna-chickpea-feta-rice-bowl (mediterranean-tuna-chickpea-feta-rice-bowl) — 3 servings\n  lunch [2026-04-12]: chicken-black-bean-avocado-rice-bowl (chicken-black-bean-avocado-rice-bowl) — 1 servings\n\nFlex slots:\n  2026-04-12 dinner: flex dinner\n\nPre-committed slots (FIXED — do NOT change):\n  2026-04-06 lunch: chicken-black-bean-avocado-rice-bowl (893 cal)\n  2026-04-07 lunch: chicken-black-bean-avocado-rice-bowl (893 cal)\n  2026-04-06 dinner: moroccan-beef-tagine-style-skillet-with-lemon-couscous (720 cal)\n\n## PRIOR CHANGES (load-bearing — do not undo unless explicitly asked)\n- \"initial plan\" (2026-04-05T18:00:00.000Z)\n\n## AVAILABLE RECIPES\n- chicken-black-bean-avocado-rice-bowl: \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" | lunch | Mexican-inspired | chicken | 893 cal, 56g P | fridge_days: 3\n- creamy-salmon-and-shrimp-linguine: \"Creamy Salmon and Shrimp Linguine\" | dinner | Spanish-inspired Mediterranean | salmon | 867 cal, 56g P | fridge_days: 3\n- ground-beef-rigatoni-bolognese: \"Ground Beef Rigatoni Bolognese\" | dinner | Italian-inspired | beef | 888 cal, 55g P | fridge_days: 3\n- mediterranean-tuna-chickpea-feta-rice-bowl: \"Mediterranean Tuna, Chickpea and Feta Rice Bowl\" | lunch | Mediterranean | tuna | 886 cal, 54.3g P | fridge_days: 3\n- moroccan-beef-tagine-style-skillet-with-lemon-couscous: \"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\" | dinner | Moroccan-inspired | beef | 908 cal, 56g P | fridge_days: 3\n- soy-ginger-pork-rice-bowls-broccoli-carrots-scallions: \"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\" | lunch/dinner | Asian-inspired | pork | 889 cal, 57g P | fridge_days: 3\n\n## USER REQUEST\nI'm eating out\n\n## OUTPUT FORMAT\nReturn JSON with type \"proposal\" or \"clarification\". For proposals:\n{\n  \"type\": \"proposal\",\n  \"batches\": [{ \"recipe_slug\": \"...\", \"recipe_name\": \"...\", \"meal_type\": \"lunch|dinner\", \"eating_days\": [\"ISO dates\"], \"overflow_days\": [\"ISO dates past horizon end\"], \"servings\": N }],\n  \"flex_slots\": [{ \"day\": \"ISO date\", \"meal_time\": \"lunch|dinner\", \"flex_bonus\": 300-400, \"note\": \"...\" }],\n  \"events\": [{ \"day\": \"ISO date\", \"meal_time\": \"lunch|dinner\", \"name\": \"...\", \"estimated_calories\": N }],\n  \"reasoning\": \"...\"\n}"
         }
       ],
-      "response": "{\n  \"type\": \"clarification\",\n  \"question\": \"Which lunch or dinner should I replace with an eating-out event? Please tell me the day and meal time.\",\n  \"recipe_needed\": null\n}",
+      "response": "{\n  \"type\": \"clarification\",\n  \"question\": \"Which lunch or dinner should I mark as eating out? I have one flex slot available and can place it on that meal.\",\n  \"recipe_needed\": null,\n  \"recipe_meal_type\": null\n}",
       "usage": {
-        "inputTokens": 2017,
-        "outputTokens": 1495
+        "inputTokens": 2159,
+        "outputTokens": 2109
       }
     },
     {
-      "hash": "ee546a7b56bfe8e2fb58a79622e10c7d0511a908f3eb37679639eb403ce9050e",
+      "hash": "47161c4325d28541ed280dcdfc3e6a18945cbc21bcbffa6eab6e27dc469f8835",
       "callIndex": 3,
       "model": "mini",
       "reasoning": "high",
@@ -59,20 +59,152 @@
         },
         {
           "role": "user",
-          "content": "## TODAY\n2026-04-07  (server-local; assume single-user.)\n\n## SURFACE\nsurfaceContext: none\nlifecycle: active_early\nlastRenderedView: none\n\n## ACTIVE FLOW\nnone\n\n## Outstanding clarification (post-confirmation mutation)\nThe re-proposer asked: \"Which lunch or dinner should I replace with an eating-out event? Please tell me the day and meal time.\"\nOriginal request: \"I'm eating out\"\nThe user's next message is likely the answer to this question. Pick mutate_plan with the user's text as the request — the applier will prepend the original request automatically.\n\n## RECENT TURNS (oldest first)\n[user] I'm eating out\n[bot] Which lunch or dinner should I replace with an eating-out event? Please tell me the day and meal time.\n[bot] Which lunch or dinner should I replace with an eating-out event? Please tell me the day and meal time.\n\n## PLAN SUMMARY\nhorizon: 2026-04-06..2026-04-12\nweekly target: 17052 kcal / 1050g protein\nbatches:\n  - chicken-black-bean-avocado-rice-bowl (Chicken Black Bean Bowl), 3 servings, 2026-04-06/2026-04-07/2026-04-08 lunch\n  - moroccan-beef-tagine-style-skillet-with-lemon-couscous (Beef Tagine), 3 servings, 2026-04-06/2026-04-07/2026-04-08 dinner\n  - ground-beef-rigatoni-bolognese (Beef Bolognese), 3 servings, 2026-04-09/2026-04-10/2026-04-11 lunch\n  - soy-ginger-pork-rice-bowls-broccoli-carrots-scallions (Soy Ginger Pork Bowls), 2 servings, 2026-04-09/2026-04-10 dinner\nflex slots:\n  - 2026-04-11 dinner (+300 kcal flex — flex dinner)\nevents:\n  (none)\n\n## RECIPE LIBRARY (7 recipes)\nchicken-black-bean-avocado-rice-bowl | Chicken Black Bean Bowl | Mexican-inspired | lunch | 893kcal 56gP | fridge=3d freezable=false | reheat: Microwave the rice, chicken, black beans, and swee\ncreamy-salmon-and-shrimp-linguine | Salmon Shrimp Linguine | Spanish-inspired Mediterranean | dinner | 867kcal 56gP | fridge=3d freezable=false | reheat: Refrigerate in airtight containers for up to 3 day\nground-beef-rigatoni-bolognese | Beef Bolognese | Italian-inspired | dinner | 888kcal 55gP | fridge=3d freezable=true | reheat: Reheat the lean beef bolognese and pasta separatel\nmediterranean-tuna-chickpea-feta-rice-bowl | Tuna Chickpea Bowl | Mediterranean | lunch | 886kcal 54.3gP | fridge=3d freezable=false | reheat: Microwave covered until hot, stirring once halfway\nmoroccan-beef-tagine-style-skillet-with-lemon-couscous | Beef Tagine | Moroccan-inspired | dinner | 908kcal 56gP | fridge=3d freezable=true | reheat: Store the beef tagine-style skillet and couscous s\nsalmon-avocado-toast-soft-eggs-cinnamon-yogurt | Salmon Toast & Eggs | Modern Mediterranean | breakfast | 658kcal 41gP | fridge=2d freezable=false | reheat: Store the components separately in the fridge. Toa\nsoy-ginger-pork-rice-bowls-broccoli-carrots-scallions | Soy Ginger Pork Bowls | Asian-inspired | lunch/dinner | 889kcal 57gP | fridge=3d freezable=true | reheat: Microwave until steaming hot, stirring once halfwa\n\n## ALLOWED ACTIONS\nflow_input, clarify, out_of_scope, return_to_flow, mutate_plan, answer_plan_question, answer_recipe_question, answer_domain_question, show_recipe, show_plan, show_shopping_list, show_progress, log_measurement\n(If you would pick a NOT AVAILABLE action, choose clarify or out_of_scope instead with an honest deferral.)\n\n## USER MESSAGE\ndinner"
+          "content": "## TODAY\n2026-04-07  (server-local; assume single-user.)\n\n## SURFACE\nsurfaceContext: none\nlifecycle: active_early\nlastRenderedView: none\n\n## ACTIVE FLOW\nnone\n\n## Outstanding clarification (post-confirmation mutation)\nThe re-proposer asked: \"Which lunch or dinner should I mark as eating out? I have one flex slot available and can place it on that meal.\"\nOriginal request: \"I'm eating out\"\nThe user's next message is likely the answer to this question. Pick mutate_plan with the user's text as the request — the applier will prepend the original request automatically.\n\n## RECENT TURNS (oldest first)\n[user] I'm eating out\n[bot] Which lunch or dinner should I mark as eating out? I have one flex slot available and can place it on that meal.\n[bot] Which lunch or dinner should I mark as eating out? I have one flex slot available and can place it on that meal.\n\n## PLAN SUMMARY\nhorizon: 2026-04-06..2026-04-12\nweekly target: 17052 kcal / 1050g protein\nbatches:\n  - chicken-black-bean-avocado-rice-bowl (Chicken Black Bean Bowl), 3 servings, 2026-04-06/2026-04-07/2026-04-08 lunch\n  - moroccan-beef-tagine-style-skillet-with-lemon-couscous (Beef Tagine), 3 servings, 2026-04-06/2026-04-07/2026-04-08 dinner\n  - mediterranean-tuna-chickpea-feta-rice-bowl (Tuna Chickpea Bowl), 3 servings, 2026-04-09/2026-04-10/2026-04-11 lunch\n  - soy-ginger-pork-rice-bowls-broccoli-carrots-scallions (Soy Ginger Pork Bowls), 3 servings, 2026-04-09/2026-04-10/2026-04-11 dinner\n  - chicken-black-bean-avocado-rice-bowl (Chicken Black Bean Bowl), 1 servings, 2026-04-12 lunch\nflex slots:\n  - 2026-04-12 dinner (+300 kcal flex — flex dinner)\nevents:\n  (none)\n\n## RECIPE LIBRARY (7 recipes)\nchicken-black-bean-avocado-rice-bowl | Chicken Black Bean Bowl | Mexican-inspired | lunch | 893kcal 56gP | fridge=3d freezable=false | reheat: Microwave the rice, chicken, black beans, and swee\ncreamy-salmon-and-shrimp-linguine | Salmon Shrimp Linguine | Spanish-inspired Mediterranean | dinner | 867kcal 56gP | fridge=3d freezable=false | reheat: Refrigerate in airtight containers for up to 3 day\nground-beef-rigatoni-bolognese | Beef Bolognese | Italian-inspired | dinner | 888kcal 55gP | fridge=3d freezable=true | reheat: Reheat the lean beef bolognese and pasta separatel\nmediterranean-tuna-chickpea-feta-rice-bowl | Tuna Chickpea Bowl | Mediterranean | lunch | 886kcal 54.3gP | fridge=3d freezable=false | reheat: Microwave covered until hot, stirring once halfway\nmoroccan-beef-tagine-style-skillet-with-lemon-couscous | Beef Tagine | Moroccan-inspired | dinner | 908kcal 56gP | fridge=3d freezable=true | reheat: Store the beef tagine-style skillet and couscous s\nsalmon-avocado-toast-soft-eggs-cinnamon-yogurt | Salmon Toast & Eggs | Modern Mediterranean | breakfast | 658kcal 41gP | fridge=2d freezable=false | reheat: Store the components separately in the fridge. Toa\nsoy-ginger-pork-rice-bowls-broccoli-carrots-scallions | Soy Ginger Pork Bowls | Asian-inspired | lunch/dinner | 889kcal 57gP | fridge=3d freezable=true | reheat: Microwave until steaming hot, stirring once halfwa\n\n## ALLOWED ACTIONS\nflow_input, clarify, out_of_scope, return_to_flow, mutate_plan, answer_plan_question, answer_recipe_question, answer_domain_question, show_recipe, show_plan, show_shopping_list, show_progress, log_measurement\n(If you would pick a NOT AVAILABLE action, choose clarify or out_of_scope instead with an honest deferral.)\n\n## USER MESSAGE\ntonight for dinner"
         }
       ],
-      "response": "{\"action\":\"clarify\",\"params\":{},\"response\":\"Which day is the dinner on?\",\"reasoning\":\"The user only provided the meal time ('dinner') and the re-proposer still needs the day to create the eating-out mutation.\"}",
+      "response": "{\"action\":\"mutate_plan\",\"params\":{\"request\":\"tonight for dinner\"},\"response\":null,\"reasoning\":\"This appears to answer the re-proposer's clarification about which meal to mark as eating out, so pass it through as a plan mutation.\"}",
       "usage": {
-        "inputTokens": 6214,
-        "outputTokens": 575
+        "inputTokens": 6264,
+        "outputTokens": 176
+      }
+    },
+    {
+      "hash": "2733eadfa21ef9421c4b3b577d825e95bf3dd24adfef325247e9b35b8237e8b9",
+      "callIndex": 4,
+      "model": "mini",
+      "reasoning": "high",
+      "json": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are a meal plan adjustment agent. You receive a current plan and a user's change request. Your job is to adjust the plan according to the request and return a COMPLETE new plan.\n\n## OUTPUT TYPE\n\nYou MUST return one of two JSON shapes:\n\n**If you can make the change:**\n{\n  \"type\": \"proposal\",\n  \"batches\": [...],\n  \"flex_slots\": [...],\n  \"events\": [...],\n  \"reasoning\": \"string — brief explanation of what you changed and why\"\n}\n\n**If you need clarification (ambiguous request or recipe not in DB):**\n{\n  \"type\": \"clarification\",\n  \"question\": \"string — the question to ask the user\",\n  \"recipe_needed\": \"string or null — non-null when the user wants a recipe not in the DB\",\n  \"recipe_meal_type\": \"lunch or dinner — REQUIRED when recipe_needed is set\"\n}\n\n## AUTHORITY RULES\n\n**You CAN change:**\n- Batch eating days (rearrange when meals are eaten)\n- Serving counts (1-3 per batch)\n- Flex placement (which day/meal gets the flex slot)\n- Cook days (derived from first eating day — not set separately)\n- Events: add, remove, or modify per user intent\n- Recipes: ONLY when the user explicitly requests a recipe change\n\n**You CANNOT change:**\n- Pre-committed slots (fixed from prior session)\n- Breakfast (fixed)\n- Total flex count: MUST stay at exactly 1\n- Calorie targets (the solver's domain)\n- Recipes without user intent — do NOT silently swap recipes. The user may have bought ingredients.\n\n## BATCH MODEL RULES\n\n- Eating days in a batch need NOT be consecutive — events and flex in the middle are fine\n- Fridge life is a hard constraint: calendarSpan(first eating day, last eating day) ≤ recipe's fridge_days\n- Servings range: 1 to 3. Prefer 2-3 serving batches. 1-serving only when no multi-serving arrangement fits.\n- Servings must equal the number of eating days (including overflow)\n- Cook day = first eating day (always)\n- Days must be in ascending ISO order within each batch\n\n## MEAL-TYPE LANE RULE (load-bearing, never crossed)\n\nEach batch has a mealType ('lunch' or 'dinner'), and each recipe in the available list has a \"mealTypes\" array listing which meal contexts it was authored for. A batch's mealType MUST be one of its recipe's mealTypes — specifically, batch.mealType ∈ recipe.mealTypes must hold for every batch you emit. You MUST NOT place a dinner-only recipe into a lunch batch, or a lunch-only recipe into a dinner batch.\n\nThis rule is NOT cosmetic. Lunch and dinner are physically different meals: lunch is portable, no-reheat, and light (midday energy matters); dinner can be heavy, sauce-heavy, cooked-to-reheat. Silently crossing lanes produces a plan the user cannot actually execute.\n\nIf the user asks for a swap that would violate this, pick a different recipe in the permitted mealTypes, or return a clarification explaining the constraint.\n\n## CROSS-HORIZON BATCHES\n\nBatches near the horizon edge can extend into the next session:\n- eating_days includes ALL days (in-horizon + overflow)\n- overflow_days lists only days past the horizon end\n- The solver only sees in-horizon days; overflow becomes pre-committed next session\n\n## MUTATION HISTORY\n\nPrior user-approved changes are load-bearing — do NOT undo them unless the new request explicitly conflicts. The user built this plan iteratively; respect earlier choices.\n\n## RECIPE MATCHING\n\nIf the user asks for a recipe not in the available recipes list, return a clarification with recipe_needed set. Example: \"I don't have a Thai green curry. Want me to create one?\"\n\n## COMPLETENESS\n\nAlways output a COMPLETE plan — every lunch and dinner slot in the horizon must be covered by exactly one of: batch, flex, event, or pre-committed slot. No gaps, no overlaps.\n\n## NEAR-FUTURE SAFETY (post-confirmation mode)\n\nYou are running on a CONFIRMED plan that the user is already living through. The user has likely shopped, portioned, or prepared meals for the next couple of days. The following ISO dates are \"near-future\" and are SOFT-LOCKED: 2026-04-07, 2026-04-08\n\nRules for near-future days:\n- You MUST NOT silently rearrange meals on near-future days. Leave them exactly as they are unless the user's request explicitly targets a near-future slot.\n- You MAY change a near-future slot when the user's request clearly names it — examples of explicit targeting: \"move today's dinner to tomorrow\", \"skip tomorrow's lunch — I'm eating out\", \"swap the lunch I'm about to make for something else\".\n- Days strictly outside the near-future window can be rearranged freely within the other rules (fridge-life, pre-committed slots, meal-type lanes, mutation history, flex count).\n- If absorbing the user's request would force a silent change to a near-future day that the user did not explicitly target, return a clarification asking the user to confirm the near-future impact — do NOT make the change unilaterally.\n\nThis rule exists because the user's real-world preparation must be respected unless they explicitly override it themselves."
+        },
+        {
+          "role": "user",
+          "content": "## HORIZON: 2026-04-07 to 2026-04-12\nDays: Tue 2026-04-07, Wed 2026-04-08, Thu 2026-04-09, Fri 2026-04-10, Sat 2026-04-11, Sun 2026-04-12\n\n## CURRENT PLAN\n\nBreakfast (daily, fixed): salmon-avocado-toast-soft-eggs-cinnamon-yogurt — 390 cal\n\nBatches:\n  dinner [2026-04-07, 2026-04-08]: moroccan-beef-tagine-style-skillet-with-lemon-couscous (moroccan-beef-tagine-style-skillet-with-lemon-couscous) — 2 servings\n  lunch [2026-04-08]: chicken-black-bean-avocado-rice-bowl (chicken-black-bean-avocado-rice-bowl) — 1 servings\n  dinner [2026-04-09, 2026-04-10, 2026-04-11]: soy-ginger-pork-rice-bowls-broccoli-carrots-scallions (soy-ginger-pork-rice-bowls-broccoli-carrots-scallions) — 3 servings\n  lunch [2026-04-09, 2026-04-10, 2026-04-11]: mediterranean-tuna-chickpea-feta-rice-bowl (mediterranean-tuna-chickpea-feta-rice-bowl) — 3 servings\n  lunch [2026-04-12]: chicken-black-bean-avocado-rice-bowl (chicken-black-bean-avocado-rice-bowl) — 1 servings\n\nFlex slots:\n  2026-04-12 dinner: flex dinner\n\nPre-committed slots (FIXED — do NOT change):\n  2026-04-06 lunch: chicken-black-bean-avocado-rice-bowl (893 cal)\n  2026-04-07 lunch: chicken-black-bean-avocado-rice-bowl (893 cal)\n  2026-04-06 dinner: moroccan-beef-tagine-style-skillet-with-lemon-couscous (720 cal)\n\n## PRIOR CHANGES (load-bearing — do not undo unless explicitly asked)\n- \"initial plan\" (2026-04-05T18:00:00.000Z)\n\n## AVAILABLE RECIPES\n- chicken-black-bean-avocado-rice-bowl: \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" | lunch | Mexican-inspired | chicken | 893 cal, 56g P | fridge_days: 3\n- creamy-salmon-and-shrimp-linguine: \"Creamy Salmon and Shrimp Linguine\" | dinner | Spanish-inspired Mediterranean | salmon | 867 cal, 56g P | fridge_days: 3\n- ground-beef-rigatoni-bolognese: \"Ground Beef Rigatoni Bolognese\" | dinner | Italian-inspired | beef | 888 cal, 55g P | fridge_days: 3\n- mediterranean-tuna-chickpea-feta-rice-bowl: \"Mediterranean Tuna, Chickpea and Feta Rice Bowl\" | lunch | Mediterranean | tuna | 886 cal, 54.3g P | fridge_days: 3\n- moroccan-beef-tagine-style-skillet-with-lemon-couscous: \"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\" | dinner | Moroccan-inspired | beef | 908 cal, 56g P | fridge_days: 3\n- soy-ginger-pork-rice-bowls-broccoli-carrots-scallions: \"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\" | lunch/dinner | Asian-inspired | pork | 889 cal, 57g P | fridge_days: 3\n\n## USER REQUEST\nI'm eating out. To clarify: tonight for dinner\n\n## OUTPUT FORMAT\nReturn JSON with type \"proposal\" or \"clarification\". For proposals:\n{\n  \"type\": \"proposal\",\n  \"batches\": [{ \"recipe_slug\": \"...\", \"recipe_name\": \"...\", \"meal_type\": \"lunch|dinner\", \"eating_days\": [\"ISO dates\"], \"overflow_days\": [\"ISO dates past horizon end\"], \"servings\": N }],\n  \"flex_slots\": [{ \"day\": \"ISO date\", \"meal_time\": \"lunch|dinner\", \"flex_bonus\": 300-400, \"note\": \"...\" }],\n  \"events\": [{ \"day\": \"ISO date\", \"meal_time\": \"lunch|dinner\", \"name\": \"...\", \"estimated_calories\": N }],\n  \"reasoning\": \"...\"\n}"
+        }
+      ],
+      "response": "{\n  \"type\": \"proposal\",\n  \"batches\": [\n    {\n      \"recipe_slug\": \"chicken-black-bean-avocado-rice-bowl\",\n      \"recipe_name\": \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\",\n      \"meal_type\": \"lunch\",\n      \"eating_days\": [\"2026-04-08\"],\n      \"overflow_days\": [],\n      \"servings\": 1\n    },\n    {\n      \"recipe_slug\": \"moroccan-beef-tagine-style-skillet-with-lemon-couscous\",\n      \"recipe_name\": \"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\",\n      \"meal_type\": \"dinner\",\n      \"eating_days\": [\"2026-04-08\"],\n      \"overflow_days\": [],\n      \"servings\": 1\n    },\n    {\n      \"recipe_slug\": \"mediterranean-tuna-chickpea-feta-rice-bowl\",\n      \"recipe_name\": \"Mediterranean Tuna, Chickpea and Feta Rice Bowl\",\n      \"meal_type\": \"lunch\",\n      \"eating_days\": [\"2026-04-09\", \"2026-04-10\", \"2026-04-11\"],\n      \"overflow_days\": [],\n      \"servings\": 3\n    },\n    {\n      \"recipe_slug\": \"soy-ginger-pork-rice-bowls-broccoli-carrots-scallions\",\n      \"recipe_name\": \"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\",\n      \"meal_type\": \"dinner\",\n      \"eating_days\": [\"2026-04-09\", \"2026-04-10\", \"2026-04-11\"],\n      \"overflow_days\": [],\n      \"servings\": 3\n    },\n    {\n      \"recipe_slug\": \"chicken-black-bean-avocado-rice-bowl\",\n      \"recipe_name\": \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\",\n      \"meal_type\": \"lunch\",\n      \"eating_days\": [\"2026-04-12\"],\n      \"overflow_days\": [],\n      \"servings\": 1\n    }\n  ],\n  \"flex_slots\": [\n    {\n      \"day\": \"2026-04-12\",\n      \"meal_time\": \"dinner\",\n      \"flex_bonus\": 350,\n      \"note\": \"Flex dinner\"\n    }\n  ],\n  \"events\": [\n    {\n      \"day\": \"2026-04-07\",\n      \"meal_time\": \"dinner\",\n      \"name\": \"Eating out\",\n      \"estimated_calories\": 800\n    }\n  ],\n  \"reasoning\": \"You said you're eating out tonight, so I replaced 2026-04-07 dinner with an eating-out event and shortened the Moroccan dinner batch to the remaining 2026-04-08 serving. No other slots were changed.\"\n}",
+      "usage": {
+        "inputTokens": 2166,
+        "outputTokens": 4336
+      }
+    },
+    {
+      "hash": "41e7b05ed9426bbcc0cb9d7306de9d411ca6b63941a184fca7c8fd4b1e6a9996",
+      "callIndex": 5,
+      "model": "mini",
+      "reasoning": "low",
+      "json": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You scale recipe ingredients to hit new nutritional targets.\n\nSCALING RULES (by ingredient role):\n- \"carb\" ingredients: adjust FIRST — they are the main calorie lever\n- \"fat\" ingredients: adjust SECOND\n- \"protein\" ingredients: adjust LAST — protect protein\n- \"vegetable\", \"base\", \"seasoning\": keep STABLE (do not change amounts)\n\nCALORIE TARGET IS A RANGE, NOT A SINGLE NUMBER.\n- You have ±20 cal of headroom around the target.\n- Use this headroom to pick CLEAN, MEASURABLE amounts rather than chasing precise numbers:\n  * Solids (pasta, rice, meat, vegetables): round to nearest 5g\n  * Liquids (oil, milk, stock): round to nearest 5ml\n  * Spoons/cups: whole or half units (1 tsp, 1/2 tbsp — not 0.7 tbsp)\n- A recipe at 798 or 815 with clean amounts is BETTER than one at 803 with 47g of pasta.\n- Natural variance is a feature, not a bug. Do not optimize to hit the exact target.\n\nPROTEIN TARGET IS PRECISE.\n- Stay within ±2g of the protein target. Protein matters for satiety.\n\nMACRO/CALORIE CONSISTENCY (CRITICAL):\nThe actual_per_serving numbers MUST satisfy the Atwater formula:\n  calories = 4 × protein_g + 4 × carbs_g + 9 × fat_g\nAll three macro values must add up to the calorie number. Before returning,\ncompute 4·protein + 4·carbs + 9·fat yourself and verify it equals calories\n(within ~5%). If it doesn't, adjust carbs or fat to make it consistent.\n\nRespond with ONLY valid JSON:\n{\n  \"scaled_ingredients\": [\n    { \"name\": \"string\", \"amount\": number, \"unit\": \"string\", \"total_for_batch\": number }\n  ],\n  \"actual_per_serving\": { \"calories\": number, \"protein\": number, \"fat\": number, \"carbs\": number }\n}\n\n\"amount\" = per-serving amount after scaling.\n\"total_for_batch\" = amount × 1 (number of servings).\n\"actual_per_serving\" = your best estimate of the resulting macros after scaling."
+        },
+        {
+          "role": "user",
+          "content": "Scale this recipe:\n\n\"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" — currently 893 cal, 56g protein per serving.\n\nIngredients (per serving):\n- chicken breast, raw: 190g (role: protein)\n- black beans, canned, drained: 75g (role: carb)\n- sweetcorn kernels, frozen: 40g (role: carb)\n- small avocado: 1whole (role: fat)\n- olive oil: 22g (role: fat)\n- ground cumin: 2g (role: seasoning)\n- smoked paprika: 2g (role: seasoning)\n- salt: 2g (role: seasoning)\n- black pepper: 1g (role: seasoning)\n- basmati rice, dry: 38g (role: base)\n- large tomato: 1whole (role: vegetable)\n- small red onion: 0.5whole (role: vegetable)\n- lime, juiced: 1whole (role: seasoning)\n- fresh coriander (cilantro): 5g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 961–1001 kcal (target 981, ±20)\n- Protein: 65g (precise, ±2g)\n\nNumber of servings: 1\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
+        }
+      ],
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"chicken breast, raw\", \"amount\": 210, \"unit\": \"g\", \"total_for_batch\": 210 },\n    { \"name\": \"black beans, canned, drained\", \"amount\": 100, \"unit\": \"g\", \"total_for_batch\": 100 },\n    { \"name\": \"sweetcorn kernels, frozen\", \"amount\": 60, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"small avocado\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"olive oil\", \"amount\": 22, \"unit\": \"g\", \"total_for_batch\": 22 },\n    { \"name\": \"ground cumin\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"smoked paprika\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"black pepper\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 1 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 38, \"unit\": \"g\", \"total_for_batch\": 38 },\n    { \"name\": \"large tomato\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"small red onion\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 0.5 },\n    { \"name\": \"lime, juiced\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"fresh coriander (cilantro)\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 5 }\n  ],\n  \"actual_per_serving\": { \"calories\": 981, \"protein\": 65, \"fat\": 39, \"carbs\": 93 }\n}",
+      "usage": {
+        "inputTokens": 787,
+        "outputTokens": 1063
+      }
+    },
+    {
+      "hash": "69b6b9e7eec6ed740682551ae044ba1017e30ac97e8ee97ef93e728005cab349",
+      "callIndex": 6,
+      "model": "mini",
+      "reasoning": "low",
+      "json": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You scale recipe ingredients to hit new nutritional targets.\n\nSCALING RULES (by ingredient role):\n- \"carb\" ingredients: adjust FIRST — they are the main calorie lever\n- \"fat\" ingredients: adjust SECOND\n- \"protein\" ingredients: adjust LAST — protect protein\n- \"vegetable\", \"base\", \"seasoning\": keep STABLE (do not change amounts)\n\nCALORIE TARGET IS A RANGE, NOT A SINGLE NUMBER.\n- You have ±20 cal of headroom around the target.\n- Use this headroom to pick CLEAN, MEASURABLE amounts rather than chasing precise numbers:\n  * Solids (pasta, rice, meat, vegetables): round to nearest 5g\n  * Liquids (oil, milk, stock): round to nearest 5ml\n  * Spoons/cups: whole or half units (1 tsp, 1/2 tbsp — not 0.7 tbsp)\n- A recipe at 798 or 815 with clean amounts is BETTER than one at 803 with 47g of pasta.\n- Natural variance is a feature, not a bug. Do not optimize to hit the exact target.\n\nPROTEIN TARGET IS PRECISE.\n- Stay within ±2g of the protein target. Protein matters for satiety.\n\nMACRO/CALORIE CONSISTENCY (CRITICAL):\nThe actual_per_serving numbers MUST satisfy the Atwater formula:\n  calories = 4 × protein_g + 4 × carbs_g + 9 × fat_g\nAll three macro values must add up to the calorie number. Before returning,\ncompute 4·protein + 4·carbs + 9·fat yourself and verify it equals calories\n(within ~5%). If it doesn't, adjust carbs or fat to make it consistent.\n\nRespond with ONLY valid JSON:\n{\n  \"scaled_ingredients\": [\n    { \"name\": \"string\", \"amount\": number, \"unit\": \"string\", \"total_for_batch\": number }\n  ],\n  \"actual_per_serving\": { \"calories\": number, \"protein\": number, \"fat\": number, \"carbs\": number }\n}\n\n\"amount\" = per-serving amount after scaling.\n\"total_for_batch\" = amount × 1 (number of servings).\n\"actual_per_serving\" = your best estimate of the resulting macros after scaling."
+        },
+        {
+          "role": "user",
+          "content": "Scale this recipe:\n\n\"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\" — currently 908 cal, 56g protein per serving.\n\nIngredients (per serving):\n- beef braising steak, trimmed: 225g (role: protein)\n- olive oil: 25g (role: fat)\n- brown onion: 60g (role: vegetable)\n- carrot: 70g (role: vegetable)\n- garlic: 5g (role: seasoning)\n- tomato paste: 15g (role: base)\n- dried apricots: 15g (role: carb)\n- ras el hanout: 4g (role: seasoning)\n- beef stock: 150ml (role: base)\n- salt and black pepper: 2g (role: seasoning)\n- couscous: 40g (role: carb)\n- olive oil: 10g (role: fat)\n- lemon juice: 10ml (role: seasoning)\n- fresh parsley: 5g (role: vegetable)\n\nNEW TARGET per serving:\n- Calories: 961–1001 kcal (target 981, ±20)\n- Protein: 65g (precise, ±2g)\n\nNumber of servings: 1\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
+        }
+      ],
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"beef braising steak, trimmed\", \"amount\": 260, \"unit\": \"g\", \"total_for_batch\": 260 },\n    { \"name\": \"olive oil\", \"amount\": 25, \"unit\": \"g\", \"total_for_batch\": 25 },\n    { \"name\": \"brown onion\", \"amount\": 60, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"carrot\", \"amount\": 70, \"unit\": \"g\", \"total_for_batch\": 70 },\n    { \"name\": \"garlic\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 5 },\n    { \"name\": \"tomato paste\", \"amount\": 15, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"dried apricots\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 20 },\n    { \"name\": \"ras el hanout\", \"amount\": 4, \"unit\": \"g\", \"total_for_batch\": 4 },\n    { \"name\": \"beef stock\", \"amount\": 150, \"unit\": \"ml\", \"total_for_batch\": 150 },\n    { \"name\": \"salt and black pepper\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"couscous\", \"amount\": 45, \"unit\": \"g\", \"total_for_batch\": 45 },\n    { \"name\": \"olive oil\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 10 },\n    { \"name\": \"lemon juice\", \"amount\": 10, \"unit\": \"ml\", \"total_for_batch\": 10 },\n    { \"name\": \"fresh parsley\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 5 }\n  ],\n  \"actual_per_serving\": {\n    \"calories\": 984,\n    \"protein\": 66,\n    \"fat\": 56,\n    \"carbs\": 55\n  }\n}",
+      "usage": {
+        "inputTokens": 775,
+        "outputTokens": 1468
+      }
+    },
+    {
+      "hash": "0dd9df2e0b54980ebd040795b77f3f93a1554b9e72f7dd1e873a1ff33cb1f45a",
+      "callIndex": 7,
+      "model": "mini",
+      "reasoning": "low",
+      "json": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You scale recipe ingredients to hit new nutritional targets.\n\nSCALING RULES (by ingredient role):\n- \"carb\" ingredients: adjust FIRST — they are the main calorie lever\n- \"fat\" ingredients: adjust SECOND\n- \"protein\" ingredients: adjust LAST — protect protein\n- \"vegetable\", \"base\", \"seasoning\": keep STABLE (do not change amounts)\n\nCALORIE TARGET IS A RANGE, NOT A SINGLE NUMBER.\n- You have ±20 cal of headroom around the target.\n- Use this headroom to pick CLEAN, MEASURABLE amounts rather than chasing precise numbers:\n  * Solids (pasta, rice, meat, vegetables): round to nearest 5g\n  * Liquids (oil, milk, stock): round to nearest 5ml\n  * Spoons/cups: whole or half units (1 tsp, 1/2 tbsp — not 0.7 tbsp)\n- A recipe at 798 or 815 with clean amounts is BETTER than one at 803 with 47g of pasta.\n- Natural variance is a feature, not a bug. Do not optimize to hit the exact target.\n\nPROTEIN TARGET IS PRECISE.\n- Stay within ±2g of the protein target. Protein matters for satiety.\n\nMACRO/CALORIE CONSISTENCY (CRITICAL):\nThe actual_per_serving numbers MUST satisfy the Atwater formula:\n  calories = 4 × protein_g + 4 × carbs_g + 9 × fat_g\nAll three macro values must add up to the calorie number. Before returning,\ncompute 4·protein + 4·carbs + 9·fat yourself and verify it equals calories\n(within ~5%). If it doesn't, adjust carbs or fat to make it consistent.\n\nRespond with ONLY valid JSON:\n{\n  \"scaled_ingredients\": [\n    { \"name\": \"string\", \"amount\": number, \"unit\": \"string\", \"total_for_batch\": number }\n  ],\n  \"actual_per_serving\": { \"calories\": number, \"protein\": number, \"fat\": number, \"carbs\": number }\n}\n\n\"amount\" = per-serving amount after scaling.\n\"total_for_batch\" = amount × 3 (number of servings).\n\"actual_per_serving\" = your best estimate of the resulting macros after scaling."
+        },
+        {
+          "role": "user",
+          "content": "Scale this recipe:\n\n\"Mediterranean Tuna, Chickpea and Feta Rice Bowl\" — currently 886 cal, 54.3g protein per serving.\n\nIngredients (per serving):\n- canned tuna in water, drained: 140g (role: protein)\n- canned chickpeas, drained: 60g (role: carb)\n- extra virgin olive oil: 25g (role: fat)\n- feta cheese: 50g (role: fat)\n- pitted green olives, drained: 35g (role: fat)\n- cherry tomatoes: 100g (role: vegetable)\n- red bell pepper: 100g (role: vegetable)\n- red onion: 30g (role: vegetable)\n- lemon juice: 15ml (role: seasoning)\n- parsley: 5g (role: seasoning)\n- basmati rice, dry: 50g (role: base)\n- fine salt: 1g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 961–1001 kcal (target 981, ±20)\n- Protein: 65g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
+        }
+      ],
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"canned tuna in water, drained\", \"amount\": 195, \"unit\": \"g\", \"total_for_batch\": 585 },\n    { \"name\": \"canned chickpeas, drained\", \"amount\": 60, \"unit\": \"g\", \"total_for_batch\": 180 },\n    { \"name\": \"extra virgin olive oil\", \"amount\": 25, \"unit\": \"g\", \"total_for_batch\": 75 },\n    { \"name\": \"feta cheese\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 150 },\n    { \"name\": \"pitted green olives, drained\", \"amount\": 35, \"unit\": \"g\", \"total_for_batch\": 105 },\n    { \"name\": \"cherry tomatoes\", \"amount\": 100, \"unit\": \"g\", \"total_for_batch\": 300 },\n    { \"name\": \"red bell pepper\", \"amount\": 100, \"unit\": \"g\", \"total_for_batch\": 300 },\n    { \"name\": \"red onion\", \"amount\": 30, \"unit\": \"g\", \"total_for_batch\": 90 },\n    { \"name\": \"lemon juice\", \"amount\": 15, \"unit\": \"ml\", \"total_for_batch\": 45 },\n    { \"name\": \"parsley\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 15 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 70, \"unit\": \"g\", \"total_for_batch\": 210 },\n    { \"name\": \"fine salt\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 3 }\n  ],\n  \"actual_per_serving\": { \"calories\": 994, \"protein\": 65.5, \"fat\": 43.5, \"carbs\": 85 }\n}",
+      "usage": {
+        "inputTokens": 758,
+        "outputTokens": 2561
+      }
+    },
+    {
+      "hash": "eb9ac60221e1c7a605ae09b664ba6fede435a9d841212fa6551321d63a325da6",
+      "callIndex": 8,
+      "model": "mini",
+      "reasoning": "low",
+      "json": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You scale recipe ingredients to hit new nutritional targets.\n\nSCALING RULES (by ingredient role):\n- \"carb\" ingredients: adjust FIRST — they are the main calorie lever\n- \"fat\" ingredients: adjust SECOND\n- \"protein\" ingredients: adjust LAST — protect protein\n- \"vegetable\", \"base\", \"seasoning\": keep STABLE (do not change amounts)\n\nCALORIE TARGET IS A RANGE, NOT A SINGLE NUMBER.\n- You have ±20 cal of headroom around the target.\n- Use this headroom to pick CLEAN, MEASURABLE amounts rather than chasing precise numbers:\n  * Solids (pasta, rice, meat, vegetables): round to nearest 5g\n  * Liquids (oil, milk, stock): round to nearest 5ml\n  * Spoons/cups: whole or half units (1 tsp, 1/2 tbsp — not 0.7 tbsp)\n- A recipe at 798 or 815 with clean amounts is BETTER than one at 803 with 47g of pasta.\n- Natural variance is a feature, not a bug. Do not optimize to hit the exact target.\n\nPROTEIN TARGET IS PRECISE.\n- Stay within ±2g of the protein target. Protein matters for satiety.\n\nMACRO/CALORIE CONSISTENCY (CRITICAL):\nThe actual_per_serving numbers MUST satisfy the Atwater formula:\n  calories = 4 × protein_g + 4 × carbs_g + 9 × fat_g\nAll three macro values must add up to the calorie number. Before returning,\ncompute 4·protein + 4·carbs + 9·fat yourself and verify it equals calories\n(within ~5%). If it doesn't, adjust carbs or fat to make it consistent.\n\nRespond with ONLY valid JSON:\n{\n  \"scaled_ingredients\": [\n    { \"name\": \"string\", \"amount\": number, \"unit\": \"string\", \"total_for_batch\": number }\n  ],\n  \"actual_per_serving\": { \"calories\": number, \"protein\": number, \"fat\": number, \"carbs\": number }\n}\n\n\"amount\" = per-serving amount after scaling.\n\"total_for_batch\" = amount × 3 (number of servings).\n\"actual_per_serving\" = your best estimate of the resulting macros after scaling."
+        },
+        {
+          "role": "user",
+          "content": "Scale this recipe:\n\n\"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\" — currently 889 cal, 57g protein per serving.\n\nIngredients (per serving):\n- jasmine rice, uncooked: 55g (role: base)\n- pork loin, boneless, raw: 220g (role: protein)\n- broccoli florets, raw: 120g (role: vegetable)\n- carrots, raw: 80g (role: vegetable)\n- scallions, raw: 20g (role: vegetable)\n- soy sauce: 20ml (role: seasoning)\n- fresh ginger: 8g (role: seasoning)\n- garlic: 2cloves (role: seasoning)\n- sesame oil: 14g (role: fat)\n- toasted sesame seeds: 10g (role: fat)\n\nNEW TARGET per serving:\n- Calories: 961–1001 kcal (target 981, ±20)\n- Protein: 65g (precise, ±2g)\n\nNumber of servings: 3\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
+        }
+      ],
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"jasmine rice, uncooked\", \"amount\": 65, \"unit\": \"g\", \"total_for_batch\": 195 },\n    { \"name\": \"pork loin, boneless, raw\", \"amount\": 255, \"unit\": \"g\", \"total_for_batch\": 765 },\n    { \"name\": \"broccoli florets, raw\", \"amount\": 120, \"unit\": \"g\", \"total_for_batch\": 360 },\n    { \"name\": \"carrots, raw\", \"amount\": 80, \"unit\": \"g\", \"total_for_batch\": 240 },\n    { \"name\": \"scallions, raw\", \"amount\": 20, \"unit\": \"g\", \"total_for_batch\": 60 },\n    { \"name\": \"soy sauce\", \"amount\": 20, \"unit\": \"ml\", \"total_for_batch\": 60 },\n    { \"name\": \"fresh ginger\", \"amount\": 8, \"unit\": \"g\", \"total_for_batch\": 24 },\n    { \"name\": \"garlic\", \"amount\": 2, \"unit\": \"cloves\", \"total_for_batch\": 6 },\n    { \"name\": \"sesame oil\", \"amount\": 14, \"unit\": \"g\", \"total_for_batch\": 42 },\n    { \"name\": \"toasted sesame seeds\", \"amount\": 10, \"unit\": \"g\", \"total_for_batch\": 30 }\n  ],\n  \"actual_per_serving\": { \"calories\": 982, \"protein\": 65, \"fat\": 38, \"carbs\": 95 }\n}",
+      "usage": {
+        "inputTokens": 736,
+        "outputTokens": 1638
+      }
+    },
+    {
+      "hash": "41e7b05ed9426bbcc0cb9d7306de9d411ca6b63941a184fca7c8fd4b1e6a9996",
+      "callIndex": 9,
+      "model": "mini",
+      "reasoning": "low",
+      "json": true,
+      "messages": [
+        {
+          "role": "system",
+          "content": "You scale recipe ingredients to hit new nutritional targets.\n\nSCALING RULES (by ingredient role):\n- \"carb\" ingredients: adjust FIRST — they are the main calorie lever\n- \"fat\" ingredients: adjust SECOND\n- \"protein\" ingredients: adjust LAST — protect protein\n- \"vegetable\", \"base\", \"seasoning\": keep STABLE (do not change amounts)\n\nCALORIE TARGET IS A RANGE, NOT A SINGLE NUMBER.\n- You have ±20 cal of headroom around the target.\n- Use this headroom to pick CLEAN, MEASURABLE amounts rather than chasing precise numbers:\n  * Solids (pasta, rice, meat, vegetables): round to nearest 5g\n  * Liquids (oil, milk, stock): round to nearest 5ml\n  * Spoons/cups: whole or half units (1 tsp, 1/2 tbsp — not 0.7 tbsp)\n- A recipe at 798 or 815 with clean amounts is BETTER than one at 803 with 47g of pasta.\n- Natural variance is a feature, not a bug. Do not optimize to hit the exact target.\n\nPROTEIN TARGET IS PRECISE.\n- Stay within ±2g of the protein target. Protein matters for satiety.\n\nMACRO/CALORIE CONSISTENCY (CRITICAL):\nThe actual_per_serving numbers MUST satisfy the Atwater formula:\n  calories = 4 × protein_g + 4 × carbs_g + 9 × fat_g\nAll three macro values must add up to the calorie number. Before returning,\ncompute 4·protein + 4·carbs + 9·fat yourself and verify it equals calories\n(within ~5%). If it doesn't, adjust carbs or fat to make it consistent.\n\nRespond with ONLY valid JSON:\n{\n  \"scaled_ingredients\": [\n    { \"name\": \"string\", \"amount\": number, \"unit\": \"string\", \"total_for_batch\": number }\n  ],\n  \"actual_per_serving\": { \"calories\": number, \"protein\": number, \"fat\": number, \"carbs\": number }\n}\n\n\"amount\" = per-serving amount after scaling.\n\"total_for_batch\" = amount × 1 (number of servings).\n\"actual_per_serving\" = your best estimate of the resulting macros after scaling."
+        },
+        {
+          "role": "user",
+          "content": "Scale this recipe:\n\n\"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" — currently 893 cal, 56g protein per serving.\n\nIngredients (per serving):\n- chicken breast, raw: 190g (role: protein)\n- black beans, canned, drained: 75g (role: carb)\n- sweetcorn kernels, frozen: 40g (role: carb)\n- small avocado: 1whole (role: fat)\n- olive oil: 22g (role: fat)\n- ground cumin: 2g (role: seasoning)\n- smoked paprika: 2g (role: seasoning)\n- salt: 2g (role: seasoning)\n- black pepper: 1g (role: seasoning)\n- basmati rice, dry: 38g (role: base)\n- large tomato: 1whole (role: vegetable)\n- small red onion: 0.5whole (role: vegetable)\n- lime, juiced: 1whole (role: seasoning)\n- fresh coriander (cilantro): 5g (role: seasoning)\n\nNEW TARGET per serving:\n- Calories: 961–1001 kcal (target 981, ±20)\n- Protein: 65g (precise, ±2g)\n\nNumber of servings: 1\n\nAdjust ingredients using clean, measurable amounts within the calorie range. Follow the scaling rules (carb → fat → protein)."
+        }
+      ],
+      "response": "{\n  \"scaled_ingredients\": [\n    { \"name\": \"chicken breast, raw\", \"amount\": 230, \"unit\": \"g\", \"total_for_batch\": 230 },\n    { \"name\": \"black beans, canned, drained\", \"amount\": 75, \"unit\": \"g\", \"total_for_batch\": 75 },\n    { \"name\": \"sweetcorn kernels, frozen\", \"amount\": 40, \"unit\": \"g\", \"total_for_batch\": 40 },\n    { \"name\": \"small avocado\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"olive oil\", \"amount\": 22, \"unit\": \"g\", \"total_for_batch\": 22 },\n    { \"name\": \"ground cumin\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"smoked paprika\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"salt\", \"amount\": 2, \"unit\": \"g\", \"total_for_batch\": 2 },\n    { \"name\": \"black pepper\", \"amount\": 1, \"unit\": \"g\", \"total_for_batch\": 1 },\n    { \"name\": \"basmati rice, dry\", \"amount\": 50, \"unit\": \"g\", \"total_for_batch\": 50 },\n    { \"name\": \"large tomato\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"small red onion\", \"amount\": 0.5, \"unit\": \"whole\", \"total_for_batch\": 0.5 },\n    { \"name\": \"lime, juiced\", \"amount\": 1, \"unit\": \"whole\", \"total_for_batch\": 1 },\n    { \"name\": \"fresh coriander (cilantro)\", \"amount\": 5, \"unit\": \"g\", \"total_for_batch\": 5 }\n  ],\n  \"actual_per_serving\": { \"calories\": 983, \"protein\": 66, \"fat\": 49, \"carbs\": 69 }\n}",
+      "usage": {
+        "inputTokens": 787,
+        "outputTokens": 1779
       }
     }
   ],
   "expected": {
     "outputs": [
       {
-        "text": "Which lunch or dinner should I replace with an eating-out event? Please tell me the day and meal time.",
+        "text": "Which lunch or dinner should I mark as eating out? I have one flex slot available and can place it on that meal.",
         "keyboard": {
           "kind": "reply",
           "buttons": [
@@ -90,7 +222,25 @@
         }
       },
       {
-        "text": "Which day is the dinner on?",
+        "text": "Added event: Eating out on Tue dinner (~800 cal)\nMoved moroccan-beef-tagine-style-skillet-with-lemon-couscous from Tue–Wed to Wed (1 servings)\n\nTap Confirm to lock this in, or Adjust to change something.",
+        "keyboard": {
+          "kind": "inline",
+          "buttons": [
+            [
+              {
+                "label": "Confirm",
+                "callback": "mp_confirm"
+              },
+              {
+                "label": "Adjust",
+                "callback": "mp_adjust"
+              }
+            ]
+          ]
+        }
+      },
+      {
+        "text": "Plan updated. Your week is locked in.\n\nNote: I shifted meals around but don't track meal-out calories yet — that comes with deviation accounting later.",
         "keyboard": {
           "kind": "reply",
           "buttons": [
@@ -106,9 +256,6 @@
           "persistent": true,
           "resized": true
         }
-      },
-      {
-        "text": "There is no pending change to confirm. Type your change to start over."
       }
     ],
     "finalSession": {
@@ -121,34 +268,29 @@
         {
           "role": "user",
           "text": "I'm eating out",
-          "at": "2026-04-07T19:00:00.000Z"
+          "at": "2026-04-07T17:00:00.000Z"
         },
         {
           "role": "bot",
-          "text": "Which lunch or dinner should I replace with an eating-out event? Please tell me the day and meal time.",
-          "at": "2026-04-07T19:00:00.000Z"
+          "text": "Which lunch or dinner should I mark as eating out? I have one flex slot available and can place it on that meal.",
+          "at": "2026-04-07T17:00:00.000Z"
         },
         {
           "role": "bot",
-          "text": "Which lunch or dinner should I replace with an eating-out event? Please tell me the day and meal time.",
-          "at": "2026-04-07T19:00:00.000Z"
+          "text": "Which lunch or dinner should I mark as eating out? I have one flex slot available and can place it on that meal.",
+          "at": "2026-04-07T17:00:00.000Z"
         },
         {
           "role": "user",
-          "text": "dinner",
-          "at": "2026-04-07T19:00:00.000Z"
+          "text": "tonight for dinner",
+          "at": "2026-04-07T17:00:00.000Z"
         },
         {
           "role": "bot",
-          "text": "Which day is the dinner on?",
-          "at": "2026-04-07T19:00:00.000Z"
+          "text": "Added event: Eating out on Tue dinner (~800 cal)\nMoved moroccan-beef-tagine-style-skillet-with-lemon-couscous from Tue–Wed to Wed (1 servings)\n\nTap Confirm to lock this in, or Adjust to change something.",
+          "at": "2026-04-07T17:00:00.000Z"
         }
-      ],
-      "pendingPostConfirmationClarification": {
-        "question": "Which lunch or dinner should I replace with an eating-out event? Please tell me the day and meal time.",
-        "originalRequest": "I'm eating out",
-        "createdAt": "2026-04-07T19:00:00.000Z"
-      }
+      ]
     },
     "finalStore": {
       "session": null,
@@ -166,7 +308,7 @@
           "treatBudgetCalories": 1050,
           "flexSlots": [
             {
-              "day": "2026-04-11",
+              "day": "2026-04-12",
               "mealTime": "dinner",
               "flexBonus": 300,
               "note": "flex dinner"
@@ -180,9 +322,51 @@
             }
           ],
           "confirmedAt": "2026-04-05T18:00:00.000Z",
-          "superseded": false,
+          "superseded": true,
           "createdAt": "2026-04-05T18:00:00.000Z",
-          "updatedAt": "2026-04-05T18:00:00.000Z"
+          "updatedAt": "2026-04-07T17:00:00.000Z"
+        },
+        {
+          "id": "{{uuid:0}}",
+          "horizonStart": "2026-04-06",
+          "horizonEnd": "2026-04-12",
+          "breakfast": {
+            "locked": true,
+            "recipeSlug": "salmon-avocado-toast-soft-eggs-cinnamon-yogurt",
+            "caloriesPerDay": 390,
+            "proteinPerDay": 31
+          },
+          "treatBudgetCalories": 1050,
+          "flexSlots": [
+            {
+              "day": "2026-04-12",
+              "mealTime": "dinner",
+              "flexBonus": 350,
+              "note": "Flex dinner"
+            }
+          ],
+          "events": [
+            {
+              "name": "Eating out",
+              "day": "2026-04-07",
+              "mealTime": "dinner",
+              "estimatedCalories": 800
+            }
+          ],
+          "mutationHistory": [
+            {
+              "constraint": "initial plan",
+              "appliedAt": "2026-04-05T18:00:00.000Z"
+            },
+            {
+              "constraint": "I'm eating out. To clarify: tonight for dinner",
+              "appliedAt": "2026-04-07T17:00:00.000Z"
+            }
+          ],
+          "confirmedAt": "2026-04-07T17:00:00.000Z",
+          "superseded": false,
+          "createdAt": "2026-04-07T17:00:00.000Z",
+          "updatedAt": "2026-04-07T17:00:00.000Z"
         }
       ],
       "batches": [
@@ -236,7 +420,7 @@
               "role": "fat"
             }
           ],
-          "status": "planned",
+          "status": "cancelled",
           "createdInPlanSessionId": "sess-053-0000-0000-0000-000000000001"
         },
         {
@@ -282,12 +466,12 @@
               "role": "fat"
             }
           ],
-          "status": "planned",
+          "status": "cancelled",
           "createdInPlanSessionId": "sess-053-0000-0000-0000-000000000001"
         },
         {
           "id": "batch-053-lunch2-0000-0000-000000000003",
-          "recipeSlug": "ground-beef-rigatoni-bolognese",
+          "recipeSlug": "mediterranean-tuna-chickpea-feta-rice-bowl",
           "mealType": "lunch",
           "eatingDays": [
             "2026-04-09",
@@ -302,30 +486,37 @@
           "actualPerServing": {
             "calories": 780,
             "protein": 52,
-            "fat": 32,
-            "carbs": 78
+            "fat": 28,
+            "carbs": 82
           },
           "scaledIngredients": [
             {
-              "name": "ground beef",
-              "amount": 180,
-              "unit": "g",
-              "totalForBatch": 540,
-              "role": "protein"
-            },
-            {
-              "name": "rigatoni",
-              "amount": 90,
-              "unit": "g",
-              "totalForBatch": 270,
-              "role": "carb"
-            },
-            {
-              "name": "cherry tomatoes",
+              "name": "canned tuna, drained",
               "amount": 150,
               "unit": "g",
               "totalForBatch": 450,
-              "role": "vegetable"
+              "role": "protein"
+            },
+            {
+              "name": "chickpeas, canned, drained",
+              "amount": 80,
+              "unit": "g",
+              "totalForBatch": 240,
+              "role": "carb"
+            },
+            {
+              "name": "feta cheese",
+              "amount": 30,
+              "unit": "g",
+              "totalForBatch": 90,
+              "role": "fat"
+            },
+            {
+              "name": "basmati rice",
+              "amount": 80,
+              "unit": "g",
+              "totalForBatch": 240,
+              "role": "carb"
             },
             {
               "name": "olive oil",
@@ -335,7 +526,7 @@
               "role": "fat"
             }
           ],
-          "status": "planned",
+          "status": "cancelled",
           "createdInPlanSessionId": "sess-053-0000-0000-0000-000000000001"
         },
         {
@@ -344,9 +535,10 @@
           "mealType": "dinner",
           "eatingDays": [
             "2026-04-09",
-            "2026-04-10"
+            "2026-04-10",
+            "2026-04-11"
           ],
-          "servings": 2,
+          "servings": 3,
           "targetPerServing": {
             "calories": 650,
             "protein": 44
@@ -362,33 +554,747 @@
               "name": "pork tenderloin",
               "amount": 180,
               "unit": "g",
-              "totalForBatch": 360,
+              "totalForBatch": 540,
               "role": "protein"
             },
             {
               "name": "broccoli",
               "amount": 100,
               "unit": "g",
-              "totalForBatch": 200,
+              "totalForBatch": 300,
               "role": "vegetable"
             },
             {
               "name": "basmati rice",
               "amount": 80,
               "unit": "g",
-              "totalForBatch": 160,
+              "totalForBatch": 240,
               "role": "carb"
             },
             {
               "name": "soy sauce",
               "amount": 20,
               "unit": "ml",
-              "totalForBatch": 40,
+              "totalForBatch": 60,
+              "role": "seasoning"
+            }
+          ],
+          "status": "cancelled",
+          "createdInPlanSessionId": "sess-053-0000-0000-0000-000000000001"
+        },
+        {
+          "id": "batch-053-lunch3-0000-0000-000000000005",
+          "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-12"
+          ],
+          "servings": 1,
+          "targetPerServing": {
+            "calories": 893,
+            "protein": 56
+          },
+          "actualPerServing": {
+            "calories": 893,
+            "protein": 56,
+            "fat": 46,
+            "carbs": 68
+          },
+          "scaledIngredients": [
+            {
+              "name": "chicken breast, raw",
+              "amount": 190,
+              "unit": "g",
+              "totalForBatch": 190,
+              "role": "protein"
+            },
+            {
+              "name": "black beans, canned, drained",
+              "amount": 75,
+              "unit": "g",
+              "totalForBatch": 75,
+              "role": "carb"
+            },
+            {
+              "name": "small avocado",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 1,
+              "role": "fat"
+            },
+            {
+              "name": "olive oil",
+              "amount": 22,
+              "unit": "ml",
+              "totalForBatch": 22,
+              "role": "fat"
+            }
+          ],
+          "status": "cancelled",
+          "createdInPlanSessionId": "sess-053-0000-0000-0000-000000000001"
+        },
+        {
+          "id": "{{uuid:1}}",
+          "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-06",
+            "2026-04-07"
+          ],
+          "servings": 2,
+          "targetPerServing": {
+            "calories": 893,
+            "protein": 56
+          },
+          "actualPerServing": {
+            "calories": 893,
+            "protein": 56,
+            "fat": 46,
+            "carbs": 68
+          },
+          "scaledIngredients": [
+            {
+              "name": "chicken breast, raw",
+              "amount": 190,
+              "unit": "g",
+              "totalForBatch": 380,
+              "role": "protein"
+            },
+            {
+              "name": "black beans, canned, drained",
+              "amount": 75,
+              "unit": "g",
+              "totalForBatch": 150,
+              "role": "carb"
+            },
+            {
+              "name": "small avocado",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 2,
+              "role": "fat"
+            },
+            {
+              "name": "olive oil",
+              "amount": 22,
+              "unit": "ml",
+              "totalForBatch": 44,
+              "role": "fat"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "{{uuid:0}}"
+        },
+        {
+          "id": "{{uuid:2}}",
+          "recipeSlug": "moroccan-beef-tagine-style-skillet-with-lemon-couscous",
+          "mealType": "dinner",
+          "eatingDays": [
+            "2026-04-06"
+          ],
+          "servings": 1,
+          "targetPerServing": {
+            "calories": 720,
+            "protein": 48
+          },
+          "actualPerServing": {
+            "calories": 720,
+            "protein": 48,
+            "fat": 28,
+            "carbs": 72
+          },
+          "scaledIngredients": [
+            {
+              "name": "ground beef",
+              "amount": 200,
+              "unit": "g",
+              "totalForBatch": 200,
+              "role": "protein"
+            },
+            {
+              "name": "couscous",
+              "amount": 80,
+              "unit": "g",
+              "totalForBatch": 80,
+              "role": "carb"
+            },
+            {
+              "name": "olive oil",
+              "amount": 15,
+              "unit": "ml",
+              "totalForBatch": 15,
+              "role": "fat"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "{{uuid:0}}"
+        },
+        {
+          "id": "{{uuid:3}}",
+          "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-08"
+          ],
+          "servings": 1,
+          "targetPerServing": {
+            "calories": 981,
+            "protein": 65
+          },
+          "actualPerServing": {
+            "calories": 981,
+            "protein": 65,
+            "fat": 39,
+            "carbs": 93
+          },
+          "scaledIngredients": [
+            {
+              "name": "chicken breast, raw",
+              "amount": 210,
+              "unit": "g",
+              "totalForBatch": 210,
+              "role": "protein"
+            },
+            {
+              "name": "black beans, canned, drained",
+              "amount": 100,
+              "unit": "g",
+              "totalForBatch": 100,
+              "role": "carb"
+            },
+            {
+              "name": "sweetcorn kernels, frozen",
+              "amount": 60,
+              "unit": "g",
+              "totalForBatch": 60,
+              "role": "carb"
+            },
+            {
+              "name": "small avocado",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 1,
+              "role": "fat"
+            },
+            {
+              "name": "olive oil",
+              "amount": 22,
+              "unit": "g",
+              "totalForBatch": 22,
+              "role": "fat"
+            },
+            {
+              "name": "ground cumin",
+              "amount": 2,
+              "unit": "g",
+              "totalForBatch": 2,
+              "role": "seasoning"
+            },
+            {
+              "name": "smoked paprika",
+              "amount": 2,
+              "unit": "g",
+              "totalForBatch": 2,
+              "role": "seasoning"
+            },
+            {
+              "name": "salt",
+              "amount": 2,
+              "unit": "g",
+              "totalForBatch": 2,
+              "role": "seasoning"
+            },
+            {
+              "name": "black pepper",
+              "amount": 1,
+              "unit": "g",
+              "totalForBatch": 1,
+              "role": "seasoning"
+            },
+            {
+              "name": "basmati rice, dry",
+              "amount": 38,
+              "unit": "g",
+              "totalForBatch": 38,
+              "role": "base"
+            },
+            {
+              "name": "large tomato",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 1,
+              "role": "vegetable"
+            },
+            {
+              "name": "small red onion",
+              "amount": 0.5,
+              "unit": "whole",
+              "totalForBatch": 0.5,
+              "role": "vegetable"
+            },
+            {
+              "name": "lime, juiced",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 1,
+              "role": "seasoning"
+            },
+            {
+              "name": "fresh coriander (cilantro)",
+              "amount": 5,
+              "unit": "g",
+              "totalForBatch": 5,
               "role": "seasoning"
             }
           ],
           "status": "planned",
-          "createdInPlanSessionId": "sess-053-0000-0000-0000-000000000001"
+          "createdInPlanSessionId": "{{uuid:0}}"
+        },
+        {
+          "id": "{{uuid:4}}",
+          "recipeSlug": "moroccan-beef-tagine-style-skillet-with-lemon-couscous",
+          "mealType": "dinner",
+          "eatingDays": [
+            "2026-04-08"
+          ],
+          "servings": 1,
+          "targetPerServing": {
+            "calories": 981,
+            "protein": 65
+          },
+          "actualPerServing": {
+            "calories": 984,
+            "protein": 66,
+            "fat": 56,
+            "carbs": 55
+          },
+          "scaledIngredients": [
+            {
+              "name": "beef braising steak, trimmed",
+              "amount": 260,
+              "unit": "g",
+              "totalForBatch": 260,
+              "role": "protein"
+            },
+            {
+              "name": "olive oil",
+              "amount": 25,
+              "unit": "g",
+              "totalForBatch": 25,
+              "role": "fat"
+            },
+            {
+              "name": "brown onion",
+              "amount": 60,
+              "unit": "g",
+              "totalForBatch": 60,
+              "role": "vegetable"
+            },
+            {
+              "name": "carrot",
+              "amount": 70,
+              "unit": "g",
+              "totalForBatch": 70,
+              "role": "vegetable"
+            },
+            {
+              "name": "garlic",
+              "amount": 5,
+              "unit": "g",
+              "totalForBatch": 5,
+              "role": "seasoning"
+            },
+            {
+              "name": "tomato paste",
+              "amount": 15,
+              "unit": "g",
+              "totalForBatch": 15,
+              "role": "base"
+            },
+            {
+              "name": "dried apricots",
+              "amount": 20,
+              "unit": "g",
+              "totalForBatch": 20,
+              "role": "carb"
+            },
+            {
+              "name": "ras el hanout",
+              "amount": 4,
+              "unit": "g",
+              "totalForBatch": 4,
+              "role": "seasoning"
+            },
+            {
+              "name": "beef stock",
+              "amount": 150,
+              "unit": "ml",
+              "totalForBatch": 150,
+              "role": "base"
+            },
+            {
+              "name": "salt and black pepper",
+              "amount": 2,
+              "unit": "g",
+              "totalForBatch": 2,
+              "role": "seasoning"
+            },
+            {
+              "name": "couscous",
+              "amount": 45,
+              "unit": "g",
+              "totalForBatch": 45,
+              "role": "carb"
+            },
+            {
+              "name": "olive oil",
+              "amount": 10,
+              "unit": "g",
+              "totalForBatch": 10,
+              "role": "fat"
+            },
+            {
+              "name": "lemon juice",
+              "amount": 10,
+              "unit": "ml",
+              "totalForBatch": 10,
+              "role": "seasoning"
+            },
+            {
+              "name": "fresh parsley",
+              "amount": 5,
+              "unit": "g",
+              "totalForBatch": 5,
+              "role": "vegetable"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "{{uuid:0}}"
+        },
+        {
+          "id": "{{uuid:5}}",
+          "recipeSlug": "mediterranean-tuna-chickpea-feta-rice-bowl",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-09",
+            "2026-04-10",
+            "2026-04-11"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 981,
+            "protein": 65
+          },
+          "actualPerServing": {
+            "calories": 994,
+            "protein": 65.5,
+            "fat": 43.5,
+            "carbs": 85
+          },
+          "scaledIngredients": [
+            {
+              "name": "canned tuna in water, drained",
+              "amount": 195,
+              "unit": "g",
+              "totalForBatch": 585,
+              "role": "protein"
+            },
+            {
+              "name": "canned chickpeas, drained",
+              "amount": 60,
+              "unit": "g",
+              "totalForBatch": 180,
+              "role": "carb"
+            },
+            {
+              "name": "extra virgin olive oil",
+              "amount": 25,
+              "unit": "g",
+              "totalForBatch": 75,
+              "role": "fat"
+            },
+            {
+              "name": "feta cheese",
+              "amount": 50,
+              "unit": "g",
+              "totalForBatch": 150,
+              "role": "fat"
+            },
+            {
+              "name": "pitted green olives, drained",
+              "amount": 35,
+              "unit": "g",
+              "totalForBatch": 105,
+              "role": "fat"
+            },
+            {
+              "name": "cherry tomatoes",
+              "amount": 100,
+              "unit": "g",
+              "totalForBatch": 300,
+              "role": "vegetable"
+            },
+            {
+              "name": "red bell pepper",
+              "amount": 100,
+              "unit": "g",
+              "totalForBatch": 300,
+              "role": "vegetable"
+            },
+            {
+              "name": "red onion",
+              "amount": 30,
+              "unit": "g",
+              "totalForBatch": 90,
+              "role": "vegetable"
+            },
+            {
+              "name": "lemon juice",
+              "amount": 15,
+              "unit": "ml",
+              "totalForBatch": 45,
+              "role": "seasoning"
+            },
+            {
+              "name": "parsley",
+              "amount": 5,
+              "unit": "g",
+              "totalForBatch": 15,
+              "role": "seasoning"
+            },
+            {
+              "name": "basmati rice, dry",
+              "amount": 70,
+              "unit": "g",
+              "totalForBatch": 210,
+              "role": "base"
+            },
+            {
+              "name": "fine salt",
+              "amount": 1,
+              "unit": "g",
+              "totalForBatch": 3,
+              "role": "seasoning"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "{{uuid:0}}"
+        },
+        {
+          "id": "{{uuid:6}}",
+          "recipeSlug": "soy-ginger-pork-rice-bowls-broccoli-carrots-scallions",
+          "mealType": "dinner",
+          "eatingDays": [
+            "2026-04-09",
+            "2026-04-10",
+            "2026-04-11"
+          ],
+          "servings": 3,
+          "targetPerServing": {
+            "calories": 981,
+            "protein": 65
+          },
+          "actualPerServing": {
+            "calories": 982,
+            "protein": 65,
+            "fat": 38,
+            "carbs": 95
+          },
+          "scaledIngredients": [
+            {
+              "name": "jasmine rice, uncooked",
+              "amount": 65,
+              "unit": "g",
+              "totalForBatch": 195,
+              "role": "base"
+            },
+            {
+              "name": "pork loin, boneless, raw",
+              "amount": 255,
+              "unit": "g",
+              "totalForBatch": 765,
+              "role": "protein"
+            },
+            {
+              "name": "broccoli florets, raw",
+              "amount": 120,
+              "unit": "g",
+              "totalForBatch": 360,
+              "role": "vegetable"
+            },
+            {
+              "name": "carrots, raw",
+              "amount": 80,
+              "unit": "g",
+              "totalForBatch": 240,
+              "role": "vegetable"
+            },
+            {
+              "name": "scallions, raw",
+              "amount": 20,
+              "unit": "g",
+              "totalForBatch": 60,
+              "role": "vegetable"
+            },
+            {
+              "name": "soy sauce",
+              "amount": 20,
+              "unit": "ml",
+              "totalForBatch": 60,
+              "role": "seasoning"
+            },
+            {
+              "name": "fresh ginger",
+              "amount": 8,
+              "unit": "g",
+              "totalForBatch": 24,
+              "role": "seasoning"
+            },
+            {
+              "name": "garlic",
+              "amount": 2,
+              "unit": "cloves",
+              "totalForBatch": 6,
+              "role": "seasoning"
+            },
+            {
+              "name": "sesame oil",
+              "amount": 14,
+              "unit": "g",
+              "totalForBatch": 42,
+              "role": "fat"
+            },
+            {
+              "name": "toasted sesame seeds",
+              "amount": 10,
+              "unit": "g",
+              "totalForBatch": 30,
+              "role": "fat"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "{{uuid:0}}"
+        },
+        {
+          "id": "{{uuid:7}}",
+          "recipeSlug": "chicken-black-bean-avocado-rice-bowl",
+          "mealType": "lunch",
+          "eatingDays": [
+            "2026-04-12"
+          ],
+          "servings": 1,
+          "targetPerServing": {
+            "calories": 981,
+            "protein": 65
+          },
+          "actualPerServing": {
+            "calories": 983,
+            "protein": 66,
+            "fat": 49,
+            "carbs": 69
+          },
+          "scaledIngredients": [
+            {
+              "name": "chicken breast, raw",
+              "amount": 230,
+              "unit": "g",
+              "totalForBatch": 230,
+              "role": "protein"
+            },
+            {
+              "name": "black beans, canned, drained",
+              "amount": 75,
+              "unit": "g",
+              "totalForBatch": 75,
+              "role": "carb"
+            },
+            {
+              "name": "sweetcorn kernels, frozen",
+              "amount": 40,
+              "unit": "g",
+              "totalForBatch": 40,
+              "role": "carb"
+            },
+            {
+              "name": "small avocado",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 1,
+              "role": "fat"
+            },
+            {
+              "name": "olive oil",
+              "amount": 22,
+              "unit": "g",
+              "totalForBatch": 22,
+              "role": "fat"
+            },
+            {
+              "name": "ground cumin",
+              "amount": 2,
+              "unit": "g",
+              "totalForBatch": 2,
+              "role": "seasoning"
+            },
+            {
+              "name": "smoked paprika",
+              "amount": 2,
+              "unit": "g",
+              "totalForBatch": 2,
+              "role": "seasoning"
+            },
+            {
+              "name": "salt",
+              "amount": 2,
+              "unit": "g",
+              "totalForBatch": 2,
+              "role": "seasoning"
+            },
+            {
+              "name": "black pepper",
+              "amount": 1,
+              "unit": "g",
+              "totalForBatch": 1,
+              "role": "seasoning"
+            },
+            {
+              "name": "basmati rice, dry",
+              "amount": 50,
+              "unit": "g",
+              "totalForBatch": 50,
+              "role": "base"
+            },
+            {
+              "name": "large tomato",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 1,
+              "role": "vegetable"
+            },
+            {
+              "name": "small red onion",
+              "amount": 0.5,
+              "unit": "whole",
+              "totalForBatch": 0.5,
+              "role": "vegetable"
+            },
+            {
+              "name": "lime, juiced",
+              "amount": 1,
+              "unit": "whole",
+              "totalForBatch": 1,
+              "role": "seasoning"
+            },
+            {
+              "name": "fresh coriander (cilantro)",
+              "amount": 5,
+              "unit": "g",
+              "totalForBatch": 5,
+              "role": "seasoning"
+            }
+          ],
+          "status": "planned",
+          "createdInPlanSessionId": "{{uuid:0}}"
         }
       ]
     }

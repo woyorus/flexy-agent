@@ -77,3 +77,4 @@ discussion.
 ## Current proposals
 
 - [003-freeform-conversation-layer.md](003-freeform-conversation-layer.md) — Action-dispatcher front door for all inbound text/voice. Reasoning LLM picks one action from a small catalog, delegates execution to existing handlers, preserves flow state across side conversations. Enables post-confirmation mutations, treat/measurement logging from any surface, read-only Q&A, natural-language navigation.
+- [005-honest-past-logging.md](005-honest-past-logging.md) — First-class path for retroactive deviation reports ("last night I went to an Indian restaurant"). Models actual-past as an overlay on planned-past so honest reports are acknowledged, applied to the weekly budget, and framed in context — without silently dropping the user's input, resurrecting the past plan, or rewriting history.

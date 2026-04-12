@@ -317,6 +317,69 @@ test('sessionToPostConfirmationProposal: past flex slots and events split into p
   ]);
 });
 
+// ─── Same-day past slots must be materialized into preCommittedSlots ─────────
+//
+// Codex review of the post-confirmation past-batch wiring fix flagged that
+// `activeHorizonDays` is day-granular but the cutoff is slot-granular.
+// After 15:00 local, today's lunch is past but today is still in
+// `activeHorizonDays`. If the past slot's source was a flex or event
+// (not a batch), nothing in `preCommittedSlots` covers it and the validator
+// fires `#1 Slot coverage` on the already-consumed slot. The fix is to
+// synthesize `PreCommittedSlot` entries from `preservedPastFlexSlots` and
+// `preservedPastEvents` alongside past batches.
+
+test('sessionToPostConfirmationProposal: past flex slot becomes a pre-committed entry for validator coverage', () => {
+  // Thu 18:00 local — Thu lunch past (>15:00), Thu dinner active (<21:00).
+  // A flex on Thu lunch falls into `preservedPastFlexSlots` after the split,
+  // but for validator invariant #1 ("every horizon slot must have a source")
+  // it also needs to appear as a pre-committed entry. Otherwise the
+  // re-proposer can never produce a valid proposal because Thu remains in
+  // `activeHorizonDays` while Thu lunch has nothing claiming it.
+  const now = at('2026-04-09', 18);
+  const sess = session({
+    flexSlots: [{ day: '2026-04-09', mealTime: 'lunch', flexBonus: 350, note: 'fun lunch' }],
+  });
+  const result = sessionToPostConfirmationProposal(sess, [], now);
+
+  // Sanity — Thu lunch did fall into preservedPastFlexSlots (existing behavior).
+  assert.deepStrictEqual(result.preservedPastFlexSlots, [
+    { day: '2026-04-09', mealTime: 'lunch', flexBonus: 350, note: 'fun lunch' },
+  ]);
+
+  // Load-bearing — same Thu lunch must be covered via preCommittedSlots so
+  // validator invariant #1 accepts it as a source. Calories carry the
+  // flexBonus so the solver's budget math subtracts the consumed amount.
+  const thuLunch = result.preCommittedSlots.find(
+    (pc) => pc.day === '2026-04-09' && pc.mealTime === 'lunch',
+  );
+  assert.ok(thuLunch, 'past flex on Thu lunch must appear in preCommittedSlots');
+  assert.equal(thuLunch!.calories, 350, 'flexBonus carries as the consumed calorie cost');
+});
+
+test('sessionToPostConfirmationProposal: past meal event becomes a pre-committed entry for validator coverage', () => {
+  // Thu 18:00 local — Thu lunch past. An event on Thu lunch falls into
+  // `preservedPastEvents`, and — for the same reason as the flex test —
+  // also needs a preCommittedSlots entry so the active-horizon validator
+  // doesn't fire invariant #1 on it.
+  const now = at('2026-04-09', 18);
+  const sess = session({
+    events: [
+      { name: 'work lunch out', day: '2026-04-09', mealTime: 'lunch', estimatedCalories: 850 },
+    ],
+  });
+  const result = sessionToPostConfirmationProposal(sess, [], now);
+
+  assert.deepStrictEqual(result.preservedPastEvents, [
+    { name: 'work lunch out', day: '2026-04-09', mealTime: 'lunch', estimatedCalories: 850 },
+  ]);
+
+  const thuLunch = result.preCommittedSlots.find(
+    (pc) => pc.day === '2026-04-09' && pc.mealTime === 'lunch',
+  );
+  assert.ok(thuLunch, 'past event on Thu lunch must appear in preCommittedSlots');
+  assert.equal(thuLunch!.calories, 850, 'event.estimatedCalories carries as the consumed calorie cost');
+});
+
 test('splitBatchAtCutoffs: spanning with today lunch past by cutoff', () => {
   // Now = Wednesday 16:00. Lunch batch Mon / Tue / Wed. All three are past
   // (Mon/Tue by date, Wed by cutoff at 16:00 > 15:00). Not actually spanning,

@@ -5,6 +5,8 @@
 ## High
 
 - ~~**TD-001: Proposer sometimes underfills the week (orphan slots).**~~ → Resolved, see below.
+- **TD-007: Retroactive plan deviations are silently dropped.** Identified: 2026-04-12 during behavioral review of scenario 052 after the post-confirmation past-batch wiring fix. When the user reports a past deviation (*"last night I went to an Indian restaurant"*) the re-proposer's first attempt adds an eat-out event on the past slot; the validator rejects it (#1 event date not in horizon, #9 displaces pre-committed); the retry silently drops the user's event from the proposal and produces unrelated coverage filler ("Added chicken lunch on Sat–Sun"). The user's input never enters the record, but the bot confirms with "Plan updated." Direct PRODUCT_SENSE violation — the system ignores honest user input on the exact real-life moment the product exists to handle. Design proposal: [005-honest-past-logging.md](../design-docs/proposals/005-honest-past-logging.md). Scenario 052's regenerated recording captures the bad behavior and should be regenerated when the proposal lands.
+  Files: `src/agents/plan-reproposer.ts`, `src/plan/mutate-plan-applier.ts`, `test/scenarios/052-mutate-plan-retroactive-honest/recorded.json`.
 
 ## Medium
 

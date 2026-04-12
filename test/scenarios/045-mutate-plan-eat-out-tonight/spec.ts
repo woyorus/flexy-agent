@@ -19,8 +19,9 @@
  *   - Pork rice bowls dinner batch Thu–Sat (Apr 9–11)
  *   - Flex slot: Saturday dinner (Apr 11)
  *
- * Clock: 2026-04-07T19:00:00Z (Tuesday 7pm — within the tagine dinner
- * batch window, so "tonight" = Tue Apr 7 dinner).
+ * Clock: 2026-04-07T17:00:00Z (Tue 19:00 Europe/Madrid DST — before the
+ * 21:00 local dinner cutoff, so Tue dinner is still active and "tonight"
+ * resolves to a forward mutation against the tagine batch).
  *
  * Sequence:
  *   1. Type "I'm eating out tonight, friend invited me"
@@ -134,7 +135,7 @@ export default defineScenario({
   description:
     'Flow 1 canonical: user on confirmed plan types "I\'m eating out tonight", dispatcher picks mutate_plan, ' +
     'post-confirmation branch runs re-proposer, user taps mp_confirm. Plan 029.',
-  clock: '2026-04-07T19:00:00Z',
+  clock: '2026-04-07T17:00:00Z',
   recipeSet: 'six-balanced',
   initialState: {
     session: null,

@@ -18,14 +18,14 @@
           "content": "## TODAY\n2026-04-09  (server-local; assume single-user.)\n\n## SURFACE\nsurfaceContext: none\nlifecycle: active_mid\nlastRenderedView: none\n\n## ACTIVE FLOW\nnone\n\n## RECENT TURNS (oldest first)\n(no prior turns)\n\n## PLAN SUMMARY\nhorizon: 2026-04-06..2026-04-12\nweekly target: 17052 kcal / 1050g protein\nbatches:\n  - chicken-black-bean-avocado-rice-bowl (Chicken Black Bean Bowl), 3 servings, 2026-04-06/2026-04-07/2026-04-08 lunch\n  - moroccan-beef-tagine-style-skillet-with-lemon-couscous (Beef Tagine), 3 servings, 2026-04-09/2026-04-10/2026-04-11 dinner\n  - ground-beef-rigatoni-bolognese (Beef Bolognese), 3 servings, 2026-04-09/2026-04-10/2026-04-11 lunch\nflex slots:\n  - 2026-04-12 dinner (+300 kcal flex — flex dinner)\nevents:\n  (none)\n\n## RECIPE LIBRARY (7 recipes)\nchicken-black-bean-avocado-rice-bowl | Chicken Black Bean Bowl | Mexican-inspired | lunch | 893kcal 56gP | fridge=3d freezable=false | reheat: Microwave the rice, chicken, black beans, and swee\ncreamy-salmon-and-shrimp-linguine | Salmon Shrimp Linguine | Spanish-inspired Mediterranean | dinner | 867kcal 56gP | fridge=3d freezable=false | reheat: Refrigerate in airtight containers for up to 3 day\nground-beef-rigatoni-bolognese | Beef Bolognese | Italian-inspired | dinner | 888kcal 55gP | fridge=3d freezable=true | reheat: Reheat the lean beef bolognese and pasta separatel\nmediterranean-tuna-chickpea-feta-rice-bowl | Tuna Chickpea Bowl | Mediterranean | lunch | 886kcal 54.3gP | fridge=3d freezable=false | reheat: Microwave covered until hot, stirring once halfway\nmoroccan-beef-tagine-style-skillet-with-lemon-couscous | Beef Tagine | Moroccan-inspired | dinner | 908kcal 56gP | fridge=3d freezable=true | reheat: Store the beef tagine-style skillet and couscous s\nsalmon-avocado-toast-soft-eggs-cinnamon-yogurt | Salmon Toast & Eggs | Modern Mediterranean | breakfast | 658kcal 41gP | fridge=2d freezable=false | reheat: Store the components separately in the fridge. Toa\nsoy-ginger-pork-rice-bowls-broccoli-carrots-scallions | Soy Ginger Pork Bowls | Asian-inspired | lunch/dinner | 889kcal 57gP | fridge=3d freezable=true | reheat: Microwave until steaming hot, stirring once halfwa\n\n## ALLOWED ACTIONS\nflow_input, clarify, out_of_scope, return_to_flow, mutate_plan, answer_plan_question, answer_recipe_question, answer_domain_question, show_recipe, show_plan, show_shopping_list, show_progress, log_measurement\n(If you would pick a NOT AVAILABLE action, choose clarify or out_of_scope instead with an honest deferral.)\n\n## USER MESSAGE\nMove tomorrow's tagine to lunch"
         }
       ],
-      "response": "{\"action\":\"mutate_plan\",\"params\":{\"request\":\"Move tomorrow's tagine to lunch\"},\"response\":null,\"reasoning\":\"Post-confirmation plan change request to move an existing meal; route to the re-proposer via mutate_plan.\"}",
+      "response": "{\"action\":\"mutate_plan\",\"params\":{\"request\":\"Move tomorrow's tagine to lunch\"},\"response\":null,\"reasoning\":\"Post-confirmation plan mutation request: shifting an existing recipe from dinner to lunch.\"}",
       "usage": {
         "inputTokens": 6039,
-        "outputTokens": 158
+        "outputTokens": 110
       }
     },
     {
-      "hash": "9c165ecb6179a0d36a47652e2369bc9ee2d22f05710a6dc718542c15721fe6ba",
+      "hash": "3951dc95ce31b828203e1bb887bef539239477c5d570f5dc8aabaf6a7c97afb7",
       "callIndex": 2,
       "model": "mini",
       "reasoning": "high",
@@ -37,20 +37,20 @@
         },
         {
           "role": "user",
-          "content": "## HORIZON: 2026-04-06 to 2026-04-12\nDays: Mon 2026-04-06, Tue 2026-04-07, Wed 2026-04-08, Thu 2026-04-09, Fri 2026-04-10, Sat 2026-04-11, Sun 2026-04-12\n\n## CURRENT PLAN\n\nBreakfast (daily, fixed): salmon-avocado-toast-soft-eggs-cinnamon-yogurt — 390 cal\n\nBatches:\n  dinner [2026-04-09, 2026-04-10, 2026-04-11]: moroccan-beef-tagine-style-skillet-with-lemon-couscous (moroccan-beef-tagine-style-skillet-with-lemon-couscous) — 3 servings\n  lunch [2026-04-09, 2026-04-10, 2026-04-11]: ground-beef-rigatoni-bolognese (ground-beef-rigatoni-bolognese) — 3 servings\n\nFlex slots:\n  2026-04-12 dinner: flex dinner\n\n## PRIOR CHANGES (load-bearing — do not undo unless explicitly asked)\n- \"initial plan\" (2026-04-05T18:00:00.000Z)\n\n## AVAILABLE RECIPES\n- chicken-black-bean-avocado-rice-bowl: \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" | lunch | Mexican-inspired | chicken | 893 cal, 56g P | fridge_days: 3\n- creamy-salmon-and-shrimp-linguine: \"Creamy Salmon and Shrimp Linguine\" | dinner | Spanish-inspired Mediterranean | salmon | 867 cal, 56g P | fridge_days: 3\n- ground-beef-rigatoni-bolognese: \"Ground Beef Rigatoni Bolognese\" | dinner | Italian-inspired | beef | 888 cal, 55g P | fridge_days: 3\n- mediterranean-tuna-chickpea-feta-rice-bowl: \"Mediterranean Tuna, Chickpea and Feta Rice Bowl\" | lunch | Mediterranean | tuna | 886 cal, 54.3g P | fridge_days: 3\n- moroccan-beef-tagine-style-skillet-with-lemon-couscous: \"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\" | dinner | Moroccan-inspired | beef | 908 cal, 56g P | fridge_days: 3\n- soy-ginger-pork-rice-bowls-broccoli-carrots-scallions: \"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\" | lunch/dinner | Asian-inspired | pork | 889 cal, 57g P | fridge_days: 3\n\n## USER REQUEST\nMove tomorrow's tagine to lunch\n\n## OUTPUT FORMAT\nReturn JSON with type \"proposal\" or \"clarification\". For proposals:\n{\n  \"type\": \"proposal\",\n  \"batches\": [{ \"recipe_slug\": \"...\", \"recipe_name\": \"...\", \"meal_type\": \"lunch|dinner\", \"eating_days\": [\"ISO dates\"], \"overflow_days\": [\"ISO dates past horizon end\"], \"servings\": N }],\n  \"flex_slots\": [{ \"day\": \"ISO date\", \"meal_time\": \"lunch|dinner\", \"flex_bonus\": 300-400, \"note\": \"...\" }],\n  \"events\": [{ \"day\": \"ISO date\", \"meal_time\": \"lunch|dinner\", \"name\": \"...\", \"estimated_calories\": N }],\n  \"reasoning\": \"...\"\n}"
+          "content": "## HORIZON: 2026-04-09 to 2026-04-12\nDays: Thu 2026-04-09, Fri 2026-04-10, Sat 2026-04-11, Sun 2026-04-12\n\n## CURRENT PLAN\n\nBreakfast (daily, fixed): salmon-avocado-toast-soft-eggs-cinnamon-yogurt — 390 cal\n\nBatches:\n  dinner [2026-04-09, 2026-04-10, 2026-04-11]: moroccan-beef-tagine-style-skillet-with-lemon-couscous (moroccan-beef-tagine-style-skillet-with-lemon-couscous) — 3 servings\n  lunch [2026-04-09, 2026-04-10, 2026-04-11]: ground-beef-rigatoni-bolognese (ground-beef-rigatoni-bolognese) — 3 servings\n\nFlex slots:\n  2026-04-12 dinner: flex dinner\n\nPre-committed slots (FIXED — do NOT change):\n  2026-04-06 lunch: chicken-black-bean-avocado-rice-bowl (893 cal)\n  2026-04-07 lunch: chicken-black-bean-avocado-rice-bowl (893 cal)\n  2026-04-08 lunch: chicken-black-bean-avocado-rice-bowl (893 cal)\n\n## PRIOR CHANGES (load-bearing — do not undo unless explicitly asked)\n- \"initial plan\" (2026-04-05T18:00:00.000Z)\n\n## AVAILABLE RECIPES\n- chicken-black-bean-avocado-rice-bowl: \"Chicken, Black Bean, Corn and Avocado Rice Bowl with Tomato-Lime Salsa\" | lunch | Mexican-inspired | chicken | 893 cal, 56g P | fridge_days: 3\n- creamy-salmon-and-shrimp-linguine: \"Creamy Salmon and Shrimp Linguine\" | dinner | Spanish-inspired Mediterranean | salmon | 867 cal, 56g P | fridge_days: 3\n- ground-beef-rigatoni-bolognese: \"Ground Beef Rigatoni Bolognese\" | dinner | Italian-inspired | beef | 888 cal, 55g P | fridge_days: 3\n- mediterranean-tuna-chickpea-feta-rice-bowl: \"Mediterranean Tuna, Chickpea and Feta Rice Bowl\" | lunch | Mediterranean | tuna | 886 cal, 54.3g P | fridge_days: 3\n- moroccan-beef-tagine-style-skillet-with-lemon-couscous: \"Moroccan Beef Tagine-Style Skillet with Lemon Couscous\" | dinner | Moroccan-inspired | beef | 908 cal, 56g P | fridge_days: 3\n- soy-ginger-pork-rice-bowls-broccoli-carrots-scallions: \"Soy-Ginger Pork Rice Bowls with Broccoli, Carrots and Scallions\" | lunch/dinner | Asian-inspired | pork | 889 cal, 57g P | fridge_days: 3\n\n## USER REQUEST\nMove tomorrow's tagine to lunch\n\n## OUTPUT FORMAT\nReturn JSON with type \"proposal\" or \"clarification\". For proposals:\n{\n  \"type\": \"proposal\",\n  \"batches\": [{ \"recipe_slug\": \"...\", \"recipe_name\": \"...\", \"meal_type\": \"lunch|dinner\", \"eating_days\": [\"ISO dates\"], \"overflow_days\": [\"ISO dates past horizon end\"], \"servings\": N }],\n  \"flex_slots\": [{ \"day\": \"ISO date\", \"meal_time\": \"lunch|dinner\", \"flex_bonus\": 300-400, \"note\": \"...\" }],\n  \"events\": [{ \"day\": \"ISO date\", \"meal_time\": \"lunch|dinner\", \"name\": \"...\", \"estimated_calories\": N }],\n  \"reasoning\": \"...\"\n}"
         }
       ],
-      "response": "{\n  \"type\": \"clarification\",\n  \"question\": \"The tagine recipe is dinner-only in the database, so I can’t move it to lunch as-is. Do you want me to keep the tagine at dinner tomorrow, or swap tomorrow’s lunch to a lunch-compatible recipe instead?\",\n  \"recipe_needed\": null\n}",
+      "response": "{\n  \"type\": \"clarification\",\n  \"question\": \"The tagine recipe is dinner-only in the recipe list, so I can’t legally move it into a lunch slot. Do you want me to keep the tagine at dinner tomorrow, or swap tomorrow’s lunch to a lunch-compatible recipe instead?\",\n  \"recipe_needed\": null\n}",
       "usage": {
-        "inputTokens": 1936,
-        "outputTokens": 1035
+        "inputTokens": 1994,
+        "outputTokens": 595
       }
     }
   ],
   "expected": {
     "outputs": [
       {
-        "text": "The tagine recipe is dinner-only in the database, so I can’t move it to lunch as-is. Do you want me to keep the tagine at dinner tomorrow, or swap tomorrow’s lunch to a lunch-compatible recipe instead?",
+        "text": "The tagine recipe is dinner-only in the recipe list, so I can’t legally move it into a lunch slot. Do you want me to keep the tagine at dinner tomorrow, or swap tomorrow’s lunch to a lunch-compatible recipe instead?",
         "keyboard": {
           "kind": "reply",
           "buttons": [
@@ -82,17 +82,17 @@
         },
         {
           "role": "bot",
-          "text": "The tagine recipe is dinner-only in the database, so I can’t move it to lunch as-is. Do you want me to keep the tagine at dinner tomorrow, or swap tomorrow’s lunch to a lunch-compatible recipe instead?",
+          "text": "The tagine recipe is dinner-only in the recipe list, so I can’t legally move it into a lunch slot. Do you want me to keep the tagine at dinner tomorrow, or swap tomorrow’s lunch to a lunch-compatible recipe instead?",
           "at": "2026-04-09T12:00:00.000Z"
         },
         {
           "role": "bot",
-          "text": "The tagine recipe is dinner-only in the database, so I can’t move it to lunch as-is. Do you want me to keep the tagine at dinner tomorrow, or swap tomorrow’s lunch to a lunch-compatible recipe instead?",
+          "text": "The tagine recipe is dinner-only in the recipe list, so I can’t legally move it into a lunch slot. Do you want me to keep the tagine at dinner tomorrow, or swap tomorrow’s lunch to a lunch-compatible recipe instead?",
           "at": "2026-04-09T12:00:00.000Z"
         }
       ],
       "pendingPostConfirmationClarification": {
-        "question": "The tagine recipe is dinner-only in the database, so I can’t move it to lunch as-is. Do you want me to keep the tagine at dinner tomorrow, or swap tomorrow’s lunch to a lunch-compatible recipe instead?",
+        "question": "The tagine recipe is dinner-only in the recipe list, so I can’t legally move it into a lunch slot. Do you want me to keep the tagine at dinner tomorrow, or swap tomorrow’s lunch to a lunch-compatible recipe instead?",
         "originalRequest": "Move tomorrow's tagine to lunch",
         "createdAt": "2026-04-09T12:00:00.000Z"
       }

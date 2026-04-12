@@ -11,7 +11,7 @@
  * Seed: active plan Apr 6–12 with:
  *   - Chicken grain-bowl lunch batch Mon–Wed (Apr 6–8)
  *   - Tagine dinner batch Mon–Wed (Apr 6–8)
- *   - Bolognese lunch batch Thu–Sat (Apr 9–11)
+ *   - Mediterranean tuna lunch batch Thu–Sat (Apr 9–11)
  *   - Pork rice bowls dinner batch Thu–Sat (Apr 9–11)
  *   - Flex slot: Saturday dinner (Apr 11)
  *
@@ -88,19 +88,20 @@ const activeBatches: Batch[] = [
     status: 'planned',
     createdInPlanSessionId: activeSession.id,
   },
-  // Batch 3: Thu–Sat Lunch (bolognese)
+  // Batch 3: Thu–Sat Lunch (Mediterranean tuna — lunch-compatible recipe)
   {
     id: 'batch-046-lunch2-0000-0000-000000000003',
-    recipeSlug: 'ground-beef-rigatoni-bolognese',
+    recipeSlug: 'mediterranean-tuna-chickpea-feta-rice-bowl',
     mealType: 'lunch',
     eatingDays: ['2026-04-09', '2026-04-10', '2026-04-11'],
     servings: 3,
     targetPerServing: { calories: 780, protein: 52 },
-    actualPerServing: { calories: 780, protein: 52, fat: 32, carbs: 78 },
+    actualPerServing: { calories: 780, protein: 52, fat: 28, carbs: 82 },
     scaledIngredients: [
-      { name: 'ground beef', amount: 180, unit: 'g', totalForBatch: 540, role: 'protein' as const },
-      { name: 'rigatoni', amount: 90, unit: 'g', totalForBatch: 270, role: 'carb' as const },
-      { name: 'cherry tomatoes', amount: 150, unit: 'g', totalForBatch: 450, role: 'vegetable' as const },
+      { name: 'canned tuna, drained', amount: 150, unit: 'g', totalForBatch: 450, role: 'protein' as const },
+      { name: 'chickpeas, canned, drained', amount: 80, unit: 'g', totalForBatch: 240, role: 'carb' as const },
+      { name: 'feta cheese', amount: 30, unit: 'g', totalForBatch: 90, role: 'fat' as const },
+      { name: 'basmati rice', amount: 80, unit: 'g', totalForBatch: 240, role: 'carb' as const },
       { name: 'olive oil', amount: 15, unit: 'ml', totalForBatch: 45, role: 'fat' as const },
     ],
     status: 'planned',
