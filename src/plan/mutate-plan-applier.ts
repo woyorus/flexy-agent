@@ -304,3 +304,61 @@ async function applyPostConfirmation(
     pending,
   };
 }
+
+/**
+ * Persist a pending mutation. Called from the mp_confirm callback in
+ * core.ts. Wraps `buildReplacingDraft` + `confirmPlanSessionReplacing` and
+ * returns the persisted new session.
+ */
+export async function applyMutationConfirmation(args: {
+  pending: PendingMutation;
+  store: StateStoreLike;
+  recipes: RecipeDatabase;
+  llm: LLMProvider;
+}): Promise<{
+  newSessionId: string;
+  persistedText: string;
+}> {
+  const { pending, store, recipes, llm } = args;
+
+  const oldSession = await store.getPlanSession(pending.oldSessionId);
+  if (!oldSession) {
+    throw new Error(`applyMutationConfirmation: old session ${pending.oldSessionId} not found`);
+  }
+
+  const { buildReplacingDraft } = await import('./session-to-proposal.js');
+  const { draft, batches: writeBatches } = await buildReplacingDraft({
+    oldSession,
+    preservedPastBatches: pending.preservedPastBatches,
+    preservedPastFlexSlots: pending.preservedPastFlexSlots,
+    preservedPastEvents: pending.preservedPastEvents,
+    reProposedActive: pending.reProposedActive,
+    newMutation: pending.newMutationRecord,
+    recipeDb: recipes,
+    llm,
+  });
+
+  // Copy treat budget from the old session (conservative default — see decision log).
+  (draft as import('../models/types.js').DraftPlanSession).treatBudgetCalories = oldSession.treatBudgetCalories;
+
+  const persisted = await store.confirmPlanSessionReplacing(
+    draft,
+    writeBatches,
+    pending.oldSessionId,
+  );
+
+  log.info(
+    'MUTATE',
+    `post-confirmation mutation persisted: old=${pending.oldSessionId} new=${persisted.id}`,
+  );
+
+  const persistedText =
+    `Plan updated. Your week is locked in.\n\n` +
+    `Note: I shifted meals around but don't track meal-out calories yet — ` +
+    `that comes with deviation accounting later.`;
+
+  return {
+    newSessionId: persisted.id,
+    persistedText,
+  };
+}

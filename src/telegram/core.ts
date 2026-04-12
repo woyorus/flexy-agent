@@ -604,15 +604,51 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
     // ─── Mutation confirmation callbacks (Plan 029) ────────────────────
     if (action === 'mp_confirm') {
-      // Plan 029 Task 5 stub — Task 10 wires this to applyMutationConfirmation.
-      await sink.reply('Mutation confirmation is not wired yet (Plan 029 Task 5 stub).');
+      if (!session.pendingMutation) {
+        await sink.reply('There is no pending change to confirm. Type your change to start over.');
+        return;
+      }
+      const pending = session.pendingMutation;
+      session.pendingMutation = undefined;
+      const stopTyping = sink.startTyping();
+      try {
+        const { applyMutationConfirmation } = await import('../plan/mutate-plan-applier.js');
+        const persistResult = await applyMutationConfirmation({
+          pending,
+          store,
+          recipes,
+          llm,
+        });
+        stopTyping();
+        void persistResult;
+        const today = toLocalISODate(new Date());
+        const lifecycle = await getPlanLifecycle(session, store, today);
+        await sink.reply(persistResult.persistedText, {
+          reply_markup: buildMainMenuKeyboard(lifecycle),
+        });
+      } catch (err) {
+        stopTyping();
+        log.error('CORE', `mp_confirm persist failed: ${(err as Error).message}`);
+        // Restore the pending mutation so the user can retry.
+        session.pendingMutation = pending;
+        const { mutateConfirmKeyboard } = await import('./keyboards.js');
+        await sink.reply(
+          "Something went wrong saving the change. Your plan is unchanged. Tap Confirm again or Adjust to change something.",
+          { reply_markup: mutateConfirmKeyboard },
+        );
+      }
       return;
     }
 
     if (action === 'mp_adjust') {
-      // Plan 029 Task 5 stub — Task 10 wires this to clear pendingMutation
-      // and re-prompt the user.
-      await sink.reply('Mutation adjustment is not wired yet (Plan 029 Task 5 stub).');
+      if (!session.pendingMutation) {
+        await sink.reply('There is no pending change to adjust. Type your change to start over.');
+        return;
+      }
+      session.pendingMutation = undefined;
+      await sink.reply(
+        "OK, what would you like to change instead?",
+      );
       return;
     }
 
