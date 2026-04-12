@@ -105,48 +105,43 @@ function classifyIngredient(
   return { tier: 3, category };
 }
 
+// ─── Scope type ────────────────────────────────────────────────────────────
+
+/**
+ * Shopping scope tag — used by Plan 030's dispatcher-driven shopping list
+ * renders. The existing `sl_next` and `sl_<date>` callbacks do NOT use
+ * this type; they continue to call `generateShoppingList` directly.
+ */
+export type ShoppingScope =
+  | { kind: 'next_cook'; targetDate: string; remainingDays: number }
+  | { kind: 'full_week'; horizonStart: string; horizonEnd: string }
+  | { kind: 'recipe'; recipeSlug: string }
+  | { kind: 'day'; day: string; remainingDays: number };
+
 // ─── Generator ─────────────────────────────────────────────────────────────
 
 /**
- * Generate a shopping list scoped to a single cook day.
+ * Generate a shopping list scoped to a single cook day. Existing signature,
+ * unchanged — `sl_next` / `sl_<date>` callbacks continue to call this.
  *
- * @param batches - All planned batches (will be filtered to target date)
- * @param breakfastRecipe - The locked breakfast recipe (if any)
+ * @param batches - All planned batches (filtered to target cook date internally)
+ * @param breakfastRecipe - The locked breakfast recipe (prorated to remainingDays)
  * @param options - Target cook date and remaining plan days for breakfast proration
- * @returns A three-tier shopping list
  */
 export function generateShoppingList(
   batches: Batch[],
   breakfastRecipe: Recipe | undefined,
-  options: {
-    /** Target cook date — batches with eatingDays[0] === date are included */
-    targetDate: string;
-    /** Remaining plan days from target date onward (for breakfast proration) */
-    remainingDays: number;
-  },
+  options: { targetDate: string; remainingDays: number },
 ): ShoppingList {
   const { targetDate, remainingDays } = options;
+  const aggregated = newAggregationMap();
+  const cookBatches = batches.filter((b) => b.eatingDays[0] === targetDate);
 
-  // Aggregation map: key = lowercase name, value = aggregated data
-  const aggregated = new Map<string, {
-    displayName: string;
-    amount: number;
-    unit: string;
-    role: IngredientRole;
-    note?: string;
-  }>();
-
-  // Filter batches to those cooking on the target date
-  const cookBatches = batches.filter(b => b.eatingDays[0] === targetDate);
-
-  // Batch ingredients
   for (const batch of cookBatches) {
     for (const ing of batch.scaledIngredients) {
       addIngredient(aggregated, ing.name, ing.totalForBatch, ing.unit, ing.role);
     }
   }
-
-  // Breakfast ingredients (prorated to remaining days)
   if (breakfastRecipe) {
     for (const ing of breakfastRecipe.ingredients) {
       const proratedAmount = ing.amount * remainingDays;
@@ -155,20 +150,118 @@ export function generateShoppingList(
     }
   }
 
-  // Classify and split into tiers
+  return buildShoppingListFromAggregated(aggregated);
+}
+
+// ─── Plan 030 scope functions ──────────────────────────────────────────────
+
+/**
+ * Generate a shopping list covering every batch in a horizon.
+ *
+ * Aggregates ingredients across ALL batches whose first eating day falls
+ * inside `[horizonStart, horizonEnd]`. Breakfast is prorated to the full
+ * horizon length in days (inclusive).
+ *
+ * Used by Plan 030's `show_shopping_list({ scope: 'full_week' })` handler.
+ */
+export function generateShoppingListForWeek(
+  batches: Batch[],
+  breakfastRecipe: Recipe | undefined,
+  options: { horizonStart: string; horizonEnd: string },
+): ShoppingList {
+  const { horizonStart, horizonEnd } = options;
+  const aggregated = newAggregationMap();
+
+  const weekBatches = batches.filter((b) => {
+    const cookDay = b.eatingDays[0];
+    if (!cookDay) return false;
+    return cookDay >= horizonStart && cookDay <= horizonEnd;
+  });
+
+  for (const batch of weekBatches) {
+    for (const ing of batch.scaledIngredients) {
+      addIngredient(aggregated, ing.name, ing.totalForBatch, ing.unit, ing.role);
+    }
+  }
+
+  if (breakfastRecipe) {
+    const days = horizonDayCount(horizonStart, horizonEnd);
+    for (const ing of breakfastRecipe.ingredients) {
+      const proratedAmount = ing.amount * days;
+      const note = `(breakfast, ${days} days)`;
+      addIngredient(aggregated, ing.name, proratedAmount, ing.unit, ing.role, note);
+    }
+  }
+
+  return buildShoppingListFromAggregated(aggregated);
+}
+
+/**
+ * Generate a shopping list for a single recipe across all active batches.
+ *
+ * Filters batches by `recipeSlug` and aggregates their ingredients.
+ * NO breakfast proration — recipe-scoped shopping is about a single dish.
+ *
+ * Used by Plan 030's `show_shopping_list({ scope: 'recipe', recipe_slug })` handler.
+ */
+export function generateShoppingListForRecipe(
+  batches: Batch[],
+  options: { recipeSlug: string },
+): ShoppingList {
+  const { recipeSlug } = options;
+  const aggregated = newAggregationMap();
+
+  const matching = batches.filter((b) => b.recipeSlug === recipeSlug);
+  for (const batch of matching) {
+    for (const ing of batch.scaledIngredients) {
+      addIngredient(aggregated, ing.name, ing.totalForBatch, ing.unit, ing.role);
+    }
+  }
+
+  return buildShoppingListFromAggregated(aggregated);
+}
+
+/**
+ * Generate a shopping list for a single day.
+ *
+ * "Day" means the COOK day — any batch whose `eatingDays[0]` equals the
+ * target day contributes its full ingredient load. Breakfast is prorated
+ * to `remainingDays` (same semantics as `generateShoppingList`).
+ *
+ * Used by Plan 030's `show_shopping_list({ scope: 'day', day })` handler.
+ */
+export function generateShoppingListForDay(
+  batches: Batch[],
+  breakfastRecipe: Recipe | undefined,
+  options: { day: string; remainingDays: number },
+): ShoppingList {
+  return generateShoppingList(batches, breakfastRecipe, {
+    targetDate: options.day,
+    remainingDays: options.remainingDays,
+  });
+}
+
+// ─── Shared finisher ───────────────────────────────────────────────────────
+
+/**
+ * Internal: the classification + tier split + ShoppingList construction step.
+ * Shared by `generateShoppingList` and all Plan 030 scope functions.
+ */
+function buildShoppingListFromAggregated(
+  aggregated: AggregationMap,
+): ShoppingList {
   const tier2Items: string[] = [];
   const tier3ByCategory = new Map<string, ShoppingItem[]>();
 
   for (const [, data] of aggregated) {
     const classification = classifyIngredient(data.displayName, data.role);
-    if (!classification) continue; // tier 1 — excluded
+    if (!classification) continue;
 
     if (classification.tier === 2) {
       tier2Items.push(data.displayName);
       continue;
     }
 
-    // Tier 3
     const items = tier3ByCategory.get(classification.category) ?? [];
     items.push({
       name: data.displayName,
@@ -179,15 +272,13 @@ export function generateShoppingList(
     tier3ByCategory.set(classification.category, items);
   }
 
-  // Order categories consistently
   const categories: ShoppingCategory[] = CATEGORY_ORDER
-    .filter(cat => tier3ByCategory.has(cat))
-    .map(cat => ({
+    .filter((cat) => tier3ByCategory.has(cat))
+    .map((cat) => ({
       name: cat,
       items: tier3ByCategory.get(cat)!.sort((a, b) => a.name.localeCompare(b.name)),
     }));
 
-  // Add any unexpected categories
   for (const [cat, items] of tier3ByCategory) {
     if (!CATEGORY_ORDER.includes(cat)) {
       categories.push({ name: cat, items: items.sort((a, b) => a.name.localeCompare(b.name)) });
@@ -199,6 +290,26 @@ export function generateShoppingList(
     checkYouHave: tier2Items.sort(),
     customItems: [],
   };
+}
+
+interface AggregatedEntry {
+  displayName: string;
+  amount: number;
+  unit: string;
+  role: IngredientRole;
+  note?: string;
+}
+
+type AggregationMap = Map<string, AggregatedEntry>;
+
+function newAggregationMap(): AggregationMap {
+  return new Map();
+}
+
+function horizonDayCount(start: string, end: string): number {
+  const s = new Date(start + 'T00:00:00Z').getTime();
+  const e = new Date(end + 'T00:00:00Z').getTime();
+  return Math.round((e - s) / 86_400_000) + 1;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
