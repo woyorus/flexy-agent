@@ -127,7 +127,47 @@ export interface ApplyMutationRequestArgs {
 export async function applyMutationRequest(
   args: ApplyMutationRequestArgs,
 ): Promise<MutateResult> {
-  void args;
-  log.debug('MUTATE', 'applyMutationRequest scaffold (Task 6) — branches land in Tasks 7/8');
-  throw new Error('applyMutationRequest is not wired yet (Plan 029 Task 6 scaffold)');
+  const { request, session, recipes, llm } = args;
+
+  log.debug('MUTATE', `applyMutationRequest: "${request.slice(0, 80)}"`);
+
+  // ── In-session branch ────────────────────────────────────────────
+  if (session.planFlow && session.planFlow.phase === 'proposal') {
+    return applyInSession(session.planFlow, request, llm, recipes);
+  }
+
+  // ── Post-confirmation branch — Task 8 fills this in ──
+  // ── No-target branch — Task 8 also handles this ──
+  throw new Error('applyMutationRequest: post-confirmation branch not wired yet (Task 8)');
+}
+
+/**
+ * In-session branch — delegates to `plan-flow.ts` `handleMutationText`
+ * unchanged. The existing function handles the re-proposer call, the
+ * validation retry, the solver invocation, the diff summary, and the
+ * mutation-history append. We map its `FlowResponse` output to
+ * `MutateResult`.
+ */
+async function applyInSession(
+  state: PlanFlowState,
+  request: string,
+  llm: LLMProvider,
+  recipes: RecipeDatabase,
+): Promise<MutateResult> {
+  const { handleMutationText } = await import('../agents/plan-flow.js');
+  const response = await handleMutationText(state, request, llm, recipes);
+
+  // handleMutationText distinguishes its three outcomes by:
+  //   - pendingClarification set → clarification
+  //   - text includes "Your week:" → updated proposal
+  //   - otherwise → failure
+  if (state.pendingClarification) {
+    return { kind: 'clarification', question: response.text };
+  }
+
+  if (response.text.includes('Your week:')) {
+    return { kind: 'in_session_updated', text: response.text };
+  }
+
+  return { kind: 'failure', message: response.text };
 }

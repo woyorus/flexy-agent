@@ -868,6 +868,7 @@ async function buildNewPlanSession(
     treatBudgetCalories: solver.weeklyTotals.treatBudget,
     flexSlots: proposal.flexSlots,
     events: proposal.events,  // Plan 024: proposal is single source of truth for events
+    mutationHistory: state.mutationHistory ?? [],
   };
 
   const batches: Array<Omit<NewBatch, 'createdAt' | 'updatedAt'>> = [];

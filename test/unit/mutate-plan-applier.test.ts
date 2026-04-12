@@ -1,13 +1,122 @@
 /**
  * Unit tests for the mutate-plan applier — Plan 029.
  *
- * Task 6 creates the file with a placeholder. Task 7 adds in-session branch
- * tests. Task 8 adds post-confirmation branch tests.
+ * Task 7: in-session branch delegates to handleMutationText and returns
+ * an in_session_updated result. We exercise the branch with a stub LLM
+ * that returns a clarification response (shortest path through the
+ * re-proposer), verifying the applier emits the expected result shape
+ * AND preserves planFlow.pendingClarification.
  */
 
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
+import { applyMutationRequest } from '../../src/plan/mutate-plan-applier.js';
+import type { PlanFlowState } from '../../src/agents/plan-flow.js';
+import type { LLMProvider } from '../../src/ai/provider.js';
+import type { RecipeDatabase } from '../../src/recipes/database.js';
+import type { StateStoreLike } from '../../src/state/store.js';
 
-test('placeholder: mutate-plan-applier tests land in Tasks 7 and 8', () => {
-  assert.ok(true);
+function seededFlowState(): PlanFlowState {
+  return {
+    phase: 'proposal',
+    weekStart: '2026-04-06',
+    weekDays: [
+      '2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09',
+      '2026-04-10', '2026-04-11', '2026-04-12',
+    ],
+    horizonStart: '2026-04-06',
+    horizonDays: [
+      '2026-04-06', '2026-04-07', '2026-04-08', '2026-04-09',
+      '2026-04-10', '2026-04-11', '2026-04-12',
+    ],
+    breakfast: {
+      recipeSlug: 'oatmeal',
+      name: 'Oatmeal',
+      caloriesPerDay: 450,
+      proteinPerDay: 25,
+    },
+    events: [],
+    proposal: {
+      batches: [],
+      flexSlots: [{ day: '2026-04-11', mealTime: 'dinner', flexBonus: 350 }],
+      events: [],
+      recipesToGenerate: [],
+    },
+    mutationHistory: [],
+    preCommittedSlots: [],
+  };
+}
+
+function queuedLLM(responses: string[]): LLMProvider {
+  const q = [...responses];
+  return {
+    async complete() {
+      const next = q.shift();
+      if (next === undefined) throw new Error('queuedLLM: unexpected extra call');
+      return { content: next, usage: { inputTokens: 0, outputTokens: 0 } };
+    },
+    async transcribe() {
+      throw new Error('queuedLLM: transcribe not supported');
+    },
+  };
+}
+
+const fakeRecipeDb: RecipeDatabase = {
+  getAll: () => [],
+  getBySlug: () => undefined,
+} as unknown as RecipeDatabase;
+
+const fakeStore: StateStoreLike = {
+  getRunningPlanSession: async () => null,
+  getFuturePlanSessions: async () => [],
+  getRecentPlanSessions: async () => [],
+} as unknown as StateStoreLike;
+
+test('applyMutationRequest: in-session branch with clarification response bubbles up', async () => {
+  const state = seededFlowState();
+  const session = { planFlow: state };
+
+  const llm = queuedLLM([
+    JSON.stringify({
+      type: 'clarification',
+      question: 'Which meal — lunch or dinner?',
+    }),
+  ]);
+
+  const result = await applyMutationRequest({
+    request: 'I went to the Indian place',
+    session,
+    store: fakeStore,
+    recipes: fakeRecipeDb,
+    llm,
+  });
+
+  assert.equal(result.kind, 'clarification');
+  if (result.kind !== 'clarification') throw new Error('unreachable');
+  assert.match(result.question, /lunch or dinner/);
+
+  // handleMutationText set planFlow.pendingClarification on the state.
+  assert.ok(state.pendingClarification);
+  assert.equal(state.pendingClarification!.originalMessage, 'I went to the Indian place');
+});
+
+test('applyMutationRequest: in-session branch with failure returns MutateResult failure', async () => {
+  const state = seededFlowState();
+  // Two validation failures trigger the re-proposer's failure path.
+  const llm = queuedLLM([
+    JSON.stringify({ type: 'proposal', batches: [], flex_slots: [], events: [], reasoning: '' }),
+    JSON.stringify({ type: 'proposal', batches: [], flex_slots: [], events: [], reasoning: '' }),
+  ]);
+
+  const result = await applyMutationRequest({
+    request: 'do something impossible',
+    session: { planFlow: state },
+    store: fakeStore,
+    recipes: fakeRecipeDb,
+    llm,
+  });
+
+  // The re-proposer's validator rejects the empty proposals twice,
+  // returning type='failure'. The applier maps that to MutateResult.failure.
+  assert.equal(result.kind, 'failure');
 });
