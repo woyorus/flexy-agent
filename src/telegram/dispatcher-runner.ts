@@ -372,60 +372,7 @@ export async function tryNumericPreFilter(
     return false;
   }
 
-  const today = toLocalISODate(new Date());
-
-  if (parsed.values.length === 1) {
-    const weight = parsed.values[0]!;
-    const isFirst = (await store.getLatestMeasurement('default')) === null;
-    await store.logMeasurement('default', today, weight, null);
-    session.progressFlow = null;
-    let confirmText = formatMeasurementConfirmation(weight, null);
-    if (isFirst) {
-      confirmText +=
-        "\n\nWe track weekly averages, not daily -- so don't worry about day-to-day swings. Come back tomorrow -- we'll start tracking your trend.";
-    }
-    const reportKb = await getProgressReportKeyboardIfAvailable(store, today);
-    if (reportKb) {
-      await sink.reply(confirmText, { reply_markup: reportKb });
-    } else {
-      await sink.reply(confirmText);
-    }
-    return true;
-  }
-
-  // Two numbers — may need disambiguation.
-  const [a, b] = parsed.values as [number, number];
-  const lastMeasurement = await store.getLatestMeasurement('default');
-  const assignment = assignWeightWaist(a, b, lastMeasurement);
-
-  if (!assignment.ambiguous) {
-    const isFirst = lastMeasurement === null;
-    await store.logMeasurement('default', today, assignment.weight, assignment.waist);
-    session.progressFlow = null;
-    let confirmText = formatMeasurementConfirmation(assignment.weight, assignment.waist);
-    if (isFirst) {
-      confirmText +=
-        "\n\nWe track weekly averages, not daily -- so don't worry about day-to-day swings. Come back tomorrow -- we'll start tracking your trend.";
-    }
-    const reportKb = await getProgressReportKeyboardIfAvailable(store, today);
-    if (reportKb) {
-      await sink.reply(confirmText, { reply_markup: reportKb });
-    } else {
-      await sink.reply(confirmText);
-    }
-    return true;
-  }
-
-  // Ambiguous — enter disambiguation phase.
-  session.progressFlow = {
-    phase: 'confirming_disambiguation',
-    pendingWeight: assignment.weight,
-    pendingWaist: assignment.waist,
-    pendingDate: today,
-  };
-  await sink.reply(formatDisambiguationPrompt(assignment.weight, assignment.waist), {
-    reply_markup: progressDisambiguationKeyboard,
-  });
+  await renderMeasurementConfirmation(session, store, sink, parsed);
   return true;
 }
 
@@ -859,7 +806,278 @@ export async function handleMutatePlanAction(
   }
 }
 
-// ─── Runner front-door stub (full body lands in Task 11) ─────────────────────
+// ─── Answer handlers (Tasks 11–12) ──────────────────────────────────────────
+
+/**
+ * `answer_plan_question` — send the dispatcher's pre-written answer about
+ * the user's plan, with a side-conversation keyboard for flow navigation.
+ */
+export async function handleAnswerPlanQuestionAction(
+  decision: Extract<DispatcherDecision, { action: 'answer_plan_question' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const kb = await buildSideConversationKeyboard(session, deps.store);
+  await sink.reply(decision.response, { reply_markup: kb });
+}
+
+/**
+ * `answer_recipe_question` — send the dispatcher's pre-written answer about
+ * a recipe. Logs the optional recipe_slug for debug traceability.
+ */
+export async function handleAnswerRecipeQuestionAction(
+  decision: Extract<DispatcherDecision, { action: 'answer_recipe_question' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  log.debug('DISPATCHER', `answer_recipe_question for slug=${decision.params.recipe_slug ?? '(none)'}`);
+  const kb = await buildSideConversationKeyboard(session, deps.store);
+  await sink.reply(decision.response, { reply_markup: kb });
+}
+
+/**
+ * `answer_domain_question` — send the dispatcher's pre-written answer about
+ * a nutrition/fitness domain question, with a side-conversation keyboard.
+ */
+export async function handleAnswerDomainQuestionAction(
+  decision: Extract<DispatcherDecision, { action: 'answer_domain_question' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const kb = await buildSideConversationKeyboard(session, deps.store);
+  await sink.reply(decision.response, { reply_markup: kb });
+}
+
+// ─── Show handlers (Tasks 13–16) ────────────────────────────────────────────
+
+/**
+ * `show_recipe` — render the cook view for a recipe in the active plan.
+ * Falls back to the library recipe view if the slug isn't in the plan.
+ */
+export async function handleShowRecipeAction(
+  decision: Extract<DispatcherDecision, { action: 'show_recipe' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const { renderCookViewForSlug, renderLibraryRecipeView } = await import('./view-renderers.js');
+  const result = await renderCookViewForSlug(session as never, deps, sink, decision.params.recipe_slug);
+  if (result === 'not_in_plan') {
+    await renderLibraryRecipeView(session as never, deps, sink, decision.params.recipe_slug);
+  }
+}
+
+/**
+ * `show_plan` — render the requested plan screen (next_action, week_overview,
+ * or day_detail). Guards against missing `day` param for day_detail.
+ */
+export async function handleShowPlanAction(
+  decision: Extract<DispatcherDecision, { action: 'show_plan' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const { renderNextAction, renderWeekOverview, renderDayDetail } = await import('./view-renderers.js');
+  switch (decision.params.screen) {
+    case 'next_action':
+      await renderNextAction(session as never, deps, sink);
+      return;
+    case 'week_overview':
+      await renderWeekOverview(session as never, deps, sink);
+      return;
+    case 'day_detail': {
+      const day = decision.params.day;
+      if (!day) {
+        log.warn('DISPATCHER', 'show_plan day_detail with no day param');
+        await sink.reply("I couldn't figure out which day you meant.");
+        return;
+      }
+      await renderDayDetail(session as never, deps, sink, day);
+      return;
+    }
+  }
+}
+
+/**
+ * `show_shopping_list` — render a shopping list for one of four scopes:
+ * next_cook, full_week, recipe, or day. Loads plan horizon metadata
+ * to compute remaining-days for the generator, then delegates to
+ * `renderShoppingListForScope`.
+ */
+export async function handleShowShoppingListAction(
+  decision: Extract<DispatcherDecision, { action: 'show_shopping_list' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const { renderShoppingListForScope } = await import('./view-renderers.js');
+  const { toLocalISODate, getVisiblePlanSession, getNextCookDay } = await import('../plan/helpers.js');
+  const today = toLocalISODate(new Date());
+  const visible = await getVisiblePlanSession(deps.store, today);
+
+  switch (decision.params.scope) {
+    case 'next_cook': {
+      let targetDate = today;
+      let remainingDays = 1;
+      if (visible) {
+        const batches = await deps.store.getBatchesByPlanSessionId(visible.id);
+        const next = getNextCookDay(batches, today);
+        if (next) targetDate = next.date;
+        const horizonEndMs = new Date(visible.horizonEnd + 'T00:00:00Z').getTime();
+        const targetMs = new Date(targetDate + 'T00:00:00Z').getTime();
+        remainingDays = Math.max(1, Math.round((horizonEndMs - targetMs) / 86_400_000) + 1);
+      }
+      await renderShoppingListForScope(session as never, deps, sink, { kind: 'next_cook', targetDate, remainingDays });
+      return;
+    }
+    case 'full_week': {
+      const horizonStart = visible?.horizonStart ?? today;
+      const horizonEnd = visible?.horizonEnd ?? today;
+      await renderShoppingListForScope(session as never, deps, sink, { kind: 'full_week', horizonStart, horizonEnd });
+      return;
+    }
+    case 'recipe': {
+      if (!decision.params.recipe_slug) {
+        log.warn('DISPATCHER', 'show_shopping_list scope=recipe without recipe_slug');
+        await sink.reply("I couldn't figure out which recipe you meant.");
+        return;
+      }
+      await renderShoppingListForScope(session as never, deps, sink, { kind: 'recipe', recipeSlug: decision.params.recipe_slug });
+      return;
+    }
+    case 'day': {
+      if (!decision.params.day) {
+        log.warn('DISPATCHER', 'show_shopping_list scope=day without day');
+        await sink.reply("I couldn't figure out which day you meant.");
+        return;
+      }
+      let remainingDays = 1;
+      if (visible) {
+        const horizonEndMs = new Date(visible.horizonEnd + 'T00:00:00Z').getTime();
+        const targetMs = new Date(decision.params.day + 'T00:00:00Z').getTime();
+        remainingDays = Math.max(1, Math.round((horizonEndMs - targetMs) / 86_400_000) + 1);
+      }
+      await renderShoppingListForScope(session as never, deps, sink, { kind: 'day', day: decision.params.day, remainingDays });
+      return;
+    }
+  }
+}
+
+/**
+ * `show_progress` — render a progress view (log prompt or weekly report).
+ * Delegates to `renderProgressView` from the view-renderers module.
+ */
+export async function handleShowProgressAction(
+  decision: Extract<DispatcherDecision, { action: 'show_progress' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const { renderProgressView } = await import('./view-renderers.js');
+  await renderProgressView(session as never, deps, sink, decision.params.view);
+}
+
+// ─── Measurement handler (Task 17) ─────────────────────────────────────────
+
+/**
+ * Shared helper for the post-parse measurement confirmation pipeline.
+ * Used by both `tryNumericPreFilter` (which parses the raw text inline)
+ * and `handleLogMeasurementAction` (which receives pre-parsed values from
+ * the dispatcher decision).
+ *
+ * Pipeline:
+ *   1. Single value → log as weight, confirm.
+ *   2. Two values → attempt weight/waist assignment; if ambiguous, enter
+ *      disambiguation phase.
+ *   3. Append weekly-report keyboard if last week has data.
+ */
+export async function renderMeasurementConfirmation(
+  session: DispatcherSession,
+  store: StateStoreLike,
+  sink: DispatcherOutputSink,
+  parsed: { values: number[] },
+): Promise<void> {
+  const today = toLocalISODate(new Date());
+
+  if (parsed.values.length === 1) {
+    const weight = parsed.values[0]!;
+    const isFirst = (await store.getLatestMeasurement('default')) === null;
+    await store.logMeasurement('default', today, weight, null);
+    session.progressFlow = null;
+    let confirmText = formatMeasurementConfirmation(weight, null);
+    if (isFirst) {
+      confirmText +=
+        "\n\nWe track weekly averages, not daily -- so don't worry about day-to-day swings. Come back tomorrow -- we'll start tracking your trend.";
+    }
+    const reportKb = await getProgressReportKeyboardIfAvailable(store, today);
+    if (reportKb) {
+      await sink.reply(confirmText, { reply_markup: reportKb });
+    } else {
+      await sink.reply(confirmText);
+    }
+    return;
+  }
+
+  // Two numbers — may need disambiguation.
+  const [a, b] = parsed.values as [number, number];
+  const lastMeasurement = await store.getLatestMeasurement('default');
+  const assignment = assignWeightWaist(a, b, lastMeasurement);
+
+  if (!assignment.ambiguous) {
+    const isFirst = lastMeasurement === null;
+    await store.logMeasurement('default', today, assignment.weight, assignment.waist);
+    session.progressFlow = null;
+    let confirmText = formatMeasurementConfirmation(assignment.weight, assignment.waist);
+    if (isFirst) {
+      confirmText +=
+        "\n\nWe track weekly averages, not daily -- so don't worry about day-to-day swings. Come back tomorrow -- we'll start tracking your trend.";
+    }
+    const reportKb = await getProgressReportKeyboardIfAvailable(store, today);
+    if (reportKb) {
+      await sink.reply(confirmText, { reply_markup: reportKb });
+    } else {
+      await sink.reply(confirmText);
+    }
+    return;
+  }
+
+  // Ambiguous — enter disambiguation phase.
+  session.progressFlow = {
+    phase: 'confirming_disambiguation',
+    pendingWeight: assignment.weight,
+    pendingWaist: assignment.waist,
+    pendingDate: today,
+  };
+  await sink.reply(formatDisambiguationPrompt(assignment.weight, assignment.waist), {
+    reply_markup: progressDisambiguationKeyboard,
+  });
+}
+
+/**
+ * `log_measurement` — the dispatcher extracted weight/waist from natural
+ * language. Assemble the values array and delegate to the shared
+ * `renderMeasurementConfirmation` pipeline.
+ */
+export async function handleLogMeasurementAction(
+  decision: Extract<DispatcherDecision, { action: 'log_measurement' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const values: number[] = [];
+  if (decision.params.weight !== undefined) values.push(decision.params.weight);
+  if (decision.params.waist !== undefined) values.push(decision.params.waist);
+  if (values.length === 0) {
+    await sink.reply("I didn't catch a number. Try '82.3' or '82.3 / 91'.");
+    return;
+  }
+  await renderMeasurementConfirmation(session, deps.store, sink, { values });
+}
+
+// ─── Runner front-door ──────────────────────────────────────────────────────
 
 /**
  * Dependencies the runner needs at every call. Matches `BotCoreDeps` from
@@ -969,6 +1187,30 @@ export async function runDispatcherFrontDoor(
         return;
       case 'mutate_plan':
         await handleMutatePlanAction(decision, deps, session, sink);
+        return;
+      case 'answer_plan_question':
+        await handleAnswerPlanQuestionAction(decision, deps, session, sink);
+        return;
+      case 'answer_recipe_question':
+        await handleAnswerRecipeQuestionAction(decision, deps, session, sink);
+        return;
+      case 'answer_domain_question':
+        await handleAnswerDomainQuestionAction(decision, deps, session, sink);
+        return;
+      case 'show_recipe':
+        await handleShowRecipeAction(decision, deps, session, sink);
+        return;
+      case 'show_plan':
+        await handleShowPlanAction(decision, deps, session, sink);
+        return;
+      case 'show_shopping_list':
+        await handleShowShoppingListAction(decision, deps, session, sink);
+        return;
+      case 'show_progress':
+        await handleShowProgressAction(decision, deps, session, sink);
+        return;
+      case 'log_measurement':
+        await handleLogMeasurementAction(decision, deps, session, sink);
         return;
     }
   } finally {
