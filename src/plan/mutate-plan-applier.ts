@@ -16,9 +16,13 @@
  *   - Task 10 (core.ts import): applyMutationConfirmation helper for mp_confirm
  */
 
-import type { Batch, FlexSlot, MealEvent } from '../models/types.js';
+import type { Batch, FlexSlot, MealEvent, MutationRecord } from '../models/types.js';
 import type { PlanProposal } from '../solver/types.js';
-import type { MutationRecord } from '../models/types.js';
+import type { LLMProvider } from '../ai/provider.js';
+import type { RecipeDatabase } from '../recipes/database.js';
+import type { StateStoreLike } from '../state/store.js';
+import type { PlanFlowState } from '../agents/plan-flow.js';
+import { log } from '../debug/logger.js';
 
 /**
  * A proposed post-confirmation mutation awaiting explicit user confirmation.
@@ -75,4 +79,55 @@ export interface PendingMutation {
    * logging and for eventual staleness checks (not enforced in Plan D).
    */
   createdAt: string;
+}
+
+/**
+ * The applier's discriminated-union result.
+ *
+ * - `in_session_updated` — the in-session branch delegated to
+ *   `handleMutationText` which returned a new FlowResponse. The handler
+ *   sends `text` with `planProposalKeyboard`.
+ * - `post_confirmation_proposed` — the post-confirmation branch produced
+ *   a proposed diff. The handler sends `text` with `mutateConfirmKeyboard`
+ *   and stashes `pending` on `BotCoreSession.pendingMutation`.
+ * - `clarification` — either branch returned a re-proposer clarification.
+ * - `failure` — validation or LLM failure; the handler sends `message`
+ *   and leaves state untouched.
+ * - `no_target` — nothing to mutate (no active plan or planning flow).
+ */
+export type MutateResult =
+  | { kind: 'in_session_updated'; text: string }
+  | { kind: 'post_confirmation_proposed'; text: string; pending: PendingMutation }
+  | { kind: 'clarification'; question: string }
+  | { kind: 'failure'; message: string }
+  | { kind: 'no_target'; message: string };
+
+/** Arguments for the main entry point. */
+export interface ApplyMutationRequestArgs {
+  /** The user's raw natural-language mutation request. Passed through verbatim. */
+  request: string;
+  /** BotCoreSession-shaped slice — reads planFlow, mutates state in place on in-session branch. */
+  session: {
+    planFlow: PlanFlowState | null;
+  };
+  store: StateStoreLike;
+  recipes: RecipeDatabase;
+  llm: LLMProvider;
+  /** Clock injection — Plan D scenarios pass a frozen Date. Defaults to new Date() at call time. */
+  now?: Date;
+  /** Pending clarification from a prior post-confirmation turn (invariant #5). */
+  pendingClarification?: { originalRequest: string };
+}
+
+/**
+ * Apply a mutation request. Branches on `session.planFlow` presence:
+ * in-session → `handleMutationText` delegation (Task 7), post-confirmation
+ * → adapter + re-proposer + solver + diff (Task 8).
+ */
+export async function applyMutationRequest(
+  args: ApplyMutationRequestArgs,
+): Promise<MutateResult> {
+  void args;
+  log.debug('MUTATE', 'applyMutationRequest scaffold (Task 6) — branches land in Tasks 7/8');
+  throw new Error('applyMutationRequest is not wired yet (Plan 029 Task 6 scaffold)');
 }
