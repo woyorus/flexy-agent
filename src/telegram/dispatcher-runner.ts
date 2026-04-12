@@ -769,17 +769,94 @@ async function rerenderLastView(
 }
 
 /**
- * `mutate_plan` — Plan 029 Task 2 stub. Tasks 6–9 replace this with the real
- * handler that delegates to `applyMutationRequest`. Until then, throwing
- * keeps any premature wiring loud — there is no silent path through.
+ * `mutate_plan` — calls the shared applier and routes the result to the sink.
+ *
+ * Four branches:
+ *   - in_session_updated → send text with planProposalKeyboard.
+ *   - post_confirmation_proposed → stash `pending` on session, send text
+ *     with mutateConfirmKeyboard.
+ *   - clarification → send question. Post-confirmation: stash the
+ *     clarification for multi-turn resume (invariant #5).
+ *   - failure / no_target → send message with the main menu keyboard.
  */
 export async function handleMutatePlanAction(
-  _decision: Extract<DispatcherDecision, { action: 'mutate_plan' }>,
-  _deps: DispatcherRunnerDeps,
-  _session: DispatcherSession,
-  _sink: DispatcherOutputSink,
+  decision: Extract<DispatcherDecision, { action: 'mutate_plan' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
 ): Promise<void> {
-  throw new Error('handleMutatePlanAction is not wired yet (Plan 029 Task 2 stub — replaced in Task 9)');
+  const { applyMutationRequest } = await import('../plan/mutate-plan-applier.js');
+  const { planProposalKeyboard, mutateConfirmKeyboard } = await import('./keyboards.js');
+
+  let result: import('../plan/mutate-plan-applier.js').MutateResult;
+  try {
+    result = await applyMutationRequest({
+      request: decision.params.request,
+      session: session as unknown as { planFlow: import('../agents/plan-flow.js').PlanFlowState | null },
+      store: deps.store,
+      recipes: deps.recipes,
+      llm: deps.llm,
+      now: new Date(),
+      pendingClarification: session.pendingPostConfirmationClarification
+        ? { originalRequest: session.pendingPostConfirmationClarification.originalRequest }
+        : undefined,
+    });
+    // Clear the pending clarification — consumed by this call regardless of outcome.
+    session.pendingPostConfirmationClarification = undefined;
+  } catch (err) {
+    log.error('MUTATE', `applyMutationRequest threw: ${(err as Error).message.slice(0, 200)}`);
+    const { buildMainMenuKeyboard } = await import('./keyboards.js');
+    const today = toLocalISODate(new Date());
+    const lifecycle = await getPlanLifecycle(session as never, deps.store, today);
+    await sink.reply(
+      "Something went wrong applying that change. Your plan is unchanged. Try rephrasing, or tap a button.",
+      { reply_markup: buildMainMenuKeyboard(lifecycle) },
+    );
+    return;
+  }
+
+  switch (result.kind) {
+    case 'in_session_updated': {
+      await sink.reply(result.text, {
+        reply_markup: planProposalKeyboard,
+        parse_mode: 'MarkdownV2',
+      });
+      return;
+    }
+
+    case 'post_confirmation_proposed': {
+      session.pendingMutation = result.pending;
+      await sink.reply(result.text, {
+        reply_markup: mutateConfirmKeyboard,
+      });
+      return;
+    }
+
+    case 'clarification': {
+      // Post-confirmation clarification — stash for multi-turn resume (invariant #5).
+      if (!session.planFlow) {
+        session.pendingPostConfirmationClarification = {
+          question: result.question,
+          originalRequest: decision.params.request,
+          createdAt: new Date().toISOString(),
+        };
+      }
+      const kb = await buildSideConversationKeyboard(session, deps.store);
+      await sink.reply(result.question, { reply_markup: kb });
+      pushTurn(session, 'bot', result.question);
+      return;
+    }
+
+    case 'failure':
+    case 'no_target': {
+      const { buildMainMenuKeyboard } = await import('./keyboards.js');
+      const today = toLocalISODate(new Date());
+      const lifecycle = await getPlanLifecycle(session as never, deps.store, today);
+      await sink.reply(result.message, { reply_markup: buildMainMenuKeyboard(lifecycle) });
+      pushTurn(session, 'bot', result.message);
+      return;
+    }
+  }
 }
 
 // ─── Runner front-door stub (full body lands in Task 11) ─────────────────────
