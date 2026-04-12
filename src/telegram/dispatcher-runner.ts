@@ -95,6 +95,7 @@ export interface DispatcherSession {
     [key: string]: unknown;
   };
   recentTurns?: ConversationTurn[];
+  pendingMutation?: import('../plan/mutate-plan-applier.js').PendingMutation;
   pendingPostConfirmationClarification?: {
     question: string;
     originalRequest: string;

@@ -225,6 +225,27 @@ export interface BotCoreSession {
    * same pattern as Plan 027's `lastRenderedView` field.
    */
   recentTurns?: ConversationTurn[];
+  /**
+   * Plan 029: The last post-confirmation mutation the dispatcher's applier
+   * proposed, awaiting user confirmation via the mp_confirm inline callback.
+   * Cleared on mp_confirm (after persistence), on mp_adjust (user wants to
+   * re-describe), or on any flow that structurally invalidates the pending
+   * state (fresh /start, plan_week, reset). In-memory only — bot restarts
+   * drop it.
+   */
+  pendingMutation?: import('../plan/mutate-plan-applier.js').PendingMutation;
+  /**
+   * Plan 029: A pending post-confirmation clarification from the re-proposer.
+   * Set when the applier's post-confirmation branch returns a clarification
+   * ("lunch or dinner?"). On the next `mutate_plan` dispatch, the applier
+   * reads this field and prepends the original request to the user's new
+   * text so the re-proposer has full context. In-memory only.
+   */
+  pendingPostConfirmationClarification?: {
+    question: string;
+    originalRequest: string;
+    createdAt: string;
+  };
   /** Progress measurement flow — explicit phase prevents input hijacking after logging. */
   progressFlow: {
     phase: 'awaiting_measurement' | 'confirming_disambiguation';
@@ -372,6 +393,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       session.planFlow = null;
       session.progressFlow = null;
       session.pendingReplan = undefined;
+      session.pendingMutation = undefined;
+      session.pendingPostConfirmationClarification = undefined;
       session.surfaceContext = null;
       session.lastRecipeSlug = undefined;
       session.lastRenderedView = undefined;
@@ -385,6 +408,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       session.planFlow = null;
       session.progressFlow = null;
       session.pendingReplan = undefined;
+      session.pendingMutation = undefined;
+      session.pendingPostConfirmationClarification = undefined;
       session.lastRenderedView = undefined;
       await sink.reply('Cancelled.', { reply_markup: await getMenuKeyboard() });
       return;
@@ -485,6 +510,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       const recipe = recipes.getBySlug(slug) ?? findBySlugPrefix(recipes, slug);
       if (recipe) {
         session.planFlow = null;
+        session.pendingMutation = undefined;
+        session.pendingPostConfirmationClarification = undefined;
         session.recipeFlow = createEditFlowState(recipe);
         log.debug('FLOW', `editing recipe: ${slug}`);
         await sink.reply('What would you like to change? (e.g., "swap beef for chicken", "less oil", "add a side salad")');
@@ -536,6 +563,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
       session.pendingReplan = undefined;
+      session.pendingMutation = undefined;
+      session.pendingPostConfirmationClarification = undefined;
       await doStartPlanFlow(
         { start: pending.replacingSession.horizonStart, replacingSession: pending.replacingSession },
         pending.replacingSession,
@@ -546,6 +575,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
     if (action === 'plan_replan_cancel') {
       session.pendingReplan = undefined;
+      session.pendingMutation = undefined;
+      session.pendingPostConfirmationClarification = undefined;
       await sink.reply('Plan kept.', { reply_markup: await getMenuKeyboard() });
       return;
     }
@@ -642,6 +673,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           // Plan is persisted — clear the in-progress flow state.
           // getPlanLifecycle() will now return active_* based on the persisted session.
           session.planFlow = null;
+          session.pendingMutation = undefined;
+          session.pendingPostConfirmationClarification = undefined;
           stopTyping();
 
           // Build a rich post-confirmation message if post-confirm data is available
@@ -671,6 +704,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
       if (action === 'plan_cancel') {
         session.planFlow = null;
+        session.pendingMutation = undefined;
+        session.pendingPostConfirmationClarification = undefined;
         await sink.reply('Planning cancelled.', { reply_markup: await getMenuKeyboard() });
         return;
       }
@@ -992,6 +1027,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       case 'plan_week': {
         session.surfaceContext = 'plan';
         session.lastRecipeSlug = undefined;
+        session.pendingMutation = undefined;
+        session.pendingPostConfirmationClarification = undefined;
         const today = toLocalISODate(new Date());
         const lifecycle = await getPlanLifecycle(session, store, today);
 
@@ -1257,6 +1294,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         // Reset flow and restart planning from scratch with same horizon
         const horizon = await computeNextHorizonStart(store);
         session.planFlow = null;
+        session.pendingMutation = undefined;
+        session.pendingPostConfirmationClarification = undefined;
         await doStartPlanFlow(
           horizon,
           horizon.replacingSession,
@@ -1266,6 +1305,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       }
       if (metaIntent === 'cancel') {
         session.planFlow = null;
+        session.pendingMutation = undefined;
+        session.pendingPostConfirmationClarification = undefined;
         session.surfaceContext = null;
         await sink.reply('Planning cancelled.', { reply_markup: await getMenuKeyboard() });
         return;
@@ -1327,6 +1368,8 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     session.lastRenderedView = undefined;
     session.recentTurns = undefined;
     session.pendingReplan = undefined;
+    session.pendingMutation = undefined;
+    session.pendingPostConfirmationClarification = undefined;
   }
 
   return { session, dispatch, reset };
