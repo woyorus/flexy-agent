@@ -2,7 +2,7 @@
 
 > **For agentic workers:** RECOMMENDED SUB-SKILL: Use superpowers:subagent-driven-development (preferred) or superpowers:executing-plans to implement this plan task-by-task. If neither skill is available in your environment, follow the task-by-task structure directly — each task is self-contained with explicit steps, commit points, and verification commands. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Active
+**Status:** Completed
 **Date:** 2026-04-10
 **Affects:** `src/agents/dispatcher.ts`, `src/telegram/dispatcher-runner.ts`, `src/telegram/core.ts`, `src/plan/mutate-plan-applier.ts` (new), `src/plan/session-to-proposal.ts` (from Plan 026, one tweak), `src/telegram/keyboards.ts`, `test/unit/mutate-plan-applier.test.ts` (new), `test/unit/dispatcher-mutate-plan.test.ts` (new), several new scenarios under `test/scenarios/`, regeneration of a small set of existing scenarios, `docs/product-specs/ui-architecture.md`, `docs/product-specs/flows.md`, `docs/design-docs/proposals/003-freeform-conversation-layer.md` (status update).
 
@@ -3371,8 +3371,3 @@ After this plan lands, Plan E remains for:
 - Full-fidelity `rerenderLastView` in the runner (Plan 028 shipped a minimal version)
 
 Plan D is the commit where proposal 003's primary job becomes real. Plan E polishes the surrounding chat experience.
-
-
-
-
-

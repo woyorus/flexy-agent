@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Active
+**Status:** Completed
 **Date:** 2026-04-10
 **Affects:** `src/agents/dispatcher.ts` (new), `src/telegram/dispatcher-runner.ts` (new), `src/telegram/core.ts`, `src/agents/plan-flow.ts` (cancel-phrase audit only), `test/unit/dispatcher-agent.test.ts` (new), `test/unit/dispatcher-context.test.ts` (new), several new scenarios under `test/scenarios/`, regeneration of existing scenarios that fire LLM calls on free text, `docs/product-specs/ui-architecture.md`, `docs/product-specs/testing.md`.
 

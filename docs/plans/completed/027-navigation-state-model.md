@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Active
+**Status:** Completed
 **Date:** 2026-04-10
 **Affects:** `src/telegram/navigation-state.ts` (new), `src/telegram/core.ts`, `test/unit/navigation-state.test.ts` (new), several new scenarios under `test/scenarios/`, `docs/product-specs/ui-architecture.md`, `docs/product-specs/testing.md`.
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Active
+**Status:** Completed
 **Date:** 2026-04-10
 **Affects:** `src/plan/session-to-proposal.ts` (new), `src/models/types.ts`, `src/state/store.ts`, `src/harness/test-store.ts`, `src/qa/validators/proposal.ts`, `src/agents/plan-reproposer.ts`, `supabase/migrations/005_plan_session_mutation_history.sql` (new), `docs/product-specs/data-models.md`, new unit tests under `test/unit/`.
 
