@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status:** Active
+**Status:** Completed
 **Date:** 2026-04-13
 **Depends on:** Plan 031 (Behavioral Certification Harness) fully merged.
 **Affects:** `test/scenarios/*/assertions.ts` (61 new files), `test/scenarios/*/certification.json` (61 new files), `src/harness/domain-helpers.ts` (expected additions as waves surface new reusable checks), possibly `src/harness/assertions-context.ts` (additional convenience accessors as needed), `test/scenarios/index.md` (optional column for certification status if decided during Wave A), `docs/plans/scenario-migration-tech-debt.md` (new — log of bugs discovered during audit that don't block certification of the specific scenario).

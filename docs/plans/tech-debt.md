@@ -10,6 +10,11 @@
 
 ## Medium
 
+- **TD-008: Re-proposer LLM does not always materialize natural-language event adds.** Identified: 2026-04-13 during Plan 032 audit, scenario 023. With the prompt *"Oh wait, I have dinner with friends on Friday, about 900 calories"* the re-proposer responded *"No changes to the plan"* and `mutationHistory` stayed empty. The dispatcher routed correctly (`mutate_plan`); the model simply didn't act. Affects scenario 023's load-bearing claim — certified around the routing path only. Likely fix is on the re-proposer prompt side (clarify event-add intent extraction).
+  Files: `src/agents/plan-reproposer.ts`, `test/scenarios/023-reproposer-event-add/recorded.json`.
+- **TD-009: Re-proposer recipe-generation handshake does not always terminate in a created recipe.** Identified: 2026-04-13 during Plan 032 audit, scenario 028. The re-proposer surfaces a `recipe_needed` clarification asking *"create Thai green curry, or swap..."*; the user's *"yes"* routes through `clarify` but the model re-asks the same question rather than triggering generation. `mutationHistory` stays at 0. Certified around routing only (see TD-008 for the same pattern). Likely fix is in the affirmative-detection or clarification-resolution branch.
+  Files: `src/agents/plan-reproposer.ts`, `src/plan/mutate-plan-applier.ts`, `test/scenarios/028-reproposer-recipe-generation/recorded.json`.
+
 - **TD-003: Partial-write cleanup script for confirmPlanSessionReplacing.** Identified: 2026-04-05 during Plan 007 design (D31). If step 3 or 4 of the four-step save-before-destroy sequence fails after steps 1-2 succeed, the old session is partially cleaned up. The failure is self-healing on retry (user taps Plan Week again), but a manual cleanup query should exist for diagnosability. Graduates to a plan if partial writes ever show up in `logs/debug.log`.
   Files: `src/state/store.ts`.
 

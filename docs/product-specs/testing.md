@@ -168,6 +168,8 @@ Replace `<NAME>` with the scenario directory name. This catches the mechanical i
 
 `npm test` passing proves determinism. Certification proves behavioral correctness. The two are separate signals.
 
+**Audit cycle one (2026-04-13):** complete — every one of the 62 scenarios is stamped `certified`. Each scenario's `assertions.ts` exports a one-sentence `purpose` and an `assertBehavior(ctx)` that runs in the deterministic verification pipeline. Scenario 023 and 028 are certified around the dispatcher routing path only; the re-proposer LLM quality issues they surface are tracked in [`docs/plans/tech-debt.md`](../plans/tech-debt.md) TD-008 and TD-009.
+
 ### Reviewing the suite
 
 `npm run review` lists every scenario with its derived certification status: `certified`, `needs-review`, `uncertified`, or `obsolete`. Filters: `--needs-review`, `--status=certified|obsolete`.

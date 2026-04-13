@@ -68,7 +68,8 @@ interface StoreLike {
 
 interface PlanSessionLike {
   status?: unknown;
-  supersededBy?: unknown;
+  superseded?: boolean;
+  horizonStart?: string;
   flexSlots?: unknown;
 }
 
@@ -80,15 +81,19 @@ function findActiveSession(finalStore: unknown): unknown {
   const store = finalStore as StoreLike | null | undefined;
   if (!store || typeof store !== 'object') return undefined;
   const sessions = asArray(store.planSessions);
+  const nonSuperseded: PlanSessionLike[] = [];
   for (const session of sessions) {
     const s = session as PlanSessionLike | null | undefined;
     if (!s || typeof s !== 'object') continue;
-    // A "non-superseded" session is one whose `supersededBy` is null/absent.
-    if (s.supersededBy === null || s.supersededBy === undefined) {
-      return session;
-    }
+    if (s.superseded !== true) nonSuperseded.push(s);
   }
-  return undefined;
+  if (nonSuperseded.length === 0) return undefined;
+  // Pick the latest by horizonStart (rolling scenarios may have multiple
+  // non-superseded sessions; most recent is the one assertions care about).
+  nonSuperseded.sort((a, b) =>
+    String(a.horizonStart ?? '').localeCompare(String(b.horizonStart ?? '')),
+  );
+  return nonSuperseded[nonSuperseded.length - 1];
 }
 
 export interface BuildAssertionsContextInput {

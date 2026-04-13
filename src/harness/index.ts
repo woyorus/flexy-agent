@@ -39,6 +39,16 @@ export {
   assertBatchSizesSane,
   assertCookDayFirstEating,
   assertWeeklyTotalsAbsorbed,
+  assertRollingCarryOver,
+  assertNoBatchOverlapsPriorSession,
+  assertSaveBeforeDestroy,
+  assertDispatcherActions,
+  assertMutationHistoryLength,
+  assertNoDispatcherCallFor,
+  assertMeasurementPersisted,
+  assertWeeklyReportShape,
+  assertLastRenderedView,
+  assertSessionAtVariants,
   renderDerivedPlanView,
 } from './domain-helpers.js';
 export {
