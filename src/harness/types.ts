@@ -17,6 +17,12 @@
 import type { PlanSession, Batch, Measurement } from '../models/types.js';
 import type { SessionState } from '../state/machine.js';
 import type { LLMFixture } from '../ai/fixture.js';
+import type { ExecTrace } from './trace.js';
+
+// Plan 031: re-export trace primitives so runner-adjacent code can import
+// them from the same module as `ScenarioResult`.
+export type { ExecTrace, TraceEvent } from './trace.js';
+export type { AssertionsContext } from './assertions-context.js';
 
 // ─── Event variants ───────────────────────────────────────────────────────────
 
@@ -189,4 +195,12 @@ export interface ScenarioResult {
    * populated.
    */
   sessionAt?: unknown[];
+  /**
+   * Plan 031: runtime-only execution trace populated by the harness via the
+   * `onTrace` hook. NOT persisted to `recorded.json` and NOT compared via
+   * `deepStrictEqual`. Available only to `assertBehavior(ctx)` and the
+   * `npm run review` probe report. Optional because non-harness callers
+   * (should any ever exist) can leave it unset.
+   */
+  execTrace?: ExecTrace;
 }

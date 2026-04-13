@@ -10,7 +10,8 @@
     "dev:debug": "DEBUG=1 tsx watch src/index.ts",
     "test": "tsx --test --import ./test/setup.ts test/scenarios.test.ts",
     "test:generate": "tsx --import ./test/setup.ts src/harness/generate.ts",
-    "test:replay": "tsx --import ./test/setup.ts src/harness/replay.ts"
+    "test:replay": "tsx --import ./test/setup.ts src/harness/replay.ts",
+    "review": "tsx --import ./test/setup.ts src/harness/review.ts"
   },
   "type": "module",
   "engines": {

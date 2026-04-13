@@ -458,6 +458,7 @@ export async function handleGenerateProposal(
   llm: LLMProvider,
   recipes: RecipeDatabase,
   store: StateStoreLike,
+  onTrace?: (event: import('../harness/trace.js').TraceEvent) => void,
 ): Promise<FlowResponse> {
   log.debug('PLAN-FLOW', 'generating proposal');
 
@@ -502,7 +503,9 @@ export async function handleGenerateProposal(
   };
 
   // Plan 024: call proposer with recipeDb for validator fridge-life checks
-  const proposerResult = await proposePlan(proposerInput, llm, recipes);
+  // Plan 031: thread `onTrace` so the validator retry hook fires inside the
+  // proposer.
+  const proposerResult = await proposePlan(proposerInput, llm, recipes, onTrace);
 
   // Plan 024: handle graceful abort on double validation failure
   if (proposerResult.type === 'failure') {
@@ -549,6 +552,7 @@ export async function handleApprove(
   store: StateStoreLike,
   recipes: RecipeDatabase,
   llm: LLMProvider,
+  onTrace?: (event: import('../harness/trace.js').TraceEvent) => void,
 ): Promise<FlowResponse> {
   if (!state.proposal?.solverOutput) {
     return { text: 'No plan to approve. Something went wrong.', state };
@@ -557,9 +561,12 @@ export async function handleApprove(
   // Plan 007: persist as PlanSession + Batch[] (rolling model)
   const { session, batches } = await buildNewPlanSession(state, recipes, llm);
   if (state.replacingSessionId) {
+    // Plan 031: emit persist event before each store mutation.
+    onTrace?.({ kind: 'persist', op: 'confirmPlanSessionReplacing' });
     await store.confirmPlanSessionReplacing(session, batches, state.replacingSessionId);
     log.info('PLAN-FLOW', `plan confirmed (replacing ${state.replacingSessionId}): session ${session.id} for ${session.horizonStart}`);
   } else {
+    onTrace?.({ kind: 'persist', op: 'confirmPlanSession' });
     await store.confirmPlanSession(session, batches);
     log.info('PLAN-FLOW', `plan confirmed: session ${session.id} for ${session.horizonStart}`);
   }
@@ -607,6 +614,7 @@ export async function handleMutationText(
   text: string,
   llm: LLMProvider,
   recipes: RecipeDatabase,
+  onTrace?: (event: import('../harness/trace.js').TraceEvent) => void,
 ): Promise<FlowResponse> {
   if (!state.proposal) {
     return { text: 'No plan to adjust. Something went wrong.', state };
@@ -632,7 +640,7 @@ export async function handleMutationText(
       log.debug('PLAN-FLOW', `recipe generated and saved: ${corrected.recipe.slug}`);
 
       // Re-run re-proposer with updated DB — the new recipe is now available
-      return handleMutationText(state, originalRequest, llm, recipes);
+      return handleMutationText(state, originalRequest, llm, recipes, onTrace);
     }
 
     // User declined — clear state, keep current plan
@@ -662,7 +670,7 @@ export async function handleMutationText(
 
   log.debug('PLAN-FLOW', `mutation request: "${userMessage.slice(0, 80)}"`);
 
-  // 2. Call re-proposer
+  // 2. Call re-proposer (Plan 031: thread `onTrace` so retries surface in execTrace)
   const result = await reProposePlan({
     currentProposal: state.proposal,
     userMessage,
@@ -673,7 +681,7 @@ export async function handleMutationText(
     breakfast: state.breakfast,
     weeklyTargets: config.targets.weekly,
     mode: 'in-session',
-  }, llm, recipes);
+  }, llm, recipes, onTrace);
 
   // 3. Handle clarification — store context, stay in proposal phase
   if (result.type === 'clarification') {

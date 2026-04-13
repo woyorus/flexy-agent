@@ -113,6 +113,7 @@ import type { LLMProvider } from '../ai/provider.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import type { Recipe, BatchView } from '../models/types.js';
 import type { StateStoreLike } from '../state/store.js';
+import type { TraceEvent } from '../harness/trace.js';
 import { renderRecipe, renderCookView } from '../recipes/renderer.js';
 import { generateShoppingList } from '../shopping/generator.js';
 import {
@@ -193,6 +194,15 @@ export interface BotCoreDeps {
   llm: LLMProvider;
   recipes: RecipeDatabase;
   store: StateStoreLike;
+  /**
+   * Plan 031: optional harness-only hook for collecting a runtime execution
+   * trace. Invoked at handler entry points, dispatcher decision, validator
+   * retries, and store mutations. Production `grammY` adapter does NOT set
+   * this — emission is a no-op (`deps.onTrace?.({ ... })`). The `TraceEvent`
+   * type lives in `../harness/trace.js` because the mechanism is a harness
+   * concern; production tolerates the single type import.
+   */
+  onTrace?: (event: TraceEvent) => void;
 }
 
 /**
@@ -290,7 +300,7 @@ export interface BotCore {
  * `deps.store.*`.
  */
 export function createBotCore(deps: BotCoreDeps): BotCore {
-  const { llm, recipes, store } = deps;
+  const { llm, recipes, store, onTrace } = deps;
 
   const session: BotCoreSession = {
     recipeFlow: null,
@@ -358,6 +368,10 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
   //     otherwise poison the captured transcript and match on the wrong
   //     fixture on the next run.
   async function dispatch(update: HarnessUpdate, sink: OutputSink): Promise<void> {
+    // Plan 031: emit a `handler` trace event at dispatch entry so the
+    // execTrace records the update type. Production (grammY adapter) leaves
+    // `onTrace` unset; this is a no-op outside the harness.
+    onTrace?.({ kind: 'handler', name: `dispatch:${update.type}` });
     switch (update.type) {
       case 'command':
         await handleCommand(update.command, sink);
@@ -369,7 +383,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         // Voice is just pre-transcribed text routed through the dispatcher.
         await runDispatcherFrontDoor(
           update.transcribedText,
-          { llm, recipes, store },
+          { llm, recipes, store, onTrace },
           session,
           sink,
           routeTextToActiveFlow,
@@ -386,7 +400,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         }
         await runDispatcherFrontDoor(
           update.text,
-          { llm, recipes, store },
+          { llm, recipes, store, onTrace },
           session,
           sink,
           routeTextToActiveFlow,
@@ -399,6 +413,10 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
   // ─── Commands ──────────────────────────────────────────────────────────
   async function handleCommand(command: string, sink: OutputSink): Promise<void> {
+    // Plan 031: emit a handler event per command so the execTrace reflects
+    // `/start` vs `/cancel` etc. Kept at the top of the function (single
+    // point of entry) rather than one per branch.
+    onTrace?.({ kind: 'handler', name: `command:${command}` });
     if (command === 'start') {
       session.recipeFlow = null;
       session.planFlow = null;
@@ -429,6 +447,11 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
   // ─── Callbacks (inline keyboard taps) ──────────────────────────────────
   async function handleCallback(action: string, sink: OutputSink): Promise<void> {
+    // Plan 031: emit a handler event per callback action. The action string
+    // is the callback prefix + payload (e.g. `rv_abc`, `plan_approve`); the
+    // trace captures the raw action rather than routing through a parser
+    // since `handleCallback` itself branches on prefix matching.
+    onTrace?.({ kind: 'handler', name: `callback:${action}` });
     log.debug('FLOW', `callback: ${action}`);
     await sink.answerCallback();
 
@@ -622,6 +645,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           store,
           recipes,
           llm,
+          onTrace,
         });
         stopTyping();
         void persistResult;
@@ -684,7 +708,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         await sink.reply(result.text);
         const stopTyping = sink.startTyping();
         try {
-          const proposal = await handleGenerateProposal(session.planFlow, llm, recipes, store);
+          const proposal = await handleGenerateProposal(session.planFlow, llm, recipes, store, onTrace);
           session.planFlow = proposal.state;
           stopTyping();
           await sink.reply(proposal.text, { reply_markup: planProposalKeyboard });
@@ -708,7 +732,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         await sink.reply(doneResult.text);
         const stopTyping = sink.startTyping();
         try {
-          const proposal = await handleGenerateProposal(session.planFlow, llm, recipes, store);
+          const proposal = await handleGenerateProposal(session.planFlow, llm, recipes, store, onTrace);
           session.planFlow = proposal.state;
           stopTyping();
           await sink.reply(proposal.text, { reply_markup: planProposalKeyboard });
@@ -723,7 +747,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       if (action === 'plan_approve') {
         const stopTyping = sink.startTyping();
         try {
-          const result = await handleApprove(session.planFlow, store, recipes, llm);
+          const result = await handleApprove(session.planFlow, store, recipes, llm, onTrace);
           // Plan is persisted — clear the in-progress flow state.
           // getPlanLifecycle() will now return active_* based on the persisted session.
           session.planFlow = null;
@@ -788,6 +812,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
 
       const pendingDate = session.progressFlow.pendingDate;
       const isFirst = (await store.getLatestMeasurement('default')) === null;
+      onTrace?.({ kind: 'persist', op: 'logMeasurement' });
       await store.logMeasurement('default', pendingDate, weight, waist);
       session.progressFlow = null;
 
@@ -967,6 +992,9 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
   }
 
   async function handleMenu(action: string, sink: OutputSink): Promise<void> {
+    // Plan 031: emit a handler event per main-menu action so the execTrace
+    // reflects menu-button routing.
+    onTrace?.({ kind: 'handler', name: `menu:${action}` });
     session.recipeFlow = null; // exit any recipe flow
     session.progressFlow = null; // exit any progress flow
     // planFlow is NOT cleared here. It persists until the user
@@ -1154,7 +1182,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         await sink.reply('Generating your recipe — this usually takes a minute or two...');
         const stopTyping = sink.startTyping();
         try {
-          const result = await handlePreferencesAndGenerate(session.recipeFlow, text, llm);
+          const result = await handlePreferencesAndGenerate(session.recipeFlow, text, llm, onTrace);
           session.recipeFlow = result.state;
           stopTyping();
           await sink.reply(result.text, { reply_markup: recipeReviewKeyboard, ...(result.parseMode && { parse_mode: result.parseMode }) });
@@ -1169,7 +1197,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         await sink.reply('Refining your recipe...');
         const stopTyping = sink.startTyping();
         try {
-          const result = await handleRefinement(session.recipeFlow, text, llm);
+          const result = await handleRefinement(session.recipeFlow, text, llm, onTrace);
           session.recipeFlow = result.state;
           stopTyping();
           await sink.reply(result.text, { reply_markup: recipeReviewKeyboard, ...(result.parseMode && { parse_mode: result.parseMode }) });
@@ -1204,7 +1232,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         await sink.reply('Refining your recipe...');
         const stopTyping2 = sink.startTyping();
         try {
-          const result = await handleRefinement(session.recipeFlow, text, llm);
+          const result = await handleRefinement(session.recipeFlow, text, llm, onTrace);
           session.recipeFlow = result.state;
           stopTyping2();
           await sink.reply(result.text, { reply_markup: recipeReviewKeyboard, ...(result.parseMode && { parse_mode: result.parseMode }) });
@@ -1261,7 +1289,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         // Plan 025: all mutation text goes through the re-proposer agent.
         const stopTyping = sink.startTyping();
         try {
-          const result = await handleMutationText(session.planFlow, text, llm, recipes);
+          const result = await handleMutationText(session.planFlow, text, llm, recipes, onTrace);
           session.planFlow = result.state;
           stopTyping();
           await sink.reply(result.text, { reply_markup: planProposalKeyboard });

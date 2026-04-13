@@ -100,7 +100,20 @@ When a prompt change, rule addition, or shared-code change invalidates many scen
 
 The split is: **parallel for the mechanical step (generate), serial for the attention step (review)**. Behavioral validity is the POINT of the harness — `npm test` green alone proves determinism, not correctness. Treat the tenth scenario in your regenerate list with the same rigor as the first.
 
-### Quick verification script
+### Quick verification: `npm run review`
+
+Plan 031 replaces the ad-hoc `node -e "..."` snippet with a first-class CLI. The one-liner:
+
+```bash
+npm run review -- <scenario-name>
+```
+
+renders a probe report covering purpose, transcript, **derived plan view** (the 7×2 grid — same ground the old script covered), global-invariant results (GI-01..GI-06), `assertBehavior` outcome, execution-trace summary, and certification status. See § "Certification workflow" below for the full CLI surface including `--live` and `--accept`.
+
+The UX-level review (does the proposal read like a real meal plan?) still requires reading the text in the "Transcript" section of the probe report.
+
+<details>
+<summary>Legacy `node -e` script (kept for posterity — prefer `npm run review`)</summary>
 
 For scenarios where manual reading is impractical, use this as a starting point (run after generate):
 
@@ -148,6 +161,48 @@ console.log('Slots covered:', covered.size, '/ 14');
 ```
 
 Replace `<NAME>` with the scenario directory name. This catches the mechanical issues; the UX-level review (does the proposal read like a real meal plan?) still requires reading the text output.
+
+</details>
+
+## Certification workflow
+
+`npm test` passing proves determinism. Certification proves behavioral correctness. The two are separate signals.
+
+### Reviewing the suite
+
+`npm run review` lists every scenario with its derived certification status: `certified`, `needs-review`, `uncertified`, or `obsolete`. Filters: `--needs-review`, `--status=certified|obsolete`.
+
+### Reviewing one scenario
+
+`npm run review <scenario>` prints the probe report referenced above.
+
+Flags:
+
+- `--live` — real LLM, read-only. No disk writes. Use to preview live behavior before regenerating.
+- `--accept` — verify the scenario and stamp certification on success. Runs the full verification pipeline (stale-recording check, fixture-edit guardrail, replay, global invariants, `assertBehavior`, the three `deepStrictEqual` regression checks) and refuses to stamp if any step fails. On success, hashes the current on-disk `spec.ts` / `assertions.ts` / `recorded.json` into `certification.json` with `status: certified`. Requires `assertions.ts`.
+
+`--live` and `--accept` do not combine.
+
+**Why `--accept` verifies instead of pure-stamping:** a pure stamp would let a stale or broken scenario be marked certified — exactly the false signal this feature is designed to eliminate. Verification is sub-second (no LLM calls; fixture replay only), so there is no performance reason to skip it. Running `npm run review -- <scenario>` (no `--accept`) shows the same probe report without writing anything; run it first to see the report, then run `--accept` as the verification-and-stamp finalization step.
+
+### Authoring assertions
+
+A scenario's `assertions.ts` exports:
+
+- `purpose: string` — one sentence naming the scenario's load-bearing claim.
+- `assertBehavior(ctx)` — deterministic semantic checks over `ctx.outputs`, `ctx.finalSession`, `ctx.finalStore`, `ctx.execTrace`, and (if opted in) `ctx.sessionAt`. Use domain helpers like `assertPlanningHealthy(ctx)` when applicable.
+- `assertFixtureEdits(recorded)` — optional; only for fixture-edited scenarios (see § "Scenarios with manually edited fixtures").
+
+### Full workflow for new behavior
+
+1. Make the code change (prompt edit, fix, new feature).
+2. Write or update `assertions.ts` describing what the scenario's new purpose is.
+3. *Optional:* `npm run review -- <scenario> --live` to preview live behavior.
+4. `npm run test:generate -- <scenario> --regenerate` (delete `recorded.json` first).
+5. `npm run review -- <scenario>` to inspect the newly written recording — read the probe report, verify behavior.
+6. `npm run review -- <scenario> --accept` to verify + stamp. If step 5 was clean, this passes and writes `certification.json`. If something regressed between steps 5 and 6 (editing `assertions.ts`, changing `spec.ts`), `--accept` refuses and prints the specific failure.
+
+Each step is a distinct agent decision. `--accept` is the last gate: it replays the scenario one more time and only stamps if every check the test suite would apply passes.
 
 ## Directory layout
 
@@ -271,7 +326,7 @@ Convention: place a `fixture-edits.md` file in the scenario directory describing
 
 Scenario-local `fixture-edits.md` files and generator warnings must point to `npm run test:replay -- <name>` after edits have been applied, never back to `--regenerate`. `test:replay` preserves `llmFixtures` byte-for-byte except for normal JSON formatting of the full `recorded.json` file; it only recomputes `expected` from the edited fixtures.
 
-Fixture-edited scenarios should also add `fixture-assertions.ts` next to `spec.ts` and export `assertFixtureEdits(recorded)`. The harness runs this assertion in both `test:replay` and `npm test`, before the scenario replay. If a fresh valid LLM fixture accidentally replaces the malformed one, the assertion must fail with instructions to regenerate, re-apply `fixture-edits.md`, then run `test:replay`.
+Fixture-edited scenarios should also add `assertions.ts` next to `spec.ts` (Plan 031 renamed `fixture-assertions.ts` → `assertions.ts`) and export `assertFixtureEdits(recorded)` alongside the mandatory `purpose` + `assertBehavior` exports (see § "Certification workflow" § "Authoring assertions"). The harness runs `assertFixtureEdits` in both `test:replay` and `npm test`, before the scenario replay. If a fresh valid LLM fixture accidentally replaces the malformed one, the assertion must fail with instructions to regenerate, re-apply `fixture-edits.md`, then run `test:replay`. Rationale is in design doc 004.
 
 Current scenarios with manual fixture edits:
 - **014-proposer-validator-retry** — edits the fixture to return a proposal with an uncovered slot; `validateProposal()` catches it, proposer retries with correction feedback, second attempt fills the slot (Plan 024).

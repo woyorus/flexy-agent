@@ -204,6 +204,7 @@ async function validateAndCorrect(
   result: GenerateResult,
   targets: MacrosWithFatCarbs,
   llm: LLMProvider,
+  onTrace?: (event: import('../harness/trace.js').TraceEvent) => void,
 ): Promise<{ result: GenerateResult; passed: boolean; warnings: string[] }> {
   let current = result;
 
@@ -218,6 +219,15 @@ async function validateAndCorrect(
 
     log.debug('QA', `macro correction attempt ${attempt + 1}/${MAX_CORRECTION_RETRIES} — current: ${current.recipe.perServing.calories} cal, ${current.recipe.perServing.protein}g P | target: ${targets.calories} cal, ${targets.protein}g P`);
     log.addOperationEvent(`correction ${attempt + 1}/${MAX_CORRECTION_RETRIES}`);
+    // Plan 031: record each correction round in the harness execTrace.
+    // `attempt` (0-indexed) + 2 matches the qaGate convention used by the
+    // planning retries (initial = 1, first correction = 2).
+    onTrace?.({
+      kind: 'retry',
+      validator: 'recipe-generator',
+      attempt: attempt + 2,
+      errors: [correction],
+    });
 
     current = await correctRecipeMacros(current.messages, correction, llm);
   }
@@ -273,6 +283,7 @@ export async function handlePreferencesAndGenerate(
   state: RecipeFlowState,
   preferences: string,
   llm: LLMProvider,
+  onTrace?: (event: import('../harness/trace.js').TraceEvent) => void,
 ): Promise<FlowResponse> {
   state.preferences = preferences;
   const targets = targetsForMealType(state.mealType!);
@@ -288,7 +299,7 @@ export async function handlePreferencesAndGenerate(
   log.debug('FLOW', `recipe generated: "${genResult.recipe.name}" — ${genResult.recipe.perServing.calories} cal, ${genResult.recipe.perServing.protein}g P`);
 
   // Validate macros and correct if needed
-  const { result: corrected, passed, warnings } = await validateAndCorrect(genResult, targets, llm);
+  const { result: corrected, passed, warnings } = await validateAndCorrect(genResult, targets, llm, onTrace);
 
   const rendered = renderRecipe(corrected.recipe);
   let text = rendered;
@@ -314,6 +325,7 @@ export async function handleRefinement(
   state: RecipeFlowState,
   feedback: string,
   llm: LLMProvider,
+  onTrace?: (event: import('../harness/trace.js').TraceEvent) => void,
 ): Promise<FlowResponse> {
   log.debug('FLOW', `refining recipe, feedback: "${feedback}"`);
   const targets = targetsForMealType(state.mealType!);
@@ -327,7 +339,7 @@ export async function handleRefinement(
   log.debug('FLOW', `refined recipe: "${refineResult.recipe.name}" — ${refineResult.recipe.perServing.calories} cal, ${refineResult.recipe.perServing.protein}g P`);
 
   // Validate macros and correct if needed
-  const { result: corrected, passed, warnings } = await validateAndCorrect(refineResult, targets, llm);
+  const { result: corrected, passed, warnings } = await validateAndCorrect(refineResult, targets, llm, onTrace);
 
   const rendered = renderRecipe(corrected.recipe);
   let text = rendered;

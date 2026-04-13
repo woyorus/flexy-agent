@@ -22,6 +22,7 @@ import type { LLMProvider } from '../ai/provider.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import type { StateStoreLike } from '../state/store.js';
 import type { PlanFlowState } from '../agents/plan-flow.js';
+import type { TraceEvent } from '../harness/trace.js';
 import { log } from '../debug/logger.js';
 
 /**
@@ -117,6 +118,13 @@ export interface ApplyMutationRequestArgs {
   now?: Date;
   /** Pending clarification from a prior post-confirmation turn (invariant #5). */
   pendingClarification?: { originalRequest: string };
+  /**
+   * Plan 031: harness-only trace hook threaded from `BotCoreDeps.onTrace`.
+   * Propagated to the in-session `handleMutationText` (which forwards it to
+   * `reProposePlan`) and to the post-confirmation branch's own re-proposer
+   * call + the `confirmPlanSessionReplacing` persist site.
+   */
+  onTrace?: (event: TraceEvent) => void;
 }
 
 /**
@@ -133,7 +141,7 @@ export async function applyMutationRequest(
 
   // ── In-session branch ────────────────────────────────────────────
   if (session.planFlow && session.planFlow.phase === 'proposal') {
-    return applyInSession(session.planFlow, request, llm, recipes);
+    return applyInSession(session.planFlow, request, llm, recipes, args.onTrace);
   }
 
   // ── Post-confirmation branch ──────────────────────────────────────
@@ -152,9 +160,10 @@ async function applyInSession(
   request: string,
   llm: LLMProvider,
   recipes: RecipeDatabase,
+  onTrace?: (event: TraceEvent) => void,
 ): Promise<MutateResult> {
   const { handleMutationText } = await import('../agents/plan-flow.js');
-  const response = await handleMutationText(state, request, llm, recipes);
+  const response = await handleMutationText(state, request, llm, recipes, onTrace);
 
   // handleMutationText distinguishes its three outcomes by:
   //   - pendingClarification set → clarification
@@ -251,6 +260,7 @@ async function applyPostConfirmation(
     },
     llm,
     recipes,
+    args.onTrace,
   );
 
   // 4. Handle clarification / failure.
@@ -323,11 +333,13 @@ export async function applyMutationConfirmation(args: {
   store: StateStoreLike;
   recipes: RecipeDatabase;
   llm: LLMProvider;
+  /** Plan 031: optional harness trace hook. */
+  onTrace?: (event: TraceEvent) => void;
 }): Promise<{
   newSessionId: string;
   persistedText: string;
 }> {
-  const { pending, store, recipes, llm } = args;
+  const { pending, store, recipes, llm, onTrace } = args;
 
   const oldSession = await store.getPlanSession(pending.oldSessionId);
   if (!oldSession) {
@@ -350,6 +362,8 @@ export async function applyMutationConfirmation(args: {
   // Copy treat budget from the old session (conservative default — see decision log).
   (draft as import('../models/types.js').DraftPlanSession).treatBudgetCalories = oldSession.treatBudgetCalories;
 
+  // Plan 031: trace emit before the store mutation.
+  onTrace?.({ kind: 'persist', op: 'confirmPlanSessionReplacing' });
   const persisted = await store.confirmPlanSessionReplacing(
     draft,
     writeBatches,

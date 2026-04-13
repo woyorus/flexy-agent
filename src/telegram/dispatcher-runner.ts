@@ -20,6 +20,7 @@ import type { LLMProvider } from '../ai/provider.js';
 import type { RecipeDatabase } from '../recipes/database.js';
 import type { StateStoreLike } from '../state/store.js';
 import type { Recipe } from '../models/types.js';
+import type { TraceEvent } from '../harness/trace.js';
 import {
   getPlanLifecycle,
   getVisiblePlanSession,
@@ -359,6 +360,7 @@ export async function tryNumericPreFilter(
   session: DispatcherSession,
   store: StateStoreLike,
   sink: DispatcherOutputSink,
+  onTrace?: (event: TraceEvent) => void,
 ): Promise<boolean> {
   if (!session.progressFlow || session.progressFlow.phase !== 'awaiting_measurement') {
     return false;
@@ -368,7 +370,7 @@ export async function tryNumericPreFilter(
     return false;
   }
 
-  await renderMeasurementConfirmation(session, store, sink, parsed);
+  await renderMeasurementConfirmation(session, store, sink, parsed, onTrace);
   return true;
 }
 
@@ -818,6 +820,7 @@ export async function handleMutatePlanAction(
       store: deps.store,
       recipes: deps.recipes,
       llm: deps.llm,
+      onTrace: deps.onTrace,
       now: new Date(),
       pendingClarification: session.pendingPostConfirmationClarification
         ? { originalRequest: session.pendingPostConfirmationClarification.originalRequest }
@@ -1074,12 +1077,14 @@ export async function renderMeasurementConfirmation(
   store: StateStoreLike,
   sink: DispatcherOutputSink,
   parsed: { values: number[] },
+  onTrace?: (event: TraceEvent) => void,
 ): Promise<void> {
   const today = toLocalISODate(new Date());
 
   if (parsed.values.length === 1) {
     const weight = parsed.values[0]!;
     const isFirst = (await store.getLatestMeasurement('default')) === null;
+    onTrace?.({ kind: 'persist', op: 'logMeasurement' });
     await store.logMeasurement('default', today, weight, null);
     session.progressFlow = null;
     let confirmText = formatMeasurementConfirmation(weight, null);
@@ -1103,6 +1108,7 @@ export async function renderMeasurementConfirmation(
 
   if (!assignment.ambiguous) {
     const isFirst = lastMeasurement === null;
+    onTrace?.({ kind: 'persist', op: 'logMeasurement' });
     await store.logMeasurement('default', today, assignment.weight, assignment.waist);
     session.progressFlow = null;
     let confirmText = formatMeasurementConfirmation(assignment.weight, assignment.waist);
@@ -1149,7 +1155,7 @@ export async function handleLogMeasurementAction(
     await sink.reply("I didn't catch a number. Try '82.3' or '82.3 / 91'.");
     return;
   }
-  await renderMeasurementConfirmation(session, deps.store, sink, { values });
+  await renderMeasurementConfirmation(session, deps.store, sink, { values }, deps.onTrace);
 }
 
 // ─── Runner front-door ──────────────────────────────────────────────────────
@@ -1162,6 +1168,13 @@ export interface DispatcherRunnerDeps {
   llm: LLMProvider;
   recipes: RecipeDatabase;
   store: StateStoreLike;
+  /**
+   * Plan 031: optional harness-only trace hook threaded through from
+   * `BotCoreDeps.onTrace`. Emissions here cover the dispatcher's action
+   * decision and the two `store.logMeasurement` call sites in the numeric
+   * pre-filter. No-op when unset (production).
+   */
+  onTrace?: (event: TraceEvent) => void;
 }
 
 /**
@@ -1183,7 +1196,7 @@ export async function runDispatcherFrontDoor(
   // Runs BEFORE the bot-turn wrapper because pre-filter replies are not
   // conversational turns — they're flow outputs that the proposer does
   // not need to see again.
-  if (await tryNumericPreFilter(text, session, deps.store, rawSink)) {
+  if (await tryNumericPreFilter(text, session, deps.store, rawSink, deps.onTrace)) {
     return;
   }
 
@@ -1220,6 +1233,12 @@ export async function runDispatcherFrontDoor(
   let decision: DispatcherDecision;
   try {
     decision = await dispatchMessage(context, text, deps.llm);
+    // Plan 031: emit the dispatcher decision as a trace event before the
+    // action-branch switch. Scenarios 041 (cancel meta-intent short-circuit)
+    // and 042 (numeric pre-filter) never reach this point, so their
+    // execTraces correctly show no `dispatcher` event — matching the design
+    // expectation that the trace reflects what actually happened.
+    deps.onTrace?.({ kind: 'dispatcher', action: decision.action, params: decision.params });
   } catch (err) {
     if (err instanceof DispatcherFailure) {
       log.error('DISPATCHER', `dispatcher failed; falling back: ${err.message.slice(0, 200)}`);

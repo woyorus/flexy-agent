@@ -84,6 +84,7 @@ export async function reProposePlan(
   input: ReProposerInput,
   llm: LLMProvider,
   recipeDb: RecipeDatabase,
+  onTrace?: (event: import('../harness/trace.js').TraceEvent) => void,
 ): Promise<ReProposerOutput> {
   const systemPrompt = buildSystemPrompt(input);
   const userPrompt = buildUserPrompt(input);
@@ -123,6 +124,13 @@ export async function reProposePlan(
     for (const err of validation.errors) {
       log.warn('REPROPOSER', `  error: ${err}`);
     }
+    // Plan 031: record the retry in the harness execTrace.
+    onTrace?.({
+      kind: 'retry',
+      validator: 'plan-reproposer',
+      attempt: 2,
+      errors: [...validation.errors],
+    });
 
     // Retry with validation errors as feedback
     const correctionMessage = [
@@ -165,6 +173,13 @@ export async function reProposePlan(
       for (const err of validation.errors) {
         log.error('REPROPOSER', `  error: ${err}`);
       }
+      // Plan 031: record the terminal failure attempt in execTrace.
+      onTrace?.({
+        kind: 'retry',
+        validator: 'plan-reproposer',
+        attempt: 3,
+        errors: [...validation.errors],
+      });
       return {
         type: 'failure',
         message: "I couldn't apply that change cleanly. Try rephrasing or adjusting your request.",

@@ -25,7 +25,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runScenario } from './runner.js';
 import { hashSpec } from './define.js';
-import { runFixtureEditAssertions } from './fixture-assertions.js';
+import { runFixtureEditAssertions } from './assertions-loader.js';
 import type { Scenario, RecordedScenario } from './types.js';
 
 const SCENARIOS_ROOT = 'test/scenarios';

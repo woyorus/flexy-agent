@@ -1,6 +1,7 @@
 # Behavioral Certification Harness
 
 > Status: accepted
+> Shipped in: [docs/plans/active/031-behavioral-certification-harness.md](../plans/active/031-behavioral-certification-harness.md)
 > Date: 2026-04-13
 > Evolves: design-docs/test-harness-architecture.md (changes framing; preserves layer architecture)
 > JTBD: Certify that the product actually works before it ships. The user being the developer, every weekend, running real meals against real money and real time. Serves every user-facing JTBD indirectly — a broken Flexie is not an inconvenience, it is a tracker that lies about macros, fails to plan a livable week, or destroys a saved plan mid-flow.

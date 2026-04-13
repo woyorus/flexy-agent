@@ -114,6 +114,7 @@ export async function proposePlan(
   input: PlanProposerInput,
   llm: LLMProvider,
   recipeDb: RecipeDatabase,
+  onTrace?: (event: import('../harness/trace.js').TraceEvent) => void,
 ): Promise<PlanProposerOutput> {
   const systemPrompt = buildSystemPrompt(input);
   const userPrompt = buildUserPrompt(input);
@@ -146,6 +147,16 @@ export async function proposePlan(
     for (const err of validation.errors) {
       log.warn('PLAN', `  validation error: ${err}`);
     }
+    // Plan 031: record the validator retry in the harness execTrace. Uses
+    // the same attempt-counter convention as `qaGate` (initial = 1, first
+    // retry = 2), so if the "generalize qaGate" refactor lands later the
+    // hook can move without changing semantics.
+    onTrace?.({
+      kind: 'retry',
+      validator: 'plan-proposer',
+      attempt: 2,
+      errors: [...validation.errors],
+    });
 
     // Retry: feed validation errors back to the LLM as a correction
     const correctionMessage = [
@@ -178,6 +189,14 @@ export async function proposePlan(
       for (const err of validation.errors) {
         log.error('PLAN', `  validation error: ${err}`);
       }
+      // Plan 031: record the second failure so execTrace shows both
+      // attempts (the first + this terminal one).
+      onTrace?.({
+        kind: 'retry',
+        validator: 'plan-proposer',
+        attempt: 3,
+        errors: [...validation.errors],
+      });
       return { type: 'failure', errors: validation.errors };
     }
   }

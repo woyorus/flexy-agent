@@ -83,6 +83,10 @@ See `docs/product-specs/testing.md` for the full harness reference. Read `test/s
 
 Run `npm test` once before starting work to confirm a green baseline. Run it again after the change to verify no regressions. If a scenario fails, the `deepStrictEqual` diff points at the exact reply, session field, or persisted plan that diverged — usually enough to diagnose without any further tooling.
 
+### Reviewing behavior: `npm run review`
+
+When a scenario failure (or a recording you just regenerated) needs inspection, `npm run review -- <scenario>` prints a structured probe report: purpose, transcript, derived plan view (7×2 grid), global-invariant results, `assertBehavior` result, execution-trace summary, and certification status. This replaces the ad-hoc `node -e "..."` verification script and is the primary tool for the 5-step verification protocol in `docs/product-specs/testing.md`. `npm run review` (no arg) lists every scenario with its certification status — `certified`, `needs-review`, `uncertified`, or `obsolete`.
+
 ### After generating or regenerating any scenario (MANDATORY)
 
 Every `npm run test:generate` — new or `--regenerate` — MUST be followed by a full behavioral review. Read the recorded output as if you were the user receiving these Telegram messages. Check that the plan makes sense, slots are covered, there are no ghost batches, cook days match first eating days, and weekly totals are reasonable. If something is wrong, fix the code and re-generate — never commit a recording that captures wrong behavior. See `docs/product-specs/testing.md` § "Verifying recorded output" for the full protocol with the step-by-step checklist and known-issue patterns.

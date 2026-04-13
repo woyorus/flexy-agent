@@ -33,6 +33,8 @@ import { CapturingOutputSink } from './capturing-sink.js';
 import { TestStateStore } from './test-store.js';
 import { freezeClock } from './clock.js';
 import { normalizeUuids } from './normalize.js';
+import { HarnessTraceCollector } from './trace.js';
+import type { LLMProvider } from '../ai/provider.js';
 import type { RecordedScenario, Scenario, ScenarioEvent, ScenarioResult } from './types.js';
 
 /**
@@ -91,6 +93,21 @@ export async function runScenario(
   spec: Scenario,
   recorded: RecordedScenario,
 ): Promise<ScenarioResult> {
+  return runScenarioWith(spec, () => new FixtureLLMProvider(recorded.llmFixtures));
+}
+
+/**
+ * Plan 031 Phase 9: run a scenario with a caller-supplied `LLMProvider`
+ * factory. Used by the `--live` branch of `npm run review` to swap
+ * `FixtureLLMProvider` for a real `OpenAIProvider` without duplicating the
+ * wiring (clock freeze, store seeding, core construction, event loop,
+ * snapshot). The return type is identical to `runScenario` — callers can
+ * pass the result through `buildAssertionsContext` unchanged.
+ */
+export async function runScenarioWith(
+  spec: Scenario,
+  llmFactory: () => LLMProvider,
+): Promise<ScenarioResult> {
   const clock = freezeClock(spec.clock);
   try {
     // Recipe database loaded from a temp copy so recipe generation
@@ -101,8 +118,8 @@ export async function runScenario(
     const recipes = new RecipeDatabase(tmpRecipeDir);
     await recipes.load();
 
-    // Fixture LLM — every call is replayed from `recorded.llmFixtures`.
-    const llm = new FixtureLLMProvider(recorded.llmFixtures);
+    // Factory-supplied LLM (fixture replay, live, or any other provider).
+    const llm = llmFactory();
 
     // In-memory store seeded from the spec's initial state.
     const store = new TestStateStore({
@@ -112,7 +129,11 @@ export async function runScenario(
       measurements: spec.initialState.measurements,
     });
 
-    const deps: BotCoreDeps = { llm, recipes, store };
+    // Plan 031: attach a trace collector so hooks in BotCore + downstream
+    // modules surface as `result.execTrace`. Production (grammY adapter)
+    // passes no `onTrace`, so emission is a no-op outside the harness.
+    const traceCollector = new HarnessTraceCollector();
+    const deps: BotCoreDeps = { llm, recipes, store, onTrace: traceCollector.record };
     const core = createBotCore(deps);
     const sink = new CapturingOutputSink();
 
@@ -136,6 +157,10 @@ export async function runScenario(
       outputs: normalizeUuids(JSON.parse(JSON.stringify(sink.captured))),
       finalSession: normalizeUuids(JSON.parse(JSON.stringify(core.session))),
       finalStore: normalizeUuids(JSON.parse(JSON.stringify(store.snapshot()))),
+      // Plan 031: runtime-only trace; NOT written to recorded.json and NOT
+      // compared by `deepStrictEqual`. Surfaced to `assertBehavior(ctx)` via
+      // `ctx.execTrace` and to the `npm run review` probe report.
+      execTrace: traceCollector.summarize(),
     };
     if (spec.captureStepState) {
       result.sessionAt = sessionAt;
@@ -144,4 +169,21 @@ export async function runScenario(
   } finally {
     clock.restore();
   }
+}
+
+/**
+ * Plan 031 Phase 9: run the scenario against the real `OpenAIProvider`.
+ *
+ * Read-only with respect to disk — the runner never writes `recorded.json`
+ * or `certification.json`. Returns a fresh `ScenarioResult` reflecting
+ * live LLM behavior so the review CLI can preview whether assertions
+ * still hold against current model outputs.
+ *
+ * Deliberately dynamic-imports `OpenAIProvider` so `runScenario` (the
+ * default fixture path) never pulls the real provider into the test
+ * process. Only `--live` callers trigger the import.
+ */
+export async function runScenarioLive(spec: Scenario): Promise<ScenarioResult> {
+  const { OpenAIProvider } = await import('../ai/openai.js');
+  return runScenarioWith(spec, () => new OpenAIProvider());
 }

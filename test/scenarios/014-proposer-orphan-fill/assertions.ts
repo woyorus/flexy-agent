@@ -1,13 +1,74 @@
 /**
- * Fixture assertions for scenario 014 — proposer validator retry.
+ * Scenario-local assertions for scenario 014 — proposer validator retry.
  *
  * Plan 024: reworked from orphan-fill to validator-retry.
- * Verifies that fixture 1 (proposer response) has been edited to create
- * an uncovered slot, and that fixture 2 (retry response) exists with a
- * valid complete plan.
+ * Plan 031: renamed from `fixture-assertions.ts` to `assertions.ts` and
+ *           extended with `purpose` + `assertBehavior` alongside the
+ *           existing `assertFixtureEdits` fixture-edit guardrail. This
+ *           scenario is the reference example for audit cycle one — the
+ *           first scenario with a load-bearing `purpose` string and a
+ *           composed behavioral check over `assertPlanningHealthy` + the
+ *           `execTrace` retry + persist signals.
+ *
+ * `assertFixtureEdits` verifies that fixture 1 (proposer response) has
+ * been edited to create an uncovered slot, and that fixture 2 (retry
+ * response) exists with a valid complete plan.
  */
 
-import type { RecordedScenario } from '../../../src/harness/types.js';
+import { assertPlanningHealthy } from '../../../src/harness/domain-helpers.js';
+import type {
+  AssertionsContext,
+  RecordedScenario,
+} from '../../../src/harness/index.js';
+
+// ─── Plan 031 behavioral contract ─────────────────────────────────────────────
+
+export const purpose =
+  'When the proposer underfills the week, the validator catches it and the ' +
+  'proposer retries; the retry response covers every slot and the resulting ' +
+  'plan is persisted via confirmPlanSession.';
+
+/**
+ * Assert the load-bearing behavioral claim named in `purpose`.
+ *
+ * Three checks:
+ *   1. The resulting plan is healthy (composed domain primitives).
+ *   2. `execTrace.validatorRetries` shows at least one `plan-proposer`
+ *      entry — proof the retry loop fired, not just that the final plan
+ *      happened to be valid.
+ *   3. `execTrace.persistenceOps` shows a `confirmPlanSession` op — proof
+ *      the confirmed plan was actually written to the store (the scenario
+ *      is a replacement-less first confirmation, so the op is the unqualified
+ *      `confirmPlanSession`, not `confirmPlanSessionReplacing`).
+ */
+export function assertBehavior(ctx: AssertionsContext): void {
+  // 1. Planning health — covers slot coverage, ghost batches, serving
+  //    sanity, cook-day derivation, weekly-totals absorption.
+  assertPlanningHealthy(ctx);
+
+  // 2. Retry must have actually happened.
+  const retries = ctx.execTrace.validatorRetries.filter(
+    (r) => r.validator === 'plan-proposer',
+  );
+  if (retries.length === 0) {
+    throw new Error(
+      'Expected at least one plan-proposer retry in execTrace.validatorRetries; got none. ' +
+        'Did the fixture edits get replaced by a valid regeneration?',
+    );
+  }
+
+  // 3. Persistence must have happened via the non-replacing path.
+  const persisted = ctx.execTrace.persistenceOps.some(
+    (o) => o.op === 'confirmPlanSession',
+  );
+  if (!persisted) {
+    throw new Error(
+      'Expected a `confirmPlanSession` persistence op in execTrace; got none.',
+    );
+  }
+}
+
+// ─── Fixture-edit guardrail (unchanged from Plan 017) ─────────────────────────
 
 const FIXTURE_EDIT_ERROR = `Scenario 014 fixture edits are missing. Run:
   npm run test:generate -- 014-proposer-orphan-fill --regenerate
