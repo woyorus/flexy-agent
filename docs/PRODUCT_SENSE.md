@@ -95,6 +95,8 @@ Plans that collapse the moment real life enters the picture.
 
 Systems that make the user do too much manual work without actually solving the moments that usually break adherence.
 
+This includes check-ins (*"did you eat lunch today?"*), confirmation prompts (*"did you cook the tagine?"*), streak and completion UIs, and anything else that asks the user to report back on whether they did what the plan said. Tracking is inverse to adherence: the more the product asks, the sooner the user stops answering. The plan should absorb real life, not demand that the user narrate it.
+
 ---
 
 ## Core principles
@@ -137,6 +139,12 @@ The project should be centered on:
 
 This is not primarily a tracker.
 It is primarily a planning and adjustment system.
+
+**Corollary — the product does not interrogate the user about the past.** Cook days, meal prep consumption, scheduled events, walks — the product treats its own schedule as the source of truth for UI and planning, not as a set of checkboxes to verify. It never asks *"did you cook the tagine?"* or *"did you eat lunch today?"*. The plan is designed to survive real life without confirmations.
+
+The only exception is **calorie-affecting events that are not already in the plan** — restaurants, treats, unplanned meals. The weekly budget cannot be computed without that input. Here, and only here, the user must tell the product what happened.
+
+**Corollary — schedule drives affordances; tracking verifies nothing.** When the schedule says "today is the tagine cook day," the product shows the scaled-recipe button in plan view, shopping list, and recipe library. The button shows on the cook day *and* for one day after, as a safety margin — because the cost of a superfluous button is nothing, and the cost of a missing button when the user needs it is real friction. The product never asks the user to tap *"I cooked this"* to dismiss it.
 
 ### 4. Flexibility is required
 
