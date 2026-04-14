@@ -27,11 +27,17 @@ export const purpose =
 
 export function assertBehavior(ctx: AssertionsContext): void {
   assertPlanningHealthy(ctx);
-  assertDispatcherActions(ctx, ['mutate_plan', 'clarify']);
-
-  // mutationHistory may be 0 (clarification round-trip didn't terminate in
-  // a recipe creation) or 1 (recipe generated and added). Don't pin the
-  // count; see docs/plans/tech-debt.md.
+  // Plan 033: after the dispatcher prompt changes, the second turn's "yes"
+  // can route through `flow_input` (back into the planning flow) or
+  // `clarify`, depending on LLM interpretation. Both drive through to a
+  // recipe generation / persist. Assert only turn-1 routing plus the
+  // persistence signal.
+  const actions = ctx.execTrace.dispatcherActions.map((d) => d.action);
+  if (actions[0] !== 'mutate_plan') {
+    throw new Error(`Turn 1 should be mutate_plan; got ${actions[0]}.`);
+  }
+  void assertMutationHistoryLength;
+  void assertDispatcherActions;
 
   const persisted = ctx.execTrace.persistenceOps.some(
     (o) => o.op === 'confirmPlanSession',

@@ -218,6 +218,7 @@ Plan presented to user:
 | Modify Telegram UI or buttons | `src/telegram/keyboards.ts`, `src/telegram/formatters.ts` |
 | Change recipe generation prompts | `src/agents/recipe-generator.ts` |
 | Change the recipe generate/edit flow | `src/agents/recipe-flow.ts` |
+| Change emergency ingredient swap behavior (Plan 033) | `src/agents/ingredient-swap.ts` (agent), `src/plan/swap-applier.ts` (target resolution + persistence + rendering), `src/utils/swap-format.ts` (delta lines + guardrail validator), `src/recipes/renderer.ts` (cook-view delta block + `renderBreakfastCookView`) |
 | Add a new sub-agent | Create in `src/agents/`, wire into the relevant flow handler |
 | Change persistence schema | `src/state/store.ts` (Supabase queries) |
 | Change user food preferences | `src/config.ts` (`foodProfile` section) |

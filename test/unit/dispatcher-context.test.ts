@@ -170,6 +170,7 @@ test('buildDispatcherContext: allowedActions is the v0.0.5 minimal set', async (
     'out_of_scope',
     'return_to_flow',
     'mutate_plan',
+    'swap_ingredient',
     'answer_plan_question',
     'answer_recipe_question',
     'answer_domain_question',

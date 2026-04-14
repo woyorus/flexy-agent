@@ -215,6 +215,7 @@ async function renderProbeReport(input: ProbeRenderInput): Promise<void> {
       dispatcherActions: [],
       validatorRetries: [],
       persistenceOps: [],
+      swapOps: [],
     },
   });
   const derivedView = renderDerivedPlanView(assertionsCtx);
@@ -255,6 +256,7 @@ async function renderProbeReport(input: ProbeRenderInput): Promise<void> {
     dispatcherActions: [],
     validatorRetries: [],
     persistenceOps: [],
+      swapOps: [],
   };
   console.log('── Execution trace ──');
   renderTrace(execTrace);
@@ -407,6 +409,7 @@ async function probeScenario(args: ReviewArgs): Promise<void> {
         dispatcherActions: [],
         validatorRetries: [],
         persistenceOps: [],
+      swapOps: [],
       },
     });
     try {
@@ -488,6 +491,7 @@ async function acceptScenario(args: ReviewArgs): Promise<void> {
       dispatcherActions: [],
       validatorRetries: [],
       persistenceOps: [],
+      swapOps: [],
     },
   });
   await loaded.assertBehavior(ctx);

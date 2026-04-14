@@ -104,6 +104,18 @@ export const config = {
      * beyond ~20 cal is illusory.
      */
     scalerCalorieTolerance: 20,
+
+    /**
+     * Plan 033: ± percentage-of-target band within which a per-serving (or
+     * per-day for breakfast) calorie drift after an emergency ingredient
+     * swap is considered "within noise." Inside the band the applier emits
+     * a calm reassurance line ("on target", "within noise") instead of
+     * triggering a pantry-staple rebalance. Matches the proposal's "~±10%"
+     * framing — LLM macro estimates and real-world ingredient variance
+     * already drift this much, so chasing tighter precision would be
+     * theatre. Applies to both batch and breakfast swap targets.
+     */
+    swapNoisePctOfTarget: 10,
   },
 
   /**

@@ -67,3 +67,24 @@ Callback prefixes: `rv_` (view recipe), `re_` (edit recipe), `rd_` (delete recip
 ## Fun food keyboards (legacy)
 
 `funFoodKeyboard()`, `skipFunFoodKeyboard()`, `funFoodConfirmKeyboard` exist in keyboards.ts but are **not used** in the current plan flow. The fun food step was replaced by automatic flex slot suggestion in the plan-proposer. These keyboards may be removed in a future cleanup.
+
+
+## Cook-view delta block (Plan 033 / design doc 006)
+
+When the emergency ingredient swap applier commits a swap, the rendered cook view carries a footer block below the usual storage-instructions line:
+
+```
+———
+Swapped: dry white wine (60ml) → beef stock (60ml)
++ lemon juice (2tsp)
+Macros: +12 cal/serving — within noise.
+```
+
+Footer shape:
+- A three em-dash horizontal rule (`———`) opens the block.
+- One line per `SwapChange`, pre-formatted by `formatSwapChange` in `src/utils/swap-format.ts`.
+- One macro line — `Macros: ±N cal/serving — <within noise|on pace|on target>` inside the ±`swapNoisePctOfTarget`% band; outside, prints the gap honestly.
+- For shopping-surface swaps that touched a precisely-bought ingredient, the applier appends "Shopping list updated: X removed, Y added." (Phase 5.4 — emitted when a `replace` change targeted a precisely-bought item).
+- For reset-to-original, the entire delta block is a single line: `Reset: returned to library recipe.`
+
+Both `renderCookView` (batch targets) and `renderBreakfastCookView` (breakfast targets) accept `options.deltaLines`. The footer only appears on the immediate post-swap reply — ordinary `cv_<batchId>` re-opens show the swapped state (`nameOverride` / `bodyOverride` / `scaledIngredients`) without the delta block.

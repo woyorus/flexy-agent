@@ -20,8 +20,43 @@ import type {
   ShoppingItem,
   Recipe,
   IngredientRole,
+  PlanSession,
 } from '../models/types.js';
+import type { RecipeDatabase } from '../recipes/database.js';
 import { log } from '../debug/logger.js';
+
+/**
+ * Plan 033: Internal helper that collects breakfast ingredients for
+ * proration into a shopping list. Reads `planSession.breakfastOverride`
+ * (post-swap per-day amounts) when set; otherwise uses the library
+ * recipe's per-day amounts unchanged.
+ *
+ * Returns an empty list when the session is absent or its breakfast
+ * recipe isn't resolvable — callers just skip the breakfast leg.
+ */
+function collectBreakfastPerDayIngredients(
+  planSession: PlanSession | undefined,
+  recipes: RecipeDatabase | undefined,
+): Array<{ name: string; amount: number; unit: string; role: IngredientRole }> {
+  if (!planSession) return [];
+  if (planSession.breakfastOverride) {
+    return planSession.breakfastOverride.scaledIngredientsPerDay.map((i) => ({
+      name: i.name,
+      amount: i.amount,
+      unit: i.unit,
+      role: i.role,
+    }));
+  }
+  if (!recipes) return [];
+  const recipe = recipes.getBySlug(planSession.breakfast.recipeSlug);
+  if (!recipe) return [];
+  return recipe.ingredients.map((i) => ({
+    name: i.name,
+    amount: i.amount,
+    unit: i.unit,
+    role: i.role,
+  }));
+}
 
 // ─── Tier definitions ──────────────────────────────────────────────────────
 
@@ -121,16 +156,26 @@ export type ShoppingScope =
 // ─── Generator ─────────────────────────────────────────────────────────────
 
 /**
- * Generate a shopping list scoped to a single cook day. Existing signature,
- * unchanged — `sl_next` / `sl_<date>` callbacks continue to call this.
+ * Generate a shopping list scoped to a single cook day.
+ *
+ * Plan 033: takes `PlanSession | undefined` + `RecipeDatabase` (instead of
+ * `Recipe | undefined`) so the generator can read
+ * `planSession.breakfastOverride` when an emergency breakfast swap has
+ * mutated the per-day ingredients — the shopping list is a live projection
+ * of the current batch / breakfast state.
  *
  * @param batches - All planned batches (filtered to target cook date internally)
- * @param breakfastRecipe - The locked breakfast recipe (prorated to remainingDays)
+ * @param planSession - Active plan session; its breakfast (overridden or
+ *   library) is prorated to remainingDays. Pass `undefined` to skip the
+ *   breakfast leg entirely.
+ * @param recipes - Recipe database; needed to resolve the library breakfast
+ *   recipe when `planSession.breakfastOverride` is absent.
  * @param options - Target cook date and remaining plan days for breakfast proration
  */
 export function generateShoppingList(
   batches: Batch[],
-  breakfastRecipe: Recipe | undefined,
+  planSession: PlanSession | undefined,
+  recipes: RecipeDatabase | undefined,
   options: { targetDate: string; remainingDays: number },
 ): ShoppingList {
   const { targetDate, remainingDays } = options;
@@ -142,8 +187,9 @@ export function generateShoppingList(
       addIngredient(aggregated, ing.name, ing.totalForBatch, ing.unit, ing.role);
     }
   }
-  if (breakfastRecipe) {
-    for (const ing of breakfastRecipe.ingredients) {
+  const breakfastIngredients = collectBreakfastPerDayIngredients(planSession, recipes);
+  if (breakfastIngredients.length > 0) {
+    for (const ing of breakfastIngredients) {
       const proratedAmount = ing.amount * remainingDays;
       const note = `(breakfast, ${remainingDays} days)`;
       addIngredient(aggregated, ing.name, proratedAmount, ing.unit, ing.role, note);
@@ -166,7 +212,8 @@ export function generateShoppingList(
  */
 export function generateShoppingListForWeek(
   batches: Batch[],
-  breakfastRecipe: Recipe | undefined,
+  planSession: PlanSession | undefined,
+  recipes: RecipeDatabase | undefined,
   options: { horizonStart: string; horizonEnd: string },
 ): ShoppingList {
   const { horizonStart, horizonEnd } = options;
@@ -184,9 +231,10 @@ export function generateShoppingListForWeek(
     }
   }
 
-  if (breakfastRecipe) {
+  const breakfastIngredients = collectBreakfastPerDayIngredients(planSession, recipes);
+  if (breakfastIngredients.length > 0) {
     const days = horizonDayCount(horizonStart, horizonEnd);
-    for (const ing of breakfastRecipe.ingredients) {
+    for (const ing of breakfastIngredients) {
       const proratedAmount = ing.amount * days;
       const note = `(breakfast, ${days} days)`;
       addIngredient(aggregated, ing.name, proratedAmount, ing.unit, ing.role, note);
@@ -232,10 +280,11 @@ export function generateShoppingListForRecipe(
  */
 export function generateShoppingListForDay(
   batches: Batch[],
-  breakfastRecipe: Recipe | undefined,
+  planSession: PlanSession | undefined,
+  recipes: RecipeDatabase | undefined,
   options: { day: string; remainingDays: number },
 ): ShoppingList {
-  return generateShoppingList(batches, breakfastRecipe, {
+  return generateShoppingList(batches, planSession, recipes, {
     targetDate: options.day,
     remainingDays: options.remainingDays,
   });

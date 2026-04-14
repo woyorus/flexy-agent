@@ -256,6 +256,17 @@ export interface BotCoreSession {
    */
   pendingMutation?: import('../plan/mutate-plan-applier.js').PendingMutation;
   /**
+   * Plan 033: A previewed-but-not-applied emergency ingredient swap.
+   * Stashed when the swap agent returns kind='preview' or when the
+   * applier resolves to a multi-batch ambiguity. `trySwapPreFilter`
+   * commits it on "go ahead", clears on "nevermind", or drops it when
+   * the user's next message is a rewrite that falls through to the
+   * dispatcher. Cleared on the same lifecycle hooks as pendingMutation
+   * (planFlow start, /start, /cancel, etc.). In-memory only — bot
+   * restarts drop it.
+   */
+  pendingSwap?: import('../plan/swap-applier.js').PendingSwap;
+  /**
    * Plan 029: A pending post-confirmation clarification from the re-proposer.
    * Set when the applier's post-confirmation branch returns a clarification
    * ("lunch or dinner?"). On the next `mutate_plan` dispatch, the applier
@@ -423,6 +434,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       session.progressFlow = null;
       session.pendingReplan = undefined;
       session.pendingMutation = undefined;
+      session.pendingSwap = undefined;
       session.pendingPostConfirmationClarification = undefined;
       session.surfaceContext = null;
       session.lastRecipeSlug = undefined;
@@ -438,6 +450,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       session.progressFlow = null;
       session.pendingReplan = undefined;
       session.pendingMutation = undefined;
+      session.pendingSwap = undefined;
       session.pendingPostConfirmationClarification = undefined;
       session.lastRenderedView = undefined;
       await sink.reply('Cancelled.', { reply_markup: await getMenuKeyboard() });
@@ -538,6 +551,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       if (recipe) {
         session.planFlow = null;
         session.pendingMutation = undefined;
+        session.pendingSwap = undefined;
         session.pendingPostConfirmationClarification = undefined;
         session.recipeFlow = createEditFlowState(recipe);
         log.debug('FLOW', `editing recipe: ${slug}`);
@@ -591,6 +605,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       }
       session.pendingReplan = undefined;
       session.pendingMutation = undefined;
+      session.pendingSwap = undefined;
       session.pendingPostConfirmationClarification = undefined;
       await doStartPlanFlow(
         { start: pending.replacingSession.horizonStart, replacingSession: pending.replacingSession },
@@ -603,6 +618,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     if (action === 'plan_replan_cancel') {
       session.pendingReplan = undefined;
       session.pendingMutation = undefined;
+      session.pendingSwap = undefined;
       session.pendingPostConfirmationClarification = undefined;
       await sink.reply('Plan kept.', { reply_markup: await getMenuKeyboard() });
       return;
@@ -637,6 +653,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       }
       const pending = session.pendingMutation;
       session.pendingMutation = undefined;
+      session.pendingSwap = undefined;
       const stopTyping = sink.startTyping();
       try {
         const { applyMutationConfirmation } = await import('../plan/mutate-plan-applier.js');
@@ -674,6 +691,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         return;
       }
       session.pendingMutation = undefined;
+      session.pendingSwap = undefined;
       await sink.reply(
         "OK, what would you like to change instead?",
       );
@@ -752,6 +770,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
           // getPlanLifecycle() will now return active_* based on the persisted session.
           session.planFlow = null;
           session.pendingMutation = undefined;
+          session.pendingSwap = undefined;
           session.pendingPostConfirmationClarification = undefined;
           stopTyping();
 
@@ -783,6 +802,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       if (action === 'plan_cancel') {
         session.planFlow = null;
         session.pendingMutation = undefined;
+        session.pendingSwap = undefined;
         session.pendingPostConfirmationClarification = undefined;
         await sink.reply('Planning cancelled.', { reply_markup: await getMenuKeyboard() });
         return;
@@ -1041,6 +1061,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         session.surfaceContext = 'plan';
         session.lastRecipeSlug = undefined;
         session.pendingMutation = undefined;
+        session.pendingSwap = undefined;
         session.pendingPostConfirmationClarification = undefined;
         const today = toLocalISODate(new Date());
         const lifecycle = await getPlanLifecycle(session, store, today);
@@ -1253,6 +1274,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
         const horizon = await computeNextHorizonStart(store);
         session.planFlow = null;
         session.pendingMutation = undefined;
+        session.pendingSwap = undefined;
         session.pendingPostConfirmationClarification = undefined;
         await doStartPlanFlow(
           horizon,
@@ -1264,6 +1286,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
       if (metaIntent === 'cancel') {
         session.planFlow = null;
         session.pendingMutation = undefined;
+        session.pendingSwap = undefined;
         session.pendingPostConfirmationClarification = undefined;
         session.surfaceContext = null;
         await sink.reply('Planning cancelled.', { reply_markup: await getMenuKeyboard() });
@@ -1327,6 +1350,7 @@ export function createBotCore(deps: BotCoreDeps): BotCore {
     session.recentTurns = undefined;
     session.pendingReplan = undefined;
     session.pendingMutation = undefined;
+    session.pendingSwap = undefined;
     session.pendingPostConfirmationClarification = undefined;
   }
 

@@ -64,3 +64,24 @@
 | 063 | show-progress-weekly-report | Plan E: show_progress weekly_report renders the weekly summary |
 | 064 | log-measurement-cross-surface | Plan E: log_measurement persists from any surface, surfaceContext preserved |
 | 065 | answer-then-mutate-state-preservation | Plan E: cross-action state preservation (clarify + mutate preserves planFlow) |
+| 066 | swap-simple-auto-apply | Plan 033 Screen 1: "no white wine, use beef stock" auto-applies; delta block renders; batch.swapHistory gains one record. |
+| 067 | swap-compound-rebalance | Plan 033 Screen 2: compound two-swap message auto-applies; delta shows both changes + macro reconciliation. |
+| 068 | swap-removal-acknowledgment | Plan 033 Screen 3: two named removals — both land in batch AND both are acknowledged in the reply. |
+| 069 | swap-help-me-pick | Plan 033 Screen 4: "what should I get?" surfaces 2-3 options; no persistence; pendingSwap absent. |
+| 070 | swap-aisle-applied | Plan 033 Screen 5: "got the cod, 320g" binds to the unique salmon batch and auto-applies with rename. |
+| 071 | swap-ambiguous-multi-batch | Plan 033 Screen 6: chicken in two batches → multi-batch preview → "both" pre-filter commits every candidate. |
+| 072 | swap-structural-ask-first | Plan 033 Screen 7: structural swap previews with reason=structural; "go ahead" pre-filter commits. |
+| 073 | swap-undo-most-recent | Plan 033 Reversal §1: "undo" reverses only the most-recent SwapRecord; earlier records stay. |
+| 074 | swap-reset-to-original | Plan 033 Reversal §3: "reset to original" re-runs scaler, clears all overrides + history. |
+| 075 | swap-named-and-ambiguous-undo | Plan 033 Reversal §2+§4: named "put the passata back" reverses that record; subsequent "undo" reverses the remaining one. |
+| 076 | swap-batch-already-consumed | Plan 033 Edge: past-batch swap returns verbatim hard_no with routing_hint=library_edit. |
+| 077 | swap-catastrophic-no-protein | Plan 033 Edge: removing every protein on a protein-identity dish → hard_no with routing_hint=recipe_level_swap. |
+| 078 | swap-unknown-substitute-preview | Plan 033 Edge: novel substitute previews with reason=unknown_substitute; pre-filter confirm commits. |
+| 079 | swap-unit-conversion-scale-shift | Plan 033 Edge: two 10-oz fillets vs 300g recipe → structural scale-shift preview; pre-filter confirms resolution. |
+| 080 | swap-cancel-and-rewrite | Plan 033 state: preview → rewrite (dispatcher fallthrough, fresh decision) → cancel (pre-filter clears). |
+| 081 | swap-pending-cleared-by-lifecycle | Plan 033 invariant: /start clears pendingSwap (lifecycle hook invariant). |
+| 082 | swap-dispatcher-boundary | Plan 033 boundary: recipe-level swap → mutate_plan; ingredient-level swap → swap_ingredient. |
+| 083 | swap-guardrail-precisely-bought-unchanged | Plan 033 guardrail (fixture-edited): silently-mutated ground beef is rejected with hard_no. |
+| 084 | swap-guardrail-helper-named-in-delta | Plan 033 guardrail (fixture-edited): helper missing from delta_lines — applier regenerates the line. |
+| 085 | swap-guardrail-no-new-precisely-bought | Plan 033 guardrail (fixture-edited): new precisely-bought pine nuts the user did not name → hard_no. |
+| 086 | swap-breakfast-full-lifecycle | Plan 033 Phase 9: breakfast swap, rewrite, reset — breakfastOverride materializes, updates, then clears. |

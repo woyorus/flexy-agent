@@ -23,7 +23,16 @@
  * behavioral assertions against known seed data.
  */
 
-import type { PlanSession, DraftPlanSession, Batch, Measurement } from '../models/types.js';
+import type {
+  PlanSession,
+  DraftPlanSession,
+  Batch,
+  Measurement,
+  ScaledIngredient,
+  MacrosWithFatCarbs,
+  SwapRecord,
+  BreakfastOverride,
+} from '../models/types.js';
 import type { SessionState } from '../state/machine.js';
 import type { StateStoreLike } from '../state/store.js';
 
@@ -251,6 +260,75 @@ export class TestStateStore implements StateStoreLike {
   async getBatch(id: string): Promise<Batch | null> {
     const b = this.batchesById.get(id);
     return b ? cloneDeep(b) : null;
+  }
+
+  /**
+   * Plan 033: In-memory mirror of StateStore.updateBatch. Mutates the stored
+   * batch in place; throws when the batch is missing or not 'planned' so a
+   * bug in the applier fails loudly in the harness rather than silently
+   * no-opping.
+   */
+  async updateBatch(
+    batchId: string,
+    fields: {
+      scaledIngredients?: ScaledIngredient[];
+      actualPerServing?: MacrosWithFatCarbs;
+      nameOverride?: string | null;
+      bodyOverride?: string | null;
+      swapHistory?: SwapRecord[];
+    },
+  ): Promise<Batch> {
+    const existing = this.batchesById.get(batchId);
+    if (!existing) throw new Error(`updateBatch(${batchId}) failed: batch not found`);
+    if (existing.status !== 'planned') {
+      throw new Error(`updateBatch(${batchId}) failed: status is ${existing.status}`);
+    }
+    const updated: Batch = { ...existing };
+    if (fields.scaledIngredients !== undefined) {
+      updated.scaledIngredients = cloneDeep(fields.scaledIngredients);
+    }
+    if (fields.actualPerServing !== undefined) {
+      updated.actualPerServing = cloneDeep(fields.actualPerServing);
+    }
+    if (fields.nameOverride !== undefined) {
+      if (fields.nameOverride === null) delete updated.nameOverride;
+      else updated.nameOverride = fields.nameOverride;
+    }
+    if (fields.bodyOverride !== undefined) {
+      if (fields.bodyOverride === null) delete updated.bodyOverride;
+      else updated.bodyOverride = fields.bodyOverride;
+    }
+    if (fields.swapHistory !== undefined) {
+      if (fields.swapHistory.length === 0) delete updated.swapHistory;
+      else updated.swapHistory = cloneDeep(fields.swapHistory);
+    }
+    this.batchesById.set(batchId, updated);
+    return cloneDeep(updated);
+  }
+
+  /**
+   * Plan 033: In-memory mirror of StateStore.updatePlanSessionBreakfast. Pass
+   * `null` to clear the override (reset-to-original for a breakfast target).
+   */
+  async updatePlanSessionBreakfast(
+    planSessionId: string,
+    override: BreakfastOverride | null,
+  ): Promise<PlanSession> {
+    const existing = this.planSessionsById.get(planSessionId);
+    if (!existing) {
+      throw new Error(`updatePlanSessionBreakfast(${planSessionId}) failed: session not found`);
+    }
+    if (existing.superseded) {
+      throw new Error(`updatePlanSessionBreakfast(${planSessionId}) failed: session is superseded`);
+    }
+    const updated: PlanSession = { ...existing, updatedAt: new Date().toISOString() };
+    if (override === null) {
+      delete updated.breakfastOverride;
+    } else {
+      updated.breakfastOverride = cloneDeep(override);
+    }
+    this.planSessionsById.set(planSessionId, updated);
+    return cloneDeep(updated);
   }
 
   // ─── Measurements ─────────────────────────────────────────────────────

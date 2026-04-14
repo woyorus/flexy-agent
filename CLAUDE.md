@@ -93,7 +93,22 @@ Every `npm run test:generate` — new or `--regenerate` — MUST be followed by 
 
 This is not optional. `npm test` passing proves determinism. Verification proves correctness. The ghost batch bug (scenario 003) was caught by reading the output, not by `deepStrictEqual`.
 
-**Regenerate in parallel, review serially.** When multiple scenarios need regeneration (e.g., a prompt change invalidates every re-proposer fixture), run the regenerations IN PARALLEL — delete each target `recorded.json` first, then launch `npm run test:generate -- <name> --regenerate --yes` for every scenario concurrently and wait for all to finish. Generation is mechanical and LLM-bound; parallelism saves wall-clock time and money with no quality cost. Then do the behavioral validation ONE BY ONE, serially, using the 5-step protocol in `docs/product-specs/testing.md` § "Verifying recorded output". Reviewing in parallel erodes attention and is the exact failure mode the harness exists to prevent — behavioral validity IS the point of the scenarios, not just green `npm test`.
+### Scenarios test the PRODUCT, not the assertions
+
+When a scenario assertion fails — OR when any recorded transcript shows unexpected behavior — STOP. Do NOT change the scenario, the user message in the spec, or the assertion as a first move. Carefully inspect what's happening: read the recorded transcript as if you were the user, trace the dispatcher decision and the persistence ops, ask "did the user just experience a bug?". The default conclusion is: failure = product bug. Fix the code, not the assertion.
+
+Spec / user-message / assertion changes are LAST RESORT — only after you've ruled out a product issue. If you're tempted to "make the user message more obvious" or "accept multiple LLM routings", ask yourself first: would a real user blame the dispatcher / applier / state machine for the gap, not their phrasing?
+
+Genuine relaxations exist (LLM truly has multiple defensible reactions to ambiguous input — e.g., random text "xyz" being declined as `out_of_scope` vs `clarify` are both honest declines) but they are RARE. Document the user-experience rationale in-line every time.
+
+Common anti-patterns to watch for:
+- "The dispatcher routed to clarify instead of swap_ingredient" → if the user's message clearly named an ingredient swap, the dispatcher prompt has a gap. Fix the prompt.
+- "The pre-filter didn't fire because state was cleared" → if the user typed `nevermind` and got `out_of_scope` ("I don't do small talk"), that is a real UX bug in state preservation. Fix the lifecycle, not the assertion.
+- "The agent applied directly when we expected preview" → check whether the applied result is correct for the user. Defensible only if the apply path is genuinely safe.
+
+Document the rationale every time you relax an assertion. If the relaxation lasts more than one commit, file a follow-up in `docs/plans/tech-debt.md`.
+
+**Regenerate in parallel, review serially. ALWAYS.** When more than ONE scenario needs regeneration (e.g., a prompt change invalidates every re-proposer fixture — or even just 2–3 scenarios drift together), run the regenerations IN PARALLEL: delete each target `recorded.json` first, then launch `npm run test:generate -- <name> --regenerate --yes` for every scenario concurrently (shell `&` or a small script) and `wait` for all to finish. Generation is mechanical and LLM-bound; parallelism saves wall-clock time and money with no quality cost. Sequential regeneration is a time-waste anti-pattern — never do it. For very large batches (20+ scenarios) throttle to ~8 concurrent to stay under LLM-provider rate limits, but still batch-parallel. Then do the behavioral validation ONE BY ONE, serially, using the 5-step protocol in `docs/product-specs/testing.md` § "Verifying recorded output". Reviewing in parallel erodes attention and is the exact failure mode the harness exists to prevent — behavioral validity IS the point of the scenarios, not just green `npm test`.
 
 ### Fixture-edited scenarios: NEVER `--regenerate` after applying edits
 

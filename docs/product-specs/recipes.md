@@ -134,3 +134,15 @@ In-memory recipe database backed by markdown files. Loaded at startup from `reci
 ## Nutritional source of truth
 
 The LLM's training knowledge is the source for calorie/macro estimates. The QA gate checks internal consistency (do ingredient amounts plausibly match stated totals?) but does not validate against an external nutritional database.
+
+
+## Recipe overrides (Plan 033 / design doc 006)
+
+The **library recipe** (in `data/recipes/*.md`) is canonical. Emergency ingredient swaps never touch it. Per-instance overrides live on the batch (or the plan session's breakfast):
+
+- `Batch.nameOverride` / `Batch.bodyOverride` — cook-view display and step text for a single batch instance.
+- `Batch.scaledIngredients` — the only stored ingredient amounts for a batch; the swap applier mutates these in place.
+- `Batch.swapHistory` — append-only record of swaps for reversal.
+- `PlanSession.breakfastOverride` — per-session override bundle (name, body, per-day ingredients, per-day macros, swap history) for the locked breakfast recipe. Materialized on the first breakfast swap; cleared by reset-to-original.
+
+See `docs/product-specs/data-models.md` for the type definitions and `docs/design-docs/006-emergency-ingredient-swap.md` for the full design.

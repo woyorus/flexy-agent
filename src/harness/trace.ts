@@ -22,7 +22,29 @@ export type TraceEvent =
   | { kind: 'handler'; name: string }
   | { kind: 'dispatcher'; action: string; params?: unknown }
   | { kind: 'retry'; validator: string; attempt: number; errors: string[] }
-  | { kind: 'persist'; op: string; argSummary?: string };
+  | { kind: 'persist'; op: string; argSummary?: string }
+  | {
+      /**
+       * Emergency ingredient swap observability (Plan 033). `op` names the
+       * applier / pre-filter step so scenario assertions can verify the
+       * swap followed the expected path (e.g., prefilter_confirm vs
+       * dispatched-agent apply). `targetId` is the batch id or the literal
+       * `'breakfast'` sentinel; `reason` only appears on preview outcomes
+       * and surfaces why the agent asked first.
+       */
+      kind: 'swap';
+      op:
+        | 'apply'
+        | 'preview'
+        | 'help_me_pick'
+        | 'clarification'
+        | 'hard_no'
+        | 'prefilter_confirm'
+        | 'prefilter_cancel'
+        | 'prefilter_pick';
+      targetId?: string;
+      reason?: string;
+    };
 
 /**
  * Grouped view over the event sequence. Order is preserved within each
@@ -33,6 +55,8 @@ export interface ExecTrace {
   readonly dispatcherActions: readonly { action: string; params?: unknown }[];
   readonly validatorRetries: readonly { validator: string; attempt: number; errors: string[] }[];
   readonly persistenceOps: readonly { op: string; argSummary?: string }[];
+  /** Plan 033: ordered swap-related events — applier decisions + pre-filter branches. */
+  readonly swapOps: readonly { op: string; targetId?: string; reason?: string }[];
 }
 
 /**
@@ -53,6 +77,7 @@ export class HarnessTraceCollector {
     const dispatcherActions: { action: string; params?: unknown }[] = [];
     const validatorRetries: { validator: string; attempt: number; errors: string[] }[] = [];
     const persistenceOps: { op: string; argSummary?: string }[] = [];
+    const swapOps: { op: string; targetId?: string; reason?: string }[] = [];
     for (const e of this.events) {
       switch (e.kind) {
         case 'handler':
@@ -67,8 +92,11 @@ export class HarnessTraceCollector {
         case 'persist':
           persistenceOps.push({ op: e.op, argSummary: e.argSummary });
           break;
+        case 'swap':
+          swapOps.push({ op: e.op, targetId: e.targetId, reason: e.reason });
+          break;
       }
     }
-    return { handlers, dispatcherActions, validatorRetries, persistenceOps };
+    return { handlers, dispatcherActions, validatorRetries, persistenceOps, swapOps };
   }
 }

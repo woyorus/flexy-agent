@@ -435,11 +435,14 @@ export async function renderShoppingListForScope(
     });
     return;
   }
+  // Plan 033 / Phase 9.5: pass the session (carrying any breakfastOverride)
+  // + recipe DB into the shopping-list generators so a post-swap breakfast
+  // propagates immediately.
   const breakfastRecipe = deps.recipes.getBySlug(loaded.session.breakfast.recipeSlug);
 
   switch (scope.kind) {
     case 'next_cook': {
-      const list = generateShoppingList(loaded.allBatches, breakfastRecipe, {
+      const list = generateShoppingList(loaded.allBatches, loaded.session, deps.recipes, {
         targetDate: scope.targetDate,
         remainingDays: scope.remainingDays,
       });
@@ -455,7 +458,7 @@ export async function renderShoppingListForScope(
       return;
     }
     case 'full_week': {
-      const list = generateShoppingListForWeek(loaded.allBatches, breakfastRecipe, {
+      const list = generateShoppingListForWeek(loaded.allBatches, loaded.session, deps.recipes, {
         horizonStart: scope.horizonStart,
         horizonEnd: scope.horizonEnd,
       });
@@ -484,7 +487,7 @@ export async function renderShoppingListForScope(
       return;
     }
     case 'day': {
-      const list = generateShoppingListForDay(loaded.allBatches, breakfastRecipe, {
+      const list = generateShoppingListForDay(loaded.allBatches, loaded.session, deps.recipes, {
         day: scope.day,
         remainingDays: scope.remainingDays,
       });

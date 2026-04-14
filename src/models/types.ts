@@ -157,6 +157,95 @@ export interface MutationRecord {
   appliedAt: string;
 }
 
+/**
+ * One atomic change inside a `SwapRecord` (Plan 033 / design doc 006).
+ *
+ * The discriminator captures *how* the batch (or breakfast) changed so the
+ * reversal parser can name what to undo ("put the passata back"), so the
+ * renderer can emit the right delta line, and so the post-agent guardrail
+ * validator can check invariants (e.g., `replace` on a precisely-bought
+ * ingredient is only legal when the user named that ingredient).
+ *
+ * - `replace` — ingredient X removed, ingredient Y added in its place.
+ * - `remove`  — ingredient removed with no replacement.
+ * - `add`     — ingredient introduced (helper pantry staple or rebalance).
+ * - `rebalance` — amount of an already-present pantry staple changed.
+ * - `rename`  — batch display-name override changed (e.g., "Salmon Pasta" → "Cod Pasta").
+ */
+export type SwapChange =
+  | {
+      kind: 'replace';
+      from: string;
+      to: string;
+      fromAmount: number;
+      fromUnit: string;
+      toAmount: number;
+      toUnit: string;
+    }
+  | { kind: 'remove'; ingredient: string; amount: number; unit: string }
+  | {
+      kind: 'add';
+      ingredient: string;
+      amount: number;
+      unit: string;
+      /** 'helper' = pantry staple introduced alongside a replacement (wine→stock+acid). 'rebalance' = macro correction. */
+      reason: 'helper' | 'rebalance';
+    }
+  | {
+      kind: 'rebalance';
+      ingredient: string;
+      fromAmount: number;
+      toAmount: number;
+      unit: string;
+    }
+  | { kind: 'rename'; from: string; to: string };
+
+/**
+ * One committed emergency ingredient swap against a Batch or a session's
+ * breakfast (Plan 033). Append-only history — never mutated in place.
+ *
+ * Stored as JSONB on `batches.swap_history` or inside
+ * `plan_sessions.breakfast_override.swapHistory`. The reversal agent reads
+ * this array to decide what "swap back" / "undo the passata" means.
+ */
+export interface SwapRecord {
+  /** ISO timestamp when the swap was applied. */
+  appliedAt: string;
+  /** Verbatim user message that triggered this swap. */
+  userMessage: string;
+  /** Atomic changes that make up this swap, in display order. */
+  changes: SwapChange[];
+  /** Per-serving (or per-day for breakfast) macros AFTER this swap — snapshot for delta reasoning and reversal math. */
+  resultingMacros: MacrosWithFatCarbs;
+}
+
+/**
+ * Per-session override of the locked breakfast recipe's content, materialized
+ * the first time an emergency swap commits against this session's breakfast
+ * (Plan 033 / design doc 006).
+ *
+ * `PlanSession.breakfast` stores only `recipeSlug` + `caloriesPerDay` +
+ * `proteinPerDay`. The swap flow needs the full ingredient list, step body,
+ * and fat/carb macros so it can rewrite them, so we snapshot the scaled
+ * breakfast into this override and mutate it in place on subsequent swaps.
+ *
+ * `scaledIngredientsPerDay` carries PER-DAY amounts (breakfast runs one
+ * "serving" per day) so the shopping-list generator multiplies by
+ * `horizonDays` with the existing proration math.
+ */
+export interface BreakfastOverride {
+  /** Display-name override. Falls back to the library breakfast recipe's name when absent. */
+  nameOverride?: string;
+  /** Body/step-text override. Falls back to the library recipe's body when absent. */
+  bodyOverride?: string;
+  /** Per-day scaled ingredients (one "serving"). */
+  scaledIngredientsPerDay: ScaledIngredient[];
+  /** Per-day macros after the swap. */
+  actualPerDay: MacrosWithFatCarbs;
+  /** Ordered swap history on the breakfast target. */
+  swapHistory: SwapRecord[];
+}
+
 export interface ScaledIngredient {
   name: string;
   amount: number;
@@ -203,6 +292,15 @@ export interface PlanSession {
    * were confirmed without any in-session mutations.
    */
   mutationHistory: MutationRecord[];
+  /**
+   * Plan 033: Set the first time an emergency ingredient swap commits
+   * against this session's breakfast. Absent means "breakfast matches the
+   * library recipe scaled by `breakfast.caloriesPerDay` / `proteinPerDay`".
+   * When present, the renderer, the shopping-list generator, and the
+   * dispatcher's plan summary all read from this override instead of the
+   * library recipe. Cleared by reset-to-original on the breakfast target.
+   */
+  breakfastOverride?: BreakfastOverride;
   /** Populated by DB default now() on insert */
   confirmedAt: string;
   /** Tombstone flag for D27's replace-future-only flow */
@@ -227,7 +325,7 @@ export interface PlanSession {
  */
 export type DraftPlanSession = Omit<
   PlanSession,
-  'confirmedAt' | 'superseded' | 'createdAt' | 'updatedAt' | 'mutationHistory'
+  'confirmedAt' | 'superseded' | 'createdAt' | 'updatedAt' | 'mutationHistory' | 'breakfastOverride'
 > & { mutationHistory?: MutationRecord[] };
 
 /**
@@ -261,6 +359,24 @@ export interface Batch {
   status: 'planned' | 'cancelled';
   /** Immutable FK to the plan session that created this batch (D30). */
   createdInPlanSessionId: string;
+  /**
+   * Plan 033: Display-name override applied by an emergency ingredient swap.
+   * Falls back to `recipe.name` in the cook view and in list formatters when
+   * absent. Cleared on reset-to-original.
+   */
+  nameOverride?: string;
+  /**
+   * Plan 033: Step-body override applied by an emergency swap. Falls back to
+   * `recipe.body` when absent. Placeholder resolution still runs against
+   * `scaledIngredients` — the override is template text, not pre-resolved.
+   */
+  bodyOverride?: string;
+  /**
+   * Plan 033: Append-only swap history. Empty array on every freshly-created
+   * batch; a new `SwapRecord` appended on each successful commit. The
+   * reversal agent reads this to decide what "undo" / "put X back" means.
+   */
+  swapHistory?: SwapRecord[];
 }
 
 /**

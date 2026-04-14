@@ -98,6 +98,14 @@ export interface DispatcherSession {
     originalRequest: string;
     createdAt: string;
   };
+  /**
+   * Plan 033: A previewed-but-not-applied emergency ingredient swap. Lives
+   * on the session in memory (not persisted — bot restarts drop it like
+   * `pendingMutation`). Consumed by `trySwapPreFilter` for bare confirm /
+   * cancel / pick, or by `applySwapRequest` when the dispatcher routes a
+   * rewrite back through `swap_ingredient`.
+   */
+  pendingSwap?: import('../plan/swap-applier.js').PendingSwap;
 }
 
 /**
@@ -225,15 +233,35 @@ export async function buildDispatcherContext(
   let planSummary: DispatcherPlanSummary | null = null;
   const planSession = await getVisiblePlanSession(store, today);
   if (planSession) {
-    const allBatches = await store.getBatchesByPlanSessionId(planSession.id);
-    const plannedBatches = allBatches.filter((b) => b.status === 'planned');
+    // Plan 033 3.4: combined batch load (own + overlapping carried-over
+    // batches from prior sessions), deduplicated. This mirrors the pattern
+    // used by the view renderers' `loadVisiblePlanAndBatches`, ensuring
+    // the dispatcher's view of "what batches are in scope" matches what
+    // the user actually sees on the plan/shopping surfaces AND what the
+    // swap-ingredient applier searches for ingredient resolution.
+    const ownBatches = await store.getBatchesByPlanSessionId(planSession.id);
+    const overlapBatches = await store.getBatchesOverlapping({
+      horizonStart: planSession.horizonStart,
+      horizonEnd: planSession.horizonEnd,
+      statuses: ['planned'],
+    });
+    const seen = new Set<string>();
+    const plannedBatches = [...ownBatches, ...overlapBatches]
+      .filter((b) => (seen.has(b.id) ? false : (seen.add(b.id), true)))
+      .filter((b) => b.status === 'planned');
 
     const batchLines = plannedBatches.map((b) => {
       const recipe = recipes.getBySlug(b.recipeSlug);
-      const name = recipe?.shortName ?? recipe?.name ?? b.recipeSlug;
+      const name = b.nameOverride ?? recipe?.shortName ?? recipe?.name ?? b.recipeSlug;
       const days = b.eatingDays.join('/');
-      return `${b.recipeSlug} (${name}), ${b.servings} servings, ${days} ${b.mealType}`;
+      // Plan 033 3.4: `${id}|` prefix + top-5 ingredient signature so the
+      // dispatcher LLM can emit a `target_batch_id` it knows is valid and
+      // can bind unqualified "no white wine" to a specific batch when the
+      // user isn't on a cook view.
+      const signature = buildBatchIngredientSignature(b.scaledIngredients);
+      return `${b.id}|${b.recipeSlug} (${name}), ${b.servings} servings, ${days} ${b.mealType}, ingredients: ${signature}`;
     });
+
     const flexLines = planSession.flexSlots.map(
       (f) => `${f.day} ${f.mealTime} (+${f.flexBonus} kcal flex${f.note ? ' — ' + f.note : ''})`,
     );
@@ -241,10 +269,15 @@ export async function buildDispatcherContext(
       (e) => `${e.day} ${e.mealTime}: ${e.name} (~${e.estimatedCalories} kcal)`,
     );
 
+    // Plan 033 3.4 / Phase 9: per-session breakfast as a dispatcher target.
+    // The 'breakfast' sentinel id matches the applier's target resolution.
+    const breakfastLine = buildBreakfastLine(planSession, recipes);
+
     planSummary = {
       horizonStart: planSession.horizonStart,
       horizonEnd: planSession.horizonEnd,
       batchLines,
+      ...(breakfastLine ? { breakfastLine } : {}),
       flexLines,
       eventLines,
       weeklyCalorieTarget: config.targets.weekly.calories,
@@ -293,6 +326,94 @@ export async function buildDispatcherContext(
         originalRequest: session.pendingPostConfirmationClarification.originalRequest,
       },
     }),
+    ...(session.pendingSwap
+      ? {
+          pendingSwap: summarizePendingSwapForDispatcher(session.pendingSwap),
+        }
+      : {}),
+  };
+}
+
+/**
+ * Plan 033 3.4: Render the full ingredient list for a batch, sorted by
+ * role priority (protein → carb → fat → vegetable → base → seasoning).
+ * The dispatcher needs the COMPLETE list — truncating to top-N hides
+ * distinctive seasonings (e.g., "dry white wine", "passata") that
+ * uniquely identify a batch, which forces the LLM to omit
+ * target_batch_id and the applier to multi-batch on tokens like "beef"
+ * that appear in multiple batches. Each batch typically has 4–8
+ * ingredients; for a 4-batch plan that's ≤32 names — well within the
+ * prompt budget.
+ */
+function buildBatchIngredientSignature(
+  ingredients: ReadonlyArray<import('../models/types.js').ScaledIngredient>,
+): string {
+  const priority: Record<string, number> = {
+    protein: 0,
+    carb: 1,
+    fat: 2,
+    vegetable: 3,
+    base: 4,
+    seasoning: 5,
+  };
+  const sorted = [...ingredients].sort((a, b) => (priority[a.role] ?? 9) - (priority[b.role] ?? 9));
+  return sorted.map((i) => i.name).join(', ');
+}
+
+/**
+ * Plan 033 / Phase 9: Build the single-line "breakfast:" row the dispatcher
+ * prompt reads to route breakfast-targeted swaps. Returns undefined when the
+ * breakfast recipe isn't resolvable in the database (shouldn't happen on a
+ * confirmed plan; we fail-soft rather than crash the dispatcher).
+ *
+ * Uses `planSession.breakfastOverride` when present so the signature
+ * reflects the post-swap ingredient list, mirroring how `batchLines` reads
+ * overrides from the batch.
+ */
+function buildBreakfastLine(
+  planSession: import('../models/types.js').PlanSession,
+  recipes: RecipeDatabase,
+): string | undefined {
+  const recipe = recipes.getBySlug(planSession.breakfast.recipeSlug);
+  if (!recipe) return undefined;
+  const name = planSession.breakfastOverride?.nameOverride
+    ?? recipe.shortName
+    ?? recipe.name;
+  const ingredients = planSession.breakfastOverride?.scaledIngredientsPerDay
+    ? planSession.breakfastOverride.scaledIngredientsPerDay
+    : recipe.ingredients.map((i) => ({
+        name: i.name,
+        amount: i.amount,
+        unit: i.unit,
+        totalForBatch: i.amount,
+        role: i.role,
+      }));
+  const signature = buildBatchIngredientSignature(ingredients);
+  return `breakfast|${planSession.breakfast.recipeSlug} (${name}), locked, ingredients: ${signature}`;
+}
+
+/**
+ * Plan 033 3.3: project `session.pendingSwap` into the compact summary the
+ * dispatcher's prompt consumes. Multi-batch pending swaps emit short
+ * descriptors per candidate (stored on the `PendingSwap` at preview time)
+ * so the LLM can frame an ordinal / recipe-name pick in its response.
+ */
+function summarizePendingSwapForDispatcher(
+  pending: import('../plan/swap-applier.js').PendingSwap,
+): NonNullable<DispatcherContext['pendingSwap']> {
+  if (pending.kind === 'single') {
+    return {
+      kind: 'single',
+      targetIdHint: pending.targetId,
+      originalRequest: pending.originalRequest,
+      reason: pending.reason,
+    };
+  }
+  return {
+    kind: 'multi_batch',
+    candidates: pending.candidates.map((c) => ({ id: c.targetId, description: c.description })),
+    originalRequest: pending.originalRequest,
+    reason: pending.reason,
   };
 }
 
@@ -884,6 +1005,307 @@ export async function handleMutatePlanAction(
   }
 }
 
+// ─── swap_ingredient handler + pre-filter (Plan 033) ────────────────────────
+
+/**
+ * Plan 033: Dispatch a `swap_ingredient` decision to the applier and route
+ * the resulting `SwapResult` to the user. Mirrors `handleMutatePlanAction`'s
+ * shape — single entry, switch on result kind, stash pendingSwap on
+ * preview, render cook view + delta block on apply.
+ */
+export async function handleSwapIngredientAction(
+  decision: Extract<DispatcherDecision, { action: 'swap_ingredient' }>,
+  deps: DispatcherRunnerDeps,
+  session: DispatcherSession,
+  sink: DispatcherOutputSink,
+): Promise<void> {
+  const { applySwapRequest } = await import('../plan/swap-applier.js');
+  const { cookViewKeyboard, buildMainMenuKeyboard } = await import('./keyboards.js');
+
+  // Plan 033: snapshot the prior pendingSwap so that if the rewrite the
+  // user just sent is rejected (guardrail / clarification / no_target)
+  // the user can still type "nevermind" and have the pre-filter cancel
+  // their original preview. Restored on result.kind === 'hard_no' /
+  // 'clarification' / 'no_target' below — apply / preview / help_me_pick
+  // are definitive consumptions.
+  const priorPendingSwap = session.pendingSwap;
+
+  let result: import('../plan/swap-applier.js').SwapResult;
+  try {
+    result = await applySwapRequest({
+      request: decision.params.request,
+      ...(decision.params.target_batch_id
+        ? { targetBatchId: decision.params.target_batch_id }
+        : {}),
+      session: {
+        ...(priorPendingSwap ? { pendingSwap: priorPendingSwap } : {}),
+        surfaceContext: session.surfaceContext,
+        ...(session.lastRenderedView ? { lastRenderedView: session.lastRenderedView } : {}),
+      },
+      store: deps.store,
+      recipes: deps.recipes,
+      llm: deps.llm,
+      ...(deps.onTrace ? { onTrace: deps.onTrace } : {}),
+      now: new Date(),
+    });
+    // Consume the prior pendingSwap — the applier decided whether to
+    // preview again (see preview branch below), clear on apply/cancel,
+    // or carry the target forward on a rewrite.
+    session.pendingSwap = undefined;
+  } catch (err) {
+    log.error('SWAP', `applySwapRequest threw: ${(err as Error).message.slice(0, 200)}`);
+    const today = toLocalISODate(new Date());
+    const lifecycle = await getPlanLifecycle(session as never, deps.store, today);
+    await sink.reply(
+      "Something went wrong applying that swap. Your batch is unchanged. Try rephrasing, or tap a button.",
+      { reply_markup: buildMainMenuKeyboard(lifecycle) },
+    );
+    return;
+  }
+
+  switch (result.kind) {
+    case 'applied': {
+      const kb = result.targetId === 'breakfast'
+        ? buildMainMenuKeyboard(await getPlanLifecycle(session as never, deps.store, toLocalISODate(new Date())))
+        : cookViewKeyboard(result.recipeSlug);
+      await sink.reply(result.cookViewText, {
+        reply_markup: kb,
+        parse_mode: 'MarkdownV2',
+      });
+      return;
+    }
+
+    case 'applied_multi': {
+      for (const item of result.applied) {
+        const kb = item.targetId === 'breakfast'
+          ? buildMainMenuKeyboard(await getPlanLifecycle(session as never, deps.store, toLocalISODate(new Date())))
+          : cookViewKeyboard(item.recipeSlug);
+        await sink.reply(item.cookViewText, {
+          reply_markup: kb,
+          parse_mode: 'MarkdownV2',
+        });
+      }
+      return;
+    }
+
+    case 'preview': {
+      session.pendingSwap = result.pending;
+      const kb = await buildSideConversationKeyboard(session, deps.store);
+      await sink.reply(result.previewText, { reply_markup: kb });
+      pushTurn(session, 'bot', result.previewText);
+      return;
+    }
+
+    case 'help_me_pick': {
+      const kb = await buildSideConversationKeyboard(session, deps.store);
+      await sink.reply(result.optionsText, { reply_markup: kb });
+      pushTurn(session, 'bot', result.optionsText);
+      return;
+    }
+
+    case 'clarification': {
+      // Plan 033: a clarification on a rewrite turn doesn't consume the
+      // user's original preview — restore the prior pendingSwap so the
+      // pre-filter can still recognise a follow-up "nevermind" as the
+      // cancel of the original swap. Without this restore, the user's
+      // cancel would fall through to the dispatcher's out_of_scope
+      // ("I don't help with small talk").
+      if (priorPendingSwap) session.pendingSwap = priorPendingSwap;
+      const kb = await buildSideConversationKeyboard(session, deps.store);
+      await sink.reply(result.question, { reply_markup: kb });
+      pushTurn(session, 'bot', result.question);
+      return;
+    }
+
+    case 'hard_no':
+    case 'no_target': {
+      // Same restoration rationale as the clarification branch: a
+      // guardrail-rejected rewrite must not strand the user's prior
+      // preview. The user may still want to "nevermind" the original.
+      if (priorPendingSwap) session.pendingSwap = priorPendingSwap;
+      const today = toLocalISODate(new Date());
+      const lifecycle = await getPlanLifecycle(session as never, deps.store, today);
+      await sink.reply(result.message, { reply_markup: buildMainMenuKeyboard(lifecycle) });
+      pushTurn(session, 'bot', result.message);
+      return;
+    }
+  }
+}
+
+/**
+ * Plan 033: deterministic pre-filter for a `pendingSwap`. Runs before the
+ * dispatcher LLM call whenever `session.pendingSwap` is set. Regex-
+ * matches bare confirmations, cancellations, and multi-batch picks and
+ * commits / clears without burning an LLM call.
+ *
+ * Returns `true` when the pre-filter consumed the message (the runner
+ * short-circuits). Returns `false` when the message should fall through
+ * to the dispatcher — typically a rewrite like "actually use chickpeas".
+ */
+export async function trySwapPreFilter(
+  text: string,
+  session: DispatcherSession,
+  deps: DispatcherRunnerDeps,
+  sink: DispatcherOutputSink,
+  onTrace?: (event: TraceEvent) => void,
+): Promise<boolean> {
+  if (!session.pendingSwap) return false;
+  const pending = session.pendingSwap;
+  const trimmed = text.trim();
+
+  const CONFIRM = /^\s*(go ahead|yes|do it|apply|sure|ok|okay|yep|yeah|confirm|please do|go for it)\s*\.?\s*$/i;
+  const CANCEL = /^\s*(no|nope|nevermind|never mind|cancel|forget it|stop|not now|leave it|none|neither|skip it)\s*\.?\s*$/i;
+  const BOTH = /^\s*(both|all(?: of them)?|yes(?: to)? both)\s*\.?\s*$/i;
+  const ORDINAL_OR_DESCRIPTOR = /^\s*(?:just |only )?(?:the )?(first|second|third|lunch(?: one)?|dinner(?: one)?|breakfast(?: one)?|(?:[a-z][-a-z ]{2,40}))\s*\.?\s*$/i;
+
+  const {
+    commitPendingSwap,
+    commitPendingSwapMulti,
+  } = await import('../plan/swap-applier.js');
+  const { cookViewKeyboard, buildMainMenuKeyboard } = await import('./keyboards.js');
+
+  const renderApplied = async (
+    result: { targetId: string; recipeSlug: string; cookViewText: string },
+  ): Promise<void> => {
+    const kb = result.targetId === 'breakfast'
+      ? buildMainMenuKeyboard(await getPlanLifecycle(session as never, deps.store, toLocalISODate(new Date())))
+      : cookViewKeyboard(result.recipeSlug);
+    await sink.reply(result.cookViewText, {
+      reply_markup: kb,
+      parse_mode: 'MarkdownV2',
+    });
+  };
+
+  // ── Single-kind confirmation ──
+  if (pending.kind === 'single' && CONFIRM.test(trimmed)) {
+    onTrace?.({ kind: 'swap', op: 'prefilter_confirm', targetId: pending.targetId });
+    session.pendingSwap = undefined;
+    const applied = await commitPendingSwap({
+      pending,
+      store: deps.store,
+      recipes: deps.recipes,
+      llm: deps.llm,
+      ...(onTrace ? { onTrace } : {}),
+      now: new Date(),
+    });
+    await renderApplied(applied);
+    return true;
+  }
+
+  // ── Any-kind cancellation ──
+  if (CANCEL.test(trimmed)) {
+    onTrace?.({ kind: 'swap', op: 'prefilter_cancel' });
+    session.pendingSwap = undefined;
+    const kb = await buildSideConversationKeyboard(session, deps.store);
+    await sink.reply("OK, no swap. Tell me when you want one.", { reply_markup: kb });
+    pushTurn(session, 'bot', "OK, no swap. Tell me when you want one.");
+    return true;
+  }
+
+  // ── Multi-batch picks ──
+  if (pending.kind === 'multi_batch') {
+    if (BOTH.test(trimmed)) {
+      onTrace?.({ kind: 'swap', op: 'prefilter_pick', reason: 'both' });
+      session.pendingSwap = undefined;
+      const applied = await commitPendingSwapMulti({
+        pending,
+        selectedIds: pending.candidates.map((c) => c.targetId),
+        store: deps.store,
+        recipes: deps.recipes,
+        llm: deps.llm,
+        ...(onTrace ? { onTrace } : {}),
+        now: new Date(),
+      });
+      for (const item of applied) await renderApplied(item);
+      return true;
+    }
+    const picked = scoreCandidatesForPick(pending.candidates, trimmed);
+    if (picked) {
+      onTrace?.({ kind: 'swap', op: 'prefilter_pick', targetId: picked.targetId });
+      session.pendingSwap = undefined;
+      const [applied] = await commitPendingSwapMulti({
+        pending,
+        selectedIds: [picked.targetId],
+        store: deps.store,
+        recipes: deps.recipes,
+        llm: deps.llm,
+        ...(onTrace ? { onTrace } : {}),
+        now: new Date(),
+      });
+      if (applied) await renderApplied(applied);
+      return true;
+    }
+    // Ordinal/descriptor shaped but didn't match — fall through to
+    // dispatcher so the LLM can clarify or re-decide.
+    if (ORDINAL_OR_DESCRIPTOR.test(trimmed)) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Deterministic scorer for multi-batch picks. Matches the text against
+ * candidate descriptors by (1) numeric index ("1", "#2"), (2) exact
+ * ordinal ("first" / "second" / "third"), (3) mealType match ("the
+ * lunch one", "dinner"), and (4) case-insensitive substring on
+ * `description` / `shortName`. Returns the single best match OR null on
+ * no-match or a tie.
+ *
+ * Exported so `test/unit/dispatcher-runner-picker.test.ts` can exercise
+ * it as a pure function. Not part of the public runtime surface — the
+ * export exists strictly for unit-test access.
+ */
+export function scoreCandidatesForPick(
+  candidates: ReadonlyArray<{
+    targetId: string;
+    description: string;
+    shortName: string;
+    mealType: 'lunch' | 'dinner' | 'breakfast';
+  }>,
+  text: string,
+): { targetId: string } | null {
+  const lower = text.toLowerCase();
+
+  // Numeric pick: the preview footer tells the user they can answer
+  // with "a number", so "1" / "2" / "the first one" / "#2" must all
+  // bind to `candidates[n-1]`. Accept bare-digit replies (and a few
+  // glue forms) explicitly — the ordinal-word branch below only covers
+  // "first" / "second" / "third".
+  const numericMatch = lower.match(/^\s*#?\s*(\d+)\s*\.?\s*$/);
+  if (numericMatch) {
+    const idx = Number(numericMatch[1]) - 1;
+    if (Number.isInteger(idx) && idx >= 0 && candidates[idx]) {
+      return { targetId: candidates[idx].targetId };
+    }
+    return null;
+  }
+
+  const ordinalMap: Record<string, number> = { first: 0, second: 1, third: 2 };
+  const ordinalKey = Object.keys(ordinalMap).find((k) => new RegExp(`\\b${k}\\b`).test(lower));
+  if (ordinalKey !== undefined) {
+    const idx = ordinalMap[ordinalKey];
+    if (idx !== undefined && candidates[idx]) return { targetId: candidates[idx].targetId };
+    return null;
+  }
+
+  for (const meal of ['breakfast', 'lunch', 'dinner'] as const) {
+    if (new RegExp(`\\b${meal}\\b`).test(lower)) {
+      const matches = candidates.filter((c) => c.mealType === meal);
+      if (matches.length === 1) return { targetId: matches[0]!.targetId };
+      return null;
+    }
+  }
+
+  const nameMatches = candidates.filter(
+    (c) => lower.includes(c.shortName.toLowerCase()) || lower.includes(c.description.toLowerCase()),
+  );
+  if (nameMatches.length === 1) return { targetId: nameMatches[0]!.targetId };
+
+  return null;
+}
+
 // ─── Answer handlers (Tasks 11–12) ──────────────────────────────────────────
 
 /**
@@ -1200,6 +1622,17 @@ export async function runDispatcherFrontDoor(
     return;
   }
 
+  // Plan 033: swap pre-filter runs when there is a pendingSwap on the
+  // session. Catches bare confirmations ("go ahead"), cancellations
+  // ("nevermind"), and multi-batch picks ("both" / "the lunch one")
+  // deterministically — the dispatcher never sees them. Rewrites fall
+  // through to the dispatcher with pendingSwap in context.
+  if (session.pendingSwap) {
+    if (await trySwapPreFilter(text, session, deps, rawSink, deps.onTrace)) {
+      return;
+    }
+  }
+
   // ── Planning meta-intents fire BEFORE the dispatcher ──
   // Proposal 003 § "Precedence with existing cancel semantics" is load-bearing:
   // cancel phrases must reach the planning cancel handler, not the dispatcher's
@@ -1281,6 +1714,9 @@ export async function runDispatcherFrontDoor(
         return;
       case 'mutate_plan':
         await handleMutatePlanAction(decision, deps, session, sink);
+        return;
+      case 'swap_ingredient':
+        await handleSwapIngredientAction(decision, deps, session, sink);
         return;
       case 'answer_plan_question':
         await handleAnswerPlanQuestionAction(decision, deps, session, sink);

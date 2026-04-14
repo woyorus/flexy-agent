@@ -14,7 +14,16 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../config.js';
-import type { PlanSession, DraftPlanSession, Batch, Measurement } from '../models/types.js';
+import type {
+  PlanSession,
+  DraftPlanSession,
+  Batch,
+  Measurement,
+  ScaledIngredient,
+  MacrosWithFatCarbs,
+  SwapRecord,
+  BreakfastOverride,
+} from '../models/types.js';
 import type { SessionState } from './machine.js';
 import { log } from '../debug/logger.js';
 import { toLocalISODate } from '../plan/helpers.js';
@@ -97,6 +106,38 @@ export interface StateStoreLike {
 
   /** Retrieve a single plan session by ID. */
   getPlanSession(id: string): Promise<PlanSession | null>;
+
+  /**
+   * Plan 033: Update specific fields on an existing PLANNED batch in place.
+   * Used by the emergency ingredient swap applier. Unspecified fields are
+   * not touched; a `null` value on `nameOverride` / `bodyOverride` clears
+   * the column (reverts to the library recipe). `swapHistory`, when
+   * provided, fully replaces the array — the caller appends first.
+   *
+   * Throws when the batch does not exist or its status is not `'planned'`.
+   */
+  updateBatch(
+    batchId: string,
+    fields: {
+      scaledIngredients?: ScaledIngredient[];
+      actualPerServing?: MacrosWithFatCarbs;
+      nameOverride?: string | null;
+      bodyOverride?: string | null;
+      swapHistory?: SwapRecord[];
+    },
+  ): Promise<Batch>;
+
+  /**
+   * Plan 033: Write or clear the per-session breakfast override. Pass `null`
+   * to clear the override and restore the library breakfast recipe (the
+   * reset-to-original path on a breakfast target).
+   *
+   * Throws when the session does not exist or is superseded.
+   */
+  updatePlanSessionBreakfast(
+    planSessionId: string,
+    override: BreakfastOverride | null,
+  ): Promise<PlanSession>;
 
   // ─── Measurements ───
 
@@ -297,6 +338,57 @@ export class StateStore implements StateStoreLike {
     return fromBatchRow(data);
   }
 
+  async updateBatch(
+    batchId: string,
+    fields: {
+      scaledIngredients?: ScaledIngredient[];
+      actualPerServing?: MacrosWithFatCarbs;
+      nameOverride?: string | null;
+      bodyOverride?: string | null;
+      swapHistory?: SwapRecord[];
+    },
+  ): Promise<Batch> {
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (fields.scaledIngredients !== undefined) patch.scaled_ingredients = fields.scaledIngredients;
+    if (fields.actualPerServing !== undefined) patch.actual_per_serving = fields.actualPerServing;
+    if (fields.nameOverride !== undefined) patch.name_override = fields.nameOverride;
+    if (fields.bodyOverride !== undefined) patch.body_override = fields.bodyOverride;
+    if (fields.swapHistory !== undefined) patch.swap_history = fields.swapHistory;
+
+    const { data, error } = await this.client
+      .from('batches')
+      .update(patch)
+      .eq('id', batchId)
+      .eq('status', 'planned')
+      .select()
+      .single();
+    if (error || !data) {
+      throw new Error(
+        `updateBatch(${batchId}) failed: ${error?.message ?? 'no matching planned batch'}`,
+      );
+    }
+    return fromBatchRow(data);
+  }
+
+  async updatePlanSessionBreakfast(
+    planSessionId: string,
+    override: BreakfastOverride | null,
+  ): Promise<PlanSession> {
+    const { data, error } = await this.client
+      .from('plan_sessions')
+      .update({ breakfast_override: override, updated_at: new Date().toISOString() })
+      .eq('id', planSessionId)
+      .eq('superseded', false)
+      .select()
+      .single();
+    if (error || !data) {
+      throw new Error(
+        `updatePlanSessionBreakfast(${planSessionId}) failed: ${error?.message ?? 'no matching active session'}`,
+      );
+    }
+    return fromPlanSessionRow(data);
+  }
+
   // ─── Measurements ───────────────────────────────────────────────────────
 
   async logMeasurement(userId: string, date: string, weightKg: number, waistCm: number | null): Promise<void> {
@@ -400,12 +492,16 @@ function toPlanSessionRow(session: DraftPlanSession): Record<string, any> {
     flex_slots: session.flexSlots,
     events: session.events,
     mutation_history: session.mutationHistory ?? [],
+    // breakfast_override is never set on drafts (Plan 033) — the Omit in
+    // DraftPlanSession enforces this at the type level.
+    breakfast_override: null,
   };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function fromPlanSessionRow(row: any): PlanSession {
-  return {
+  const breakfastOverride = row.breakfast_override ?? undefined;
+  const session: PlanSession = {
     id: row.id,
     horizonStart: row.horizon_start,
     horizonEnd: row.horizon_end,
@@ -419,6 +515,10 @@ function fromPlanSessionRow(row: any): PlanSession {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+  if (breakfastOverride !== undefined && breakfastOverride !== null) {
+    session.breakfastOverride = breakfastOverride;
+  }
+  return session;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -433,6 +533,9 @@ function toBatchRow(batch: Omit<Batch, 'createdAt' | 'updatedAt'>): Record<strin
     target_per_serving: batch.targetPerServing,
     actual_per_serving: batch.actualPerServing,
     scaled_ingredients: batch.scaledIngredients,
+    name_override: batch.nameOverride ?? null,
+    body_override: batch.bodyOverride ?? null,
+    swap_history: batch.swapHistory ?? [],
     status: batch.status,
     created_in_plan_session_id: batch.createdInPlanSessionId,
   };
@@ -463,7 +566,7 @@ function fromMeasurementRow(row: any): Measurement {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function fromBatchRow(row: any): Batch {
-  return {
+  const batch: Batch = {
     id: row.id,
     recipeSlug: row.recipe_slug,
     mealType: row.meal_type,
@@ -478,4 +581,14 @@ function fromBatchRow(row: any): Batch {
     status: row.status,
     createdInPlanSessionId: row.created_in_plan_session_id,
   };
+  // Plan 033: only materialize override fields when the row carries them,
+  // so the runtime type stays exactly `Batch` (no undefined keys leaking
+  // into snapshot serialization or equality checks).
+  if (row.name_override != null) batch.nameOverride = row.name_override;
+  if (row.body_override != null) batch.bodyOverride = row.body_override;
+  const swapHistory = row.swap_history ?? [];
+  if (Array.isArray(swapHistory) && swapHistory.length > 0) {
+    batch.swapHistory = swapHistory;
+  }
+  return batch;
 }

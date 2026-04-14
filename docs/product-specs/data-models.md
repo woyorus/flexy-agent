@@ -25,6 +25,7 @@ interface PlanSession {
   flexSlots: FlexSlot[];
   events: MealEvent[];
   mutationHistory: MutationRecord[]; // Plan 026 — accumulated user-approved mutations (jsonb)
+  breakfastOverride?: BreakfastOverride; // Plan 033 — materialized on first emergency breakfast swap (jsonb)
   confirmedAt: string;               // DB default now() on insert
   superseded: boolean;               // tombstone for D27 replace-future-only flow
   createdAt: string;
@@ -32,7 +33,7 @@ interface PlanSession {
 }
 ```
 
-`DraftPlanSession` omits `confirmedAt`, `superseded`, `createdAt`, `updatedAt` — these are filled by the DB on insert — and makes `mutationHistory` optional so existing draft builders (`buildNewPlanSession` in plan-flow.ts) don't need to set it. The store's row mapper writes `[]` as the default. The draft's `id` is assigned client-side so batches can reference their parent before the confirm sequence writes.
+`DraftPlanSession` omits `confirmedAt`, `superseded`, `createdAt`, `updatedAt`, `breakfastOverride` — the first four are filled by the DB on insert; `breakfastOverride` (Plan 033) is omitted because swaps only apply to confirmed sessions. `mutationHistory` is made optional so existing draft builders (`buildNewPlanSession` in plan-flow.ts) don't need to set it. The store's row mapper writes `[]` as the mutation default and `null` for breakfast_override. The draft's `id` is assigned client-side so batches can reference their parent before the confirm sequence writes.
 
 #### MutationHistory persistence (Plan 026)
 
@@ -69,10 +70,57 @@ interface Batch {
   scaledIngredients: ScaledIngredient[];
   status: 'planned' | 'cancelled';   // no 'proposed' — drafts are in-memory only
   createdInPlanSessionId: string;    // immutable FK (D30)
+  // Plan 033 (emergency ingredient swap) — per-batch overrides applied
+  // at the kitchen counter or grocery aisle. Absent on fresh batches.
+  nameOverride?: string;             // replaces recipe.name in the cook view when set
+  bodyOverride?: string;             // replaces recipe.body when set (steps rewritten around the swap)
+  swapHistory?: SwapRecord[];        // append-only; drives reversal ("swap back" / "undo")
 }
 ```
 
 Batches can span horizon boundaries — a batch cooked on day 7 of session A may have `eatingDays` extending into session B's horizon. The solver sees only in-horizon days; overflow days become pre-committed slots for the next session.
+
+**Batch override semantics (Plan 033 / design doc 006):** `nameOverride` / `bodyOverride` / `swapHistory` are per-batch edits persisted by the ingredient-swap applier. The library recipe (`src/recipes/library.ts` + `data/recipes/*.md`) is never touched — overrides live on the batch instance. Reset-to-original clears all three. DB columns: `batches.name_override`, `batches.body_override`, `batches.swap_history` (migration `006_batch_and_breakfast_swap_overrides.sql`).
+
+### SwapRecord and SwapChange
+
+Append-only history of emergency ingredient swaps. One record per committed swap; `changes[]` carries atomic edits inside that swap.
+
+```typescript
+interface SwapRecord {
+  appliedAt: string;                 // ISO timestamp
+  userMessage: string;               // verbatim user message that triggered the swap
+  changes: SwapChange[];             // atomic edits in display order
+  resultingMacros: MacrosWithFatCarbs; // per-serving (or per-day for breakfast) macros AFTER this swap
+}
+
+type SwapChange =
+  | { kind: 'replace'; from: string; to: string; fromAmount: number; fromUnit: string; toAmount: number; toUnit: string }
+  | { kind: 'remove'; ingredient: string; amount: number; unit: string }
+  | { kind: 'add'; ingredient: string; amount: number; unit: string; reason: 'helper' | 'rebalance' }
+  | { kind: 'rebalance'; ingredient: string; fromAmount: number; toAmount: number; unit: string }
+  | { kind: 'rename'; from: string; to: string };
+```
+
+The reversal agent reads `swapHistory` to decide what "put the passata back" / "undo" / "reset to original" mean. The post-agent guardrail validator (`src/utils/swap-format.ts` `validateSwapAgainstGuardrails`) compares the agent's proposed ingredient list against the current one + the user's message — precisely-bought ingredients the user did not name cannot change.
+
+### BreakfastOverride
+
+Per-session override of the locked breakfast recipe's content. Absent until the first emergency swap commits against a session's breakfast; present thereafter. `scaledIngredientsPerDay` and `actualPerDay` carry PER-DAY semantics — breakfast runs one "serving" per day; there is no multi-serving breakfast batch.
+
+```typescript
+interface BreakfastOverride {
+  nameOverride?: string;
+  bodyOverride?: string;
+  scaledIngredientsPerDay: ScaledIngredient[];   // amounts × horizonDays = shopping-list total
+  actualPerDay: MacrosWithFatCarbs;
+  swapHistory: SwapRecord[];
+}
+```
+
+Persisted at `plan_sessions.breakfast_override` (migration 006). The renderer (`renderBreakfastCookView`), the shopping-list generator (`generateShoppingList*`), and the dispatcher's plan summary all read from this override when set and fall through to the library recipe otherwise.
+
+`DraftPlanSession` Omit-excludes `breakfastOverride` — swaps only apply to confirmed sessions. A reset-to-original clears the override by passing `null` to `store.updatePlanSessionBreakfast`.
 
 ### FlexSlot
 

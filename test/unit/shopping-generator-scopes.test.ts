@@ -18,7 +18,43 @@ import {
   generateShoppingListForRecipe,
   generateShoppingListForDay,
 } from '../../src/shopping/generator.js';
-import type { Batch, Recipe } from '../../src/models/types.js';
+import type { Batch, Recipe, PlanSession } from '../../src/models/types.js';
+import type { RecipeDatabase } from '../../src/recipes/database.js';
+
+/**
+ * Plan 033: the shopping generators now take `PlanSession | undefined` +
+ * `RecipeDatabase` instead of `Recipe | undefined`. These helpers wrap the
+ * test-only pattern: build a minimal session pointing at the breakfast
+ * recipe's slug and a one-entry recipe DB.
+ */
+function sessionForBreakfast(recipe: Recipe): PlanSession {
+  return {
+    id: 'sess-1',
+    horizonStart: '2026-04-06',
+    horizonEnd: '2026-04-12',
+    breakfast: {
+      locked: true,
+      recipeSlug: recipe.slug,
+      caloriesPerDay: recipe.perServing.calories,
+      proteinPerDay: recipe.perServing.protein,
+    },
+    treatBudgetCalories: 0,
+    flexSlots: [],
+    events: [],
+    mutationHistory: [],
+    confirmedAt: '2026-04-01T00:00:00Z',
+    superseded: false,
+    createdAt: '2026-04-01T00:00:00Z',
+    updatedAt: '2026-04-01T00:00:00Z',
+  };
+}
+
+function recipesDbFor(recipe: Recipe): RecipeDatabase {
+  return {
+    getBySlug: (slug: string) => (slug === recipe.slug ? recipe : undefined),
+    getAll: () => [recipe],
+  } as unknown as RecipeDatabase;
+}
 
 function batch(
   id: string,
@@ -65,7 +101,7 @@ test('generateShoppingListForWeek: aggregates across multiple cook days', () => 
     batch('b2', 'grain-bowl', '2026-04-09', [{ name: 'quinoa', amount: 300, unit: 'g', role: 'carb' }]),
     batch('b3', 'tagine', '2026-04-10', [{ name: 'beef', amount: 200, unit: 'g', role: 'protein' }]),
   ];
-  const list = generateShoppingListForWeek(batches, undefined, {
+  const list = generateShoppingListForWeek(batches, undefined, undefined, {
     horizonStart: '2026-04-06',
     horizonEnd: '2026-04-12',
   });
@@ -80,7 +116,7 @@ test('generateShoppingListForWeek: aggregates across multiple cook days', () => 
 test('generateShoppingListForWeek: prorates breakfast to horizon length', () => {
   const batches = [batch('b1', 'tagine', '2026-04-06', [{ name: 'beef', amount: 400, unit: 'g', role: 'protein' }])];
   const breakfast = recipeWithIngredients('oatmeal', [{ name: 'oats', amount: 50, unit: 'g', role: 'carb' }]);
-  const list = generateShoppingListForWeek(batches, breakfast, {
+  const list = generateShoppingListForWeek(batches, sessionForBreakfast(breakfast), recipesDbFor(breakfast), {
     horizonStart: '2026-04-06',
     horizonEnd: '2026-04-12',
   });
@@ -127,13 +163,15 @@ test('generateShoppingListForRecipe: omits breakfast (no breakfast param)', () =
 test('generateShoppingListForDay: matches generateShoppingList output', () => {
   const batches = [batch('b1', 'tagine', '2026-04-09', [{ name: 'beef', amount: 400, unit: 'g', role: 'protein' }])];
   const breakfast = recipeWithIngredients('oatmeal', [{ name: 'oats', amount: 50, unit: 'g', role: 'carb' }]);
-  const a = generateShoppingList(batches, breakfast, { targetDate: '2026-04-09', remainingDays: 4 });
-  const b = generateShoppingListForDay(batches, breakfast, { day: '2026-04-09', remainingDays: 4 });
+  const session = sessionForBreakfast(breakfast);
+  const recipes = recipesDbFor(breakfast);
+  const a = generateShoppingList(batches, session, recipes, { targetDate: '2026-04-09', remainingDays: 4 });
+  const b = generateShoppingListForDay(batches, session, recipes, { day: '2026-04-09', remainingDays: 4 });
   assert.deepStrictEqual(a, b);
 });
 
 test('generateShoppingListForWeek: empty batches produces empty list', () => {
-  const list = generateShoppingListForWeek([], undefined, { horizonStart: '2026-04-06', horizonEnd: '2026-04-12' });
+  const list = generateShoppingListForWeek([], undefined, undefined, { horizonStart: '2026-04-06', horizonEnd: '2026-04-12' });
   assert.deepStrictEqual(list.categories, []);
   assert.deepStrictEqual(list.checkYouHave, []);
 });

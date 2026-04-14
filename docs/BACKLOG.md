@@ -94,3 +94,7 @@ The product works for more than one person.
 - **Persistent session state**: Flow state currently lives in-memory — a bot restart drops in-progress conversations. Serialize per-chat flow state to disk, rehydrate on startup.
 - **Supabase persistence parity tests**: Direct coverage for store query shapes and write ordering. Deferred until multi-user because single-user doesn't earn the cost.
 - **Alternative UI**: Web UI or mobile app if there's traction.
+
+### Follow-ups from Plan 033 (emergency ingredient swap)
+
+- **PRODUCT_SENSE "bot has no location" principle**: the emergency-swap proposal calls out that the bot never asserts or infers the user's physical location (kitchen vs store vs car) — the surface the user is on is the only signal. Promoting this into `docs/PRODUCT_SENSE.md` as a named principle was deferred out of Plan 033's scope; do it when the next touch on PRODUCT_SENSE happens.

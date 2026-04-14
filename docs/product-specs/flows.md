@@ -147,3 +147,37 @@ See also: proposal 003 § "Flow 1 — Post-confirmation plan mutation".
 3. A confirmation message is shown. `surfaceContext` is preserved — the user's previous view is undisturbed.
 
 **Rules:** The numeric pre-filter (`awaiting_measurement` phase) still takes precedence for the fast path. The dispatcher-driven `log_measurement` extends coverage to all other surfaces. `planFlow` and `recipeFlow` are preserved across the logging side-trip.
+
+
+## Flow: Emergency ingredient swap (Plan 033 / design doc 006)
+
+**Mutate ONE batch's (or the locked breakfast's) contents in real time** — the kitchen is out of an ingredient, or the grocery store doesn't have it. The library recipe stays untouched; the batch instance gets a per-instance override.
+
+**Entry points:** Any text or voice message the dispatcher classifies as `swap_ingredient`. Examples: "no white wine, use beef stock instead", "skip the raisins", "they don't have salmon, what should I get?", "got the cod, 320g", "no yogurt, use cottage cheese instead" (breakfast), "swap back" / "undo" / "reset to original" (reversal).
+
+**Boundary with `mutate_plan`:** `swap_ingredient` mutates the contents of ONE batch (or breakfast). `mutate_plan` rearranges WHICH recipes go where. "Swap tomorrow's dinner for fish" → `mutate_plan`. "No white wine" → `swap_ingredient`.
+
+**Response shapes (picked by the ingredient-swap agent):**
+
+1. **apply** — auto-applies when the target is unambiguous, the substitute is named-and-common, and the change is non-structural. Persists to the batch (or `planSession.breakfastOverride`). Reply is the full updated cook view with a delta block footer: "Swapped: X → Y", "+ helper", "Macros: ±N cal/serving — within noise."
+2. **preview** — asks first when the target is ambiguous, the user hedged, the substitute is unknown, or the swap is structural. Reply is a one-paragraph preview + "OK to apply, or want a different X?" The applier stashes the proposed payload on `session.pendingSwap`; the user confirms with "go ahead" (pre-filter commits with zero LLM calls) or rewrites with "actually use chickpeas" (falls through to a fresh dispatcher → agent call).
+3. **help_me_pick** — the user is shopping and asked for options. Reply is 2–3 named options each with a one-line macro impact. No persistence.
+4. **clarification** — the bot genuinely doesn't know what to do. Short, specific question.
+5. **hard_no** — the swap empties out the recipe identity (e.g., removing every protein), or a hard invariant fails. Reply names the problem and suggests a routing hint (`mutate_plan` for a recipe swap, `library_edit` for a permanent change).
+
+**Pantry-staple policy:** pantry staples (oils, salt, stocks, vinegars, herbs, spices, sugar, milk/cream, yogurt, garlic, onion) can be flexed or added as helpers without asking. Precisely-bought ingredients (weighed proteins, packaged portions) cannot change name or amount unless the user explicitly named them — a guardrail validator enforces this after the agent runs.
+
+**Reversal vocabulary:**
+- "swap back" / "undo" / "revert" → reverse only the most recent `SwapRecord`.
+- Named ("put the passata back") → reverse the specific record.
+- "reset to original" / "back to the library recipe" → re-run the scaler, clear all overrides and swap history.
+- Ambiguous "undo" with multiple swaps and no name → clarification listing each swap.
+
+**Multi-batch ambiguity:** when the named ingredient appears in multiple batches, the applier runs the agent once per candidate (in parallel) and packs the decisions into a `PendingSwapMultiBatch`. The pre-filter then commits the user's pick ("both" / "the lunch one" / a recipe name) with zero additional LLM calls.
+
+**Breakfast parity:** breakfast swaps work identically via a `'breakfast'` sentinel target. The applier writes to `plan_sessions.breakfast_override` instead of a batch row. `renderBreakfastCookView` renders per-day amounts.
+
+**Rules:**
+- `session.pendingSwap` is cleared on every lifecycle hook that clears `pendingMutation` (planFlow start, /start, /cancel, etc.) — swaps don't survive flow transitions.
+- The shopping list is a live projection: `generateShoppingList*` reads `batch.scaledIngredients` (auto-propagates batch swaps) and `planSession.breakfastOverride?.scaledIngredientsPerDay` (auto-propagates breakfast swaps).
+- Library recipes in `data/recipes/*.md` are never touched by the swap flow.

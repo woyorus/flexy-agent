@@ -14,7 +14,14 @@
  *    to formatted amounts (e.g., `{olive oil}` → `15ml olive oil`)
  */
 
-import type { Recipe, RecipeIngredient, Batch, ScaledIngredient } from '../models/types.js';
+import type {
+  Recipe,
+  RecipeIngredient,
+  Batch,
+  ScaledIngredient,
+  PlanSession,
+  BreakfastOverride,
+} from '../models/types.js';
 import { esc, escapeRecipeBody } from '../utils/telegram-markdown.js';
 
 /**
@@ -134,15 +141,28 @@ function resolvePlaceholders(
  * `{ingredient_name}` placeholders with batch amounts. Seasoning grouping:
  * unitless or universal-basics seasonings are collapsed onto one line.
  *
+ * Plan 033: Honors `batch.nameOverride` (in the header) and
+ * `batch.bodyOverride` (instead of `recipe.body`) so a post-swap batch
+ * renders the swapped name and steps. When `options.deltaLines` is
+ * non-empty, appends an em-dash horizontal rule + one line per entry as
+ * a footer block — this is how the cook view signals "what just changed"
+ * the moment a swap commits.
+ *
  * @param recipe - The recipe to render
  * @param batch - The batch with scaledIngredients and serving count
+ * @param options - Optional delta block to append on the post-swap render
  * @returns MarkdownV2 formatted string
  */
-export function renderCookView(recipe: Recipe, batch: Batch): string {
+export function renderCookView(
+  recipe: Recipe,
+  batch: Batch,
+  options?: { deltaLines?: string[] },
+): string {
   const parts: string[] = [];
 
-  // Header
-  parts.push(`*${esc(recipe.name)}* — ${batch.servings} servings`);
+  // Header — honors nameOverride when set (Plan 033).
+  const displayName = batch.nameOverride ?? recipe.name;
+  parts.push(`*${esc(displayName)}* — ${batch.servings} servings`);
   parts.push(`_\\~${batch.actualPerServing.calories} cal/serving · ${batch.actualPerServing.protein}g protein_`);
   parts.push(`_Divide into ${batch.servings} equal portions_`);
   parts.push('');
@@ -173,14 +193,98 @@ export function renderCookView(recipe: Recipe, batch: Batch): string {
 
   parts.push('');
 
-  // Body with batch-amount placeholder resolution
-  const body = resolveBatchPlaceholders(recipe.body, batch.scaledIngredients);
+  // Body with batch-amount placeholder resolution. Plan 033: use
+  // bodyOverride when set (the swap agent rewrote steps that referenced
+  // swapped ingredients).
+  const bodyTemplate = batch.bodyOverride ?? recipe.body;
+  const body = resolveBatchPlaceholders(bodyTemplate, batch.scaledIngredients);
   parts.push(escapeRecipeBody(body));
 
   // Storage instructions
   if (recipe.storage) {
     parts.push('');
     parts.push(`_Storage: Fridge ${recipe.storage.fridgeDays} days\\. ${esc(recipe.storage.reheat)}_`);
+  }
+
+  // Plan 033: delta block footer for post-swap renders. Absent on
+  // ordinary cv_<batchId> re-opens — the card permanently reflects the
+  // swapped state via nameOverride/bodyOverride/scaledIngredients, but
+  // only the immediate post-swap reply carries the delta block.
+  if (options?.deltaLines && options.deltaLines.length > 0) {
+    parts.push('');
+    parts.push('———');
+    for (const line of options.deltaLines) {
+      parts.push(esc(line));
+    }
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Plan 033 / Phase 9.4: Render the per-session breakfast as a cook-view-
+ * shaped card. Mirrors `renderCookView` but uses per-day amounts from
+ * `planSession.breakfastOverride` when set (a post-swap breakfast state)
+ * and falls back to the library recipe when no override exists.
+ *
+ * No "servings" line — breakfast is per-day, one "serving" per day.
+ * Emits the delta-block footer identically to `renderCookView`.
+ */
+export function renderBreakfastCookView(
+  recipe: Recipe,
+  planSession: PlanSession,
+  options?: { deltaLines?: string[] },
+): string {
+  const override: BreakfastOverride | undefined = planSession.breakfastOverride;
+  const displayName = override?.nameOverride ?? recipe.name;
+  const ingredients = override?.scaledIngredientsPerDay
+    ?? recipe.ingredients.map((i) => ({
+      name: i.name,
+      amount: i.amount,
+      unit: i.unit,
+      totalForBatch: i.amount,
+      role: i.role,
+    }));
+  const perDayCalories = override?.actualPerDay.calories ?? planSession.breakfast.caloriesPerDay;
+  const perDayProtein = override?.actualPerDay.protein ?? planSession.breakfast.proteinPerDay;
+  const bodyTemplate = override?.bodyOverride ?? recipe.body;
+
+  const parts: string[] = [];
+  parts.push(`*${esc(displayName)}* — breakfast`);
+  parts.push(`_\\~${perDayCalories} cal/day · ${perDayProtein}g protein_`);
+  parts.push('');
+  parts.push(`*Ingredients* \\(per day\\):`);
+
+  const universalBasics = new Set(['salt', 'black pepper', 'pepper']);
+  const groupedSeasonings: string[] = [];
+  const regularIngredients: ScaledIngredient[] = [];
+
+  for (const ing of ingredients) {
+    const isGroupable = ing.role === 'seasoning' &&
+      (!ing.unit || ing.unit === '' || universalBasics.has(ing.name.toLowerCase()));
+    if (isGroupable) {
+      groupedSeasonings.push(ing.name);
+    } else {
+      regularIngredients.push(ing);
+    }
+  }
+  for (const ing of regularIngredients) {
+    parts.push(`  · ${esc(ing.name)} — \`${formatAmount(ing.amount)}${esc(ing.unit)}\``);
+  }
+  if (groupedSeasonings.length > 0) {
+    parts.push(`  · ${esc(groupedSeasonings.join(', '))}`);
+  }
+  parts.push('');
+
+  const body = resolveBatchPlaceholders(bodyTemplate, ingredients);
+  parts.push(escapeRecipeBody(body));
+
+  if (options?.deltaLines && options.deltaLines.length > 0) {
+    parts.push('');
+    parts.push('———');
+    for (const line of options.deltaLines) {
+      parts.push(esc(line));
+    }
   }
 
   return parts.join('\n');

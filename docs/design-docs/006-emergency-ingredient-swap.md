@@ -1,7 +1,8 @@
 # Emergency Ingredient Swap — Batch-level content edits when pantry or store can't match the plan
 
-> Status: draft
+> Status: accepted
 > Date: 2026-04-13
+> Implementation: Plan 033
 > JTBD: C1 "Handle missing ingredients at cook time" (primary). A2 "Build a shopping list" at the in-store variant. Adjacent to A3 "Cook from the plan" — the cook view must reflect what the user will actually cook.
 > PRODUCT_SENSE alignment: "The plan is a living document, not a contract." "The system should bend without breaking." "Low friction comes first." "Calorie precision is a fiction; ballpark is the goal." The feature absorbs the moment where pantry or store diverges from the plan — no waste, no drama, no in-head math.
 

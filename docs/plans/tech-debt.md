@@ -36,3 +36,16 @@
 - **TD-001: Proposer sometimes underfills the week (orphan slots).** Resolved: 2026-04-06 by Plan 011, then superseded by Plan 024+025. Now handled by `validateProposal()` (13 invariants) + LLM retry loop in both the initial proposer and the re-proposer. `fillOrphanSlots`, `restoreMealSlot`, `computeUnexplainedOrphans`, and `plan-utils.ts` all removed in Plan 025. Regression test: scenario 014 (fixture-edited validator retry).
 
 - **TD-002: Scenario 009 calorie deviation (4.3%, isValid=false).** Resolved: 2026-04-06 by Plan 010 (commit `37a8dfc`). The deviation was not caused by carry-over calorie mismatch as originally hypothesized — the actual root cause was the overflow servings leak in `buildSolverInput`, which passed `b.servings` (including overflow days past the horizon) to the solver, inflating `totalSlots` and diluting `perSlotCal`. Plan 010 fixed this by using `b.days.length`. Scenario 009 now shows 0.006% deviation with `isValid: true`. The ~12 cal/slot carry-over gap is structurally correct and well within the 3% tolerance — no threshold adjustment needed.
+
+## TODO: Audit Plan 033 regen-fix-regen cycle for testing efficiency
+
+During Plan 033 implementation we hit a long cycle of: regenerate → see bug → fix code → regenerate → see another bug → fix → regenerate. Several bugs we found this way (guardrail false positives, dispatcher prompt misclassifications, target-resolution issues, batchLines truncation hiding distinctive ingredients) might have been caught much faster by:
+
+- **Pure-function unit tests** for the guardrail validator (`src/utils/swap-format.ts validateSwapAgainstGuardrails`). Inputs are pure JSON; expected outputs are deterministic. No LLM needed. Would have caught: "beef" matching "beef stock", "extra-firm tofu" rejection, reversal-restore guardrail false positive — all in milliseconds.
+- **Pure-function unit tests** for the matcher (`userMentionsLoose` / `userMentionsStrict`) with table-driven cases.
+- **Snapshot tests** for the dispatcher prompt builder — when the prompt content changes, fail loudly so the prompt invalidation is visible BEFORE regen burns a wave of LLM calls.
+- **Property-based tests** for swap-applier target resolution (given a plan + a user message, what target is resolved? deterministic).
+
+The scenario harness should remain the integration backbone — but the inner-loop bug discovery should happen via these cheap deterministic tests. Estimated saving: 10–20× on time during similar plans.
+
+Owner: pickup whenever the next swap-related work starts.

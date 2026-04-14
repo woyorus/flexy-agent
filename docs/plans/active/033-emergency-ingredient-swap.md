@@ -1364,16 +1364,16 @@ Commit: `Plan 033 phase 11: specs, architecture, backlog updates`.
 
 ## Progress
 
-- [ ] Phase 0: Promote proposal to design doc
-- [ ] Phase 1: Data model + persistence (Batch fields, migration, store.updateBatch)
-- [ ] Phase 2: Ingredient-swap sub-agent
-- [ ] Phase 3: Dispatcher `swap_ingredient` action
-- [ ] Phase 4: Swap applier + ask-first/auto-apply policy
-- [ ] Phase 5: Cook-view rendering with delta block
-- [ ] Phase 6: Shopping-list verification
-- [ ] Phase 7: Reversal (undo / named / reset-to-original)
-- [ ] Phase 8: Edge cases (mid-cook, unit, multi-batch, past, no-protein, voice)
-- [ ] Phase 9: Breakfast swaps (parity with batch swaps via `'breakfast'` targetId)
+- [x] Phase 0: Promote proposal to design doc
+- [x] Phase 1: Data model + persistence (Batch fields, migration, store.updateBatch)
+- [x] Phase 2: Ingredient-swap sub-agent
+- [x] Phase 3: Dispatcher `swap_ingredient` action
+- [x] Phase 4: Swap applier + ask-first/auto-apply policy
+- [x] Phase 5: Cook-view rendering with delta block  (delivered inside Phase 4 commit — renderCookView now takes `options.deltaLines` + honors `nameOverride`/`bodyOverride`)
+- [x] Phase 6: Shopping-list verification  (no code change — `generateShoppingList*` reads `batch.scaledIngredients`; breakfast-side change is Phase 9.5)
+- [x] Phase 7: Reversal (undo / named / reset-to-original)  (agent prompt carries the reversal rules; applier's `applyResetToOriginal` re-runs scaleRecipe and clears overrides)
+- [x] Phase 8: Edge cases (mid-cook, unit, multi-batch, past, no-protein, voice)  (agent prompt + past-batch check + multi-batch resolver + guardrail validator cover these)
+- [x] Phase 9: Breakfast swaps (parity with batch swaps via `'breakfast'` targetId)
 - [ ] Phase 10: 21 scenarios (7 core + 3 reversal + 4 agent-decision + 2 pre-filter/state + 1 dispatcher-boundary + 3 fixture-edited guardrails + 1 breakfast)
   - [ ] 066–072 core happy paths
   - [ ] 073–075 reversal

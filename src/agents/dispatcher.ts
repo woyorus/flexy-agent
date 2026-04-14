@@ -69,6 +69,7 @@ export type DispatcherAction =
   | 'out_of_scope'
   | 'return_to_flow'
   | 'mutate_plan'
+  | 'swap_ingredient'
   | 'answer_plan_question'
   | 'answer_recipe_question'
   | 'answer_domain_question'
@@ -100,6 +101,7 @@ export const AVAILABLE_ACTIONS_V0_0_5: readonly DispatcherAction[] = [
   'out_of_scope',
   'return_to_flow',
   'mutate_plan',
+  'swap_ingredient',
   'answer_plan_question',
   'answer_recipe_question',
   'answer_domain_question',
@@ -183,8 +185,23 @@ export interface DispatcherRecipeRow {
 export interface DispatcherPlanSummary {
   horizonStart: string;
   horizonEnd: string;
-  /** Per-batch one-line summaries: "recipe-slug, 3 servings, Thu–Sat dinner". */
+  /**
+   * Per-batch one-line summaries. Format (Plan 033):
+   *   `${batchId}|${recipeSlug} (${name}), ${servings} servings, ${days} ${mealType}, ingredients: <top-5 by role priority>`
+   * The `batchId` prefix lets the LLM produce a `target_batch_id` it knows
+   * is valid for `swap_ingredient`; the ingredient signature lets it bind
+   * an unqualified "no white wine" to a specific batch when the user isn't
+   * on a cook view.
+   */
   batchLines: string[];
+  /**
+   * Plan 033: The per-session breakfast row, formatted the same way as
+   * `batchLines` but using the literal `'breakfast'` sentinel as the id
+   * prefix so the dispatcher can target ingredient swaps at breakfast.
+   * Absent when the active plan has no breakfast recipe resolvable
+   * (should not happen in practice on a confirmed plan).
+   */
+  breakfastLine?: string;
   /** Flex slots as "day mealTime (+N cal flex)". */
   flexLines: string[];
   /** Events as "day mealTime: name (~N cal)". */
@@ -234,6 +251,26 @@ export interface DispatcherContext {
   pendingPostConfirmationClarification?: {
     question: string;
     originalRequest: string;
+  };
+  /**
+   * Plan 033: Summary of a previewed-but-not-applied ingredient swap, set
+   * by `buildDispatcherContext` from `session.pendingSwap`. The dispatcher
+   * reads this to frame the next inbound message as a response to the
+   * preview — a rewrite like "actually use chickpeas" becomes a fresh
+   * `swap_ingredient` carrying the preserved `targetIdHint`. Bare
+   * confirmations and cancellations are intercepted deterministically by
+   * `trySwapPreFilter` before this prompt runs.
+   */
+  pendingSwap?: {
+    kind: 'single' | 'multi_batch';
+    /** For `single`: the batch id or 'breakfast' sentinel the preview targets. */
+    targetIdHint?: string;
+    /** For `multi_batch`: short descriptors the LLM can use to frame the pick. */
+    candidates?: Array<{ id: string; description: string }>;
+    /** Verbatim user message that produced the preview. */
+    originalRequest: string;
+    /** Why the agent previewed instead of auto-applying. */
+    reason: 'ambiguous_target' | 'hedged' | 'unknown_substitute' | 'structural' | 'stale_view';
   };
 }
 
@@ -289,6 +326,22 @@ export type DispatcherDecision =
        * intent and pass through the request verbatim.
        */
       params: { request: string };
+      response?: undefined;
+      reasoning: string;
+    }
+  | {
+      action: 'swap_ingredient';
+      /**
+       * Plan 033: A batch-level ingredient swap ("no white wine, use beef
+       * stock", "they don't have salmon, what should I get?", "skip the
+       * raisins"). `request` passes through the user's verbatim message.
+       * `target_batch_id` is set when the dispatcher can unambiguously bind
+       * to one batch — typically the cook-view's batchId or the single
+       * batch in the plan containing every named ingredient. Set to the
+       * literal `'breakfast'` for a breakfast target (Phase 9). Unset
+       * means the applier must disambiguate against the active plan.
+       */
+      params: { request: string; target_batch_id?: string };
       response?: undefined;
       reasoning: string;
     }
@@ -450,6 +503,51 @@ When NOT to pick:
 
 Precedence with flow_input: during an active planning proposal phase, "move the flex to Sunday" is structurally a mutation request that the existing re-proposer path handles. The applier's in-session branch delegates to the same re-proposer that flow_input would have reached. Pick mutate_plan in both cases — the applier routes by session state, not by the dispatcher's choice. Picking mutate_plan during active planning is NOT a mistake; the applier handles both modes uniformly.
 
+### swap_ingredient  (AVAILABLE)
+The user wants to mutate ONE batch's contents (or the per-session breakfast's contents) without changing WHICH recipe is in that slot: a real-time ingredient substitution, removal, or tweak at the kitchen counter or in the grocery aisle. ALSO covers REVERSAL of any prior swap. Typical triggers:
+- Substitution: "no white wine, use beef stock instead", "instead of parsley, use cilantro", "use tofu instead of chicken breast"
+- Removal: "skip the raisins", "no parsley, I'm out"
+- Help-me-pick: "they don't have salmon, what should I get?"
+- Aisle commit: "got the cod, 320g"
+- Breakfast: "no yogurt, use cottage cheese instead"
+- Reversal: "undo", "swap back", "swap back the wine", "put the passata back", "reset to original", "reset the tagine to the original recipe", "undo the last swap"
+
+REVERSAL ROUTING (load-bearing): when the user types a reversal phrase AND there is an active confirmed plan (lifecycle = active_*, upcoming, or planning with phase=confirmed), ALWAYS pick swap_ingredient. Don't clarify "what do you want to undo?" — let the applier resolve which batch carries the swap history. The applier's reversal logic uses each batch's swapHistory to figure out which prior change to reverse. Routing reversal phrases to clarify is a real UX bug — the user has to repeat themselves.
+
+NAMED-INGREDIENT SUBSTITUTIONS (load-bearing): "instead of X, use Y" / "use Y instead of X" with both X and Y named is ALWAYS swap_ingredient — even when Y is unfamiliar to you ("my grandma's pickled wild garlic", "the homemade kimchi"). The applier's agent will preview-with-honesty when the substitute is unknown. Routing such messages to clarify ("what is pickled wild garlic?") is a real UX bug — the user has already told you what to use.
+
+**Boundary with mutate_plan:** swap_ingredient edits the contents of ONE batch or the breakfast. mutate_plan rearranges WHICH recipes / batches / slots are in the plan.
+- "swap tomorrow's dinner for fish" → mutate_plan (different recipe in the slot).
+- "no white wine, use beef stock" → swap_ingredient (mutates the current batch's contents).
+- "I'm out of salmon" on a cook view of a salmon batch → swap_ingredient (the cook view pins the target).
+- "I'm out of salmon" on the plan view, salmon is in two batches → swap_ingredient (applier does the multi-batch preview).
+- "I'm out of salmon, what should I get?" (shopping surface) → swap_ingredient (help-me-pick mode — applier handles).
+
+Params: { "request": "<verbatim user message, no resolution>", "target_batch_id": "<batch UUID OR the literal 'breakfast' OR omit>" }
+Response: null (the applier renders the updated cook view with a delta block, OR a preview, OR a help-me-pick, OR a clarification)
+
+**When to set target_batch_id:**
+- lastRenderedView.surface === 'cooking' AND lastRenderedView.batchId is present → use that batchId.
+- The user's message names an ingredient that appears in exactly ONE active batch's ingredient list (from PLAN SUMMARY's batches: lines) → use that batch's id.
+- The user's message only concerns the breakfast (names a breakfast-only ingredient like "yogurt" in a typical granola breakfast, AND the PLAN SUMMARY breakfast line lists it) → set to the literal string 'breakfast'.
+
+**When NOT to set target_batch_id:**
+- The message is help-seeking ("what should I use instead of X?") and the target isn't strictly pinned by the cook-view surface — let the applier decide.
+- Multiple batches contain the named ingredient — let the applier's multi-batch preview path handle disambiguation.
+- You are not sure — omit it and let the applier resolve.
+
+**PENDING SWAP framing:** when pendingSwap is present in your context, interpret the next message as a response to the preview. A message that rewrites the swap ("actually use chickpeas instead", "no, cod, 320g") is a fresh swap_ingredient with request = the verbatim text and target_batch_id = pendingSwap.targetIdHint (when that field is set). The applier will drop the prior pendingSwap and re-decide. Bare confirmations ("go ahead", "yes") and bare cancellations ("no", "nevermind") are caught deterministically by the pre-filter before you run — you will not see them.
+
+When to pick swap_ingredient:
+- Any ingredient-level substitution, removal, or tweak on an active batch.
+- Any help-me-pick request at the grocery store about a specific planned ingredient.
+- Any rewrite/confirmation-adjacent message while pendingSwap is set (you only see these when the pre-filter did not match — i.e., rewrite phrasings).
+
+When NOT to pick:
+- Recipe-level swaps or slot moves ("swap tomorrow's dinner for fish", "move the flex") → mutate_plan.
+- Pure questions about a recipe ("can I freeze this?") → answer_recipe_question.
+- The user wants to edit the LIBRARY recipe (not a single instance) → out_of_scope with a "I only change this week's cooking, not the library recipe" deferral.
+
 ### answer_plan_question  (AVAILABLE)
 The user is asking a factual question about their current plan that can be answered from the PLAN SUMMARY in your context — "when's my next cook day?", "what's planned for Thursday dinner?", "what's my weekly target?", "which days am I cooking?". You author the answer inline.
 Params: { "question": string }  (echo the user's question for downstream logging)
@@ -557,6 +655,38 @@ User: "swap tomorrow's dinner for something lighter"
 User: "move the flex to Sunday"
 → { "action": "mutate_plan", "params": { "request": "move the flex to Sunday" }, "response": null, "reasoning": "Post-confirmation flex move." }
 
+(Active flow: none / lifecycle: active_mid / lastRenderedView: cooking/cook_view, batchId: batch-abc-...)
+User: "no white wine, use beef stock instead"
+→ { "action": "swap_ingredient", "params": { "request": "no white wine, use beef stock instead", "target_batch_id": "batch-abc-..." }, "response": null, "reasoning": "Ingredient-level edit on the cook view's batch; cook-view pins the target, substitute is named and common." }
+
+(Active flow: none / lifecycle: active_mid / surface: shopping)
+User: "they don't have salmon, what should I get?"
+→ { "action": "swap_ingredient", "params": { "request": "they don't have salmon, what should I get?" }, "response": null, "reasoning": "Help-me-pick at the grocery store; applier resolves the batch from the single active batch that contains salmon." }
+
+(Active flow: none / lifecycle: active_mid / lastRenderedView: plan/week_overview)
+User: "skip the raisins, I ran out — also no parsley"
+→ { "action": "swap_ingredient", "params": { "request": "skip the raisins, I ran out — also no parsley", "target_batch_id": "batch-tagine-..." }, "response": null, "reasoning": "Compound removal; both ingredients appear together in exactly one active batch (tagine per the PLAN SUMMARY batch line), which is the unambiguous target." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "no yogurt, use cottage cheese instead"
+→ { "action": "swap_ingredient", "params": { "request": "no yogurt, use cottage cheese instead", "target_batch_id": "breakfast" }, "response": null, "reasoning": "Yogurt is only in the breakfast line of the PLAN SUMMARY; target is the per-session breakfast via the 'breakfast' sentinel." }
+
+(pendingSwap: single, targetIdHint: batch-abc-..., reason: structural)
+User: "actually use chickpeas instead"
+→ { "action": "swap_ingredient", "params": { "request": "actually use chickpeas instead", "target_batch_id": "batch-abc-..." }, "response": null, "reasoning": "Rewrite of the previewed swap; carry the target forward. Applier will drop the prior pending and re-decide." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "undo the last swap on the beef tagine"
+→ { "action": "swap_ingredient", "params": { "request": "undo the last swap on the beef tagine" }, "response": null, "reasoning": "Reversal phrase + named batch — applier reads swapHistory and reverses the most-recent record." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "reset the beef tagine back to the original library recipe"
+→ { "action": "swap_ingredient", "params": { "request": "reset the beef tagine back to the original library recipe" }, "response": null, "reasoning": "Reset-to-original is a swap-flow operation — the applier re-runs the scaler and clears overrides." }
+
+(Active flow: none / lifecycle: active_mid)
+User: "instead of parsley, use my grandma's pickled wild garlic"
+→ { "action": "swap_ingredient", "params": { "request": "instead of parsley, use my grandma's pickled wild garlic" }, "response": null, "reasoning": "Named ingredient substitution — both source (parsley) and substitute (pickled wild garlic) are explicitly stated. The agent will preview honestly when the substitute is unknown; do NOT clarify here." }
+
 (Active flow: plan / phase: proposal)
 User: "why so much pasta this week?"
 → { "action": "clarify", "params": {}, "response": "I can tell you what's in your plan but not why — the plan summary doesn't include composition reasoning. Want to swap a recipe or make a change?", "reasoning": "'Why' question about plan composition — the summary has no reasoning history, so answer_plan_question can't answer. Clarify honestly." }
@@ -652,6 +782,10 @@ function buildUserPrompt(ctx: DispatcherContext, userText: string): string {
     );
   }
 
+  if (ctx.pendingSwap) {
+    parts.push(formatPendingSwap(ctx.pendingSwap));
+  }
+
   parts.push(
     `## RECENT TURNS (oldest first)\n${
       ctx.recentTurns.length === 0
@@ -711,11 +845,44 @@ function formatPlanSummary(plan: DispatcherPlanSummary | null): string {
     `weekly target: ${plan.weeklyCalorieTarget} kcal / ${plan.weeklyProteinTarget}g protein`,
     `batches:`,
     ...(plan.batchLines.length ? plan.batchLines.map((l) => `  - ${l}`) : ['  (none)']),
+    ...(plan.breakfastLine
+      ? [`breakfast:`, `  - ${plan.breakfastLine}`]
+      : []),
     `flex slots:`,
     ...(plan.flexLines.length ? plan.flexLines.map((l) => `  - ${l}`) : ['  (none)']),
     `events:`,
     ...(plan.eventLines.length ? plan.eventLines.map((l) => `  - ${l}`) : ['  (none)']),
   ];
+  return lines.join('\n');
+}
+
+/**
+ * Render `DispatcherContext.pendingSwap` as a compact prompt block. Placed
+ * right after the post-confirmation clarification block so the LLM frames
+ * the next inbound message as a response to the preview.
+ */
+function formatPendingSwap(pending: NonNullable<DispatcherContext['pendingSwap']>): string {
+  const lines = [
+    `## PENDING SWAP`,
+    `kind: ${pending.kind}`,
+    `reason: ${pending.reason}`,
+    `originalRequest: "${pending.originalRequest}"`,
+  ];
+  if (pending.targetIdHint) {
+    lines.push(`targetIdHint: ${pending.targetIdHint}`);
+  }
+  if (pending.candidates && pending.candidates.length > 0) {
+    lines.push('candidates:');
+    for (const c of pending.candidates) {
+      lines.push(`  - ${c.id}: ${c.description}`);
+    }
+  }
+  lines.push(
+    'The user\'s next message is in response to this preview. A rewrite',
+    '("actually use X", "no, Y instead") is a fresh swap_ingredient with',
+    'request=verbatim text and (for single-kind pending) target_batch_id=targetIdHint.',
+    'Bare "yes"/"no" were already consumed by the pre-filter; you will not see them.',
+  );
   return lines.join('\n');
 }
 
@@ -768,6 +935,7 @@ function parseDecision(
     'out_of_scope',
     'return_to_flow',
     'mutate_plan',
+    'swap_ingredient',
     'answer_plan_question',
     'answer_recipe_question',
     'answer_domain_question',
@@ -850,6 +1018,23 @@ function parseDecision(
       return {
         action: 'mutate_plan',
         params: { request },
+        reasoning,
+      };
+    }
+
+    case 'swap_ingredient': {
+      if (response !== undefined && response !== '') {
+        throw new Error('swap_ingredient must have response: null (the applier renders the updated cook view, preview, or help-me-pick).');
+      }
+      const request = typeof params.request === 'string' ? params.request.trim() : '';
+      if (!request) {
+        throw new Error('swap_ingredient requires a non-empty "request" string in params.');
+      }
+      const targetRaw = params.target_batch_id;
+      const target_batch_id = typeof targetRaw === 'string' && targetRaw.length > 0 ? targetRaw : undefined;
+      return {
+        action: 'swap_ingredient',
+        params: target_batch_id ? { request, target_batch_id } : { request },
         reasoning,
       };
     }
