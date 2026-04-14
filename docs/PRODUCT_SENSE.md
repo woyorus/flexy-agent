@@ -213,6 +213,14 @@ Precise macro optimization is not a core focus.
 
 The project is not trying to optimize for bodybuilding-style nutritional precision. It is trying to optimize for sustainable fat loss in real life.
 
+### Calorie precision is a fiction; ballpark is the goal
+
+The product cannot hit calorie targets exactly and it should not pretend to. Beef fat content varies from cut to cut. Olive oil pours vary. Restaurant portions are educated guesses. LLM macro estimates are ±10% by nature. The sustainable deficit is won in the ballpark, not by chasing single-digit precision.
+
+The design rule: **within roughly ±10% of any target is noise and is absorbed silently.** The product does not narrate small drifts, does not apologize for them, does not ask the user about them. Beyond ~10%, drifts become planning events worth surfacing, and the product states the tradeoff openly — never silently.
+
+This applies everywhere: recipe scaling, ingredient substitution, event calorie estimates, weekly-budget reporting, meal-prep portioning. Precision is a distraction; adherence to the ballpark is the work.
+
 ---
 
 ## Position on movement

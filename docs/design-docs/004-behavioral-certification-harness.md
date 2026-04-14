@@ -1,6 +1,6 @@
 # Behavioral Certification Harness
 
-> Status: accepted
+> Status: landed
 > Shipped in: [docs/plans/active/031-behavioral-certification-harness.md](../plans/active/031-behavioral-certification-harness.md)
 > Date: 2026-04-13
 > Evolves: design-docs/test-harness-architecture.md (changes framing; preserves layer architecture)
